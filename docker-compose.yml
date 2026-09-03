@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: promptvault
+      POSTGRES_USER: promptvault
+      POSTGRES_PASSWORD: promptvault
+    ports:
+      - "5432:5432"
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgresql://promptvault:promptvault@db:5432/promptvault
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db

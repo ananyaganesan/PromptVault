@@ -1,0 +1,8 @@
+[project]
+name = "promptvault"
+version = "0.1.0"
+description = "Prompt versioning and deployment platform"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["api/tests", "tests"]
