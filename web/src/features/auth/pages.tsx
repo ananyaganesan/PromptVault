@@ -1,0 +1,15 @@
+import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Logo } from '../../components/layout/brand'
+import { Button, Field } from '../../components/ui/prototype'
+
+function AuthPage({ mode }: { mode: 'login' | 'register' }) {
+  const navigate = useNavigate()
+  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+  const update = (setter: (value: string) => void) => (event: ChangeEvent<HTMLInputElement>) => setter(event.target.value.replace(/\s/g, ''))
+  const submit = (event: FormEvent) => { event.preventDefault(); const next: { email?: string; password?: string } = {}; if (!email) next.email = 'Email address is required.'; if (!password) next.password = 'Password is required.'; setErrors(next); if (!next.email && !next.password) navigate('/dashboard') }
+  return <main className={mode === 'login' ? 'auth-main login-page' : 'auth-main'}><form className="auth-card" onSubmit={submit} noValidate>{mode === 'login' && <div className="login-logo"><Logo to="/login" /></div>}<h1>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1><p>{mode === 'login' ? 'Sign in to access your prompts, versions, and deployments.' : 'Join PromptVault to version, collaborate, and ship better prompts.'}</p>{mode === 'register' && <Field label="Display name" placeholder="Your name" />}<Field label="Email address" placeholder="you@company.com" type="email" value={email} onChange={update(setEmail)} error={errors.email} /><Field label="Password" placeholder={mode === 'login' ? 'Enter your password' : 'Create a strong password'} type="password" value={password} onChange={update(setPassword)} error={errors.password} />{mode === 'login' && <div className="form-row"><label className="check"><input type="checkbox" /> Remember me</label><Link to="/forgot-password">Forgot password?</Link></div>}<Button type="submit">{mode === 'login' ? 'Sign in' : 'Create account'}</Button><p className="switch">{mode === 'login' ? "Don't have an account?" : 'Already have an account?'} <Link to={mode === 'login' ? '/register' : '/login'}>{mode === 'login' ? 'Register' : 'Sign in'}</Link></p></form></main>
+}
+export function LoginPage() { return <AuthPage mode="login" /> }
+export function RegisterPage() { return <AuthPage mode="register" /> }
+export function ForgotPasswordPage() { const [sent, setSent] = useState(false); return <main className="auth-main"><div className="auth-card"><h1>Forgot password?</h1><p>{sent ? 'We sent a six-digit verification code to your email.' : 'Enter your email and we’ll send you a one-time verification code.'}</p>{sent ? <><Field label="Verification code" placeholder="000000" /><Button onClick={() => setSent(false)}>Reset password</Button></> : <><Field label="Email address" placeholder="you@company.com" type="email" /><Button onClick={() => setSent(true)}>Send verification code</Button></>}<p className="switch"><Link to="/login">Back to sign in</Link></p></div></main> }
