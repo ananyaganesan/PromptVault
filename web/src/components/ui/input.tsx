@@ -1,0 +1,2 @@
+import type { InputHTMLAttributes } from 'react'
+export function Input({ label, error, id, ...props }: InputHTMLAttributes<HTMLInputElement> & { label?: string; error?: string }) { const inputId = id || (label ? label.toLowerCase().replace(/[^a-z0-9]+/g, '-') : undefined); return <label className="field" htmlFor={inputId}>{label && <span>{label}</span>}<input id={inputId} aria-invalid={Boolean(error)} {...props}/>{error && <small role="alert" className="field-error">{error}</small>}</label> }

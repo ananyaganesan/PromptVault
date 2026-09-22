@@ -1,1 +1,2 @@
 :root{--bg:#f8f7f4;--surface:#fbfaf8;--ink:#17171c;--muted:#6f707a;--border:#dad8d3}
+:root { --pv-background:#f8f7f4; --pv-surface:#fbfaf8; --pv-text:#17171c; --pv-muted:#6f707a; --pv-border:#dad8d3; --pv-radius:2px; --pv-content-width:1240px; --pv-focus:#315f9b; }

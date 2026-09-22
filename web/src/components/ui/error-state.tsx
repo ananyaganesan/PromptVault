@@ -1,0 +1,1 @@
+export function ErrorState({ message = 'Something went wrong.', onRetry }: { message?: string; onRetry?: () => void }) { return <div className="state" role="alert"><strong>{message}</strong>{onRetry && <button className="button secondary" onClick={onRetry}>Try again</button>}</div> }

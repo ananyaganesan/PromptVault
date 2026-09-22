@@ -1,0 +1,2 @@
+import type { ReactNode } from 'react'
+export function Modal({ open, title, children, onClose }: { open: boolean; title: string; children: ReactNode; onClose: () => void }) { if (!open) return null; return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={title}><div className="modal"><button className="modal-close" onClick={onClose} aria-label="Close">×</button><h2>{title}</h2>{children}</div></div> }
