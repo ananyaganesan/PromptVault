@@ -7,6 +7,8 @@ from fastapi import FastAPI
 
 from api.app.config import Settings, get_settings
 from api.app.db.pool import PoolFactory, create_pool
+from api.app.dependencies.request_context import RequestIdMiddleware
+from api.app.errors import install_exception_handlers
 
 
 def create_app(
@@ -28,6 +30,8 @@ def create_app(
 
     application = FastAPI(title="PromptVault API", version="0.1.0", lifespan=lifespan)
     application.state.settings = resolved_settings
+    install_exception_handlers(application)
+    application.add_middleware(RequestIdMiddleware)
     return application
 
 
