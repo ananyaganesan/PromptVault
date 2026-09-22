@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterator
 
 import pytest
@@ -5,7 +6,7 @@ from api.app.config import Settings
 from api.app.dependencies.request_context import get_request_id
 from api.app.errors import AppError
 from api.app.main import create_app
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
@@ -44,6 +45,14 @@ def build_test_app(settings: Settings):
     @app.get("/__test__/explode")
     def explode() -> None:
         raise RuntimeError("database-password")
+
+    @app.get("/__test__/unauthorized")
+    def unauthorized() -> None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     return app
 
@@ -107,9 +116,30 @@ def test_validation_error_uses_nested_field_paths_without_input(app_client: Test
     assert "private-invalid-value" not in response.text
 
 
-def test_unhandled_exception_is_redacted(app_client_no_raise: TestClient) -> None:
-    response = app_client_no_raise.get("/__test__/explode")
+def test_http_exception_preserves_authentication_challenge(app_client: TestClient) -> None:
+    response = app_client.get("/__test__/unauthorized")
+
+    assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
+    assert response.json()["code"] == "unauthorized"
+
+
+def test_unhandled_exception_is_redacted_and_logged_with_request_id(
+    app_client_no_raise: TestClient,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.ERROR, logger="api.app.errors"):
+        response = app_client_no_raise.get("/__test__/explode")
 
     assert response.status_code == 500
     assert response.json()["message"] == "An unexpected error occurred"
     assert "database-password" not in response.text
+    assert response.json()["request_id"] == response.headers["X-Request-ID"]
+    matching_records = [
+        record
+        for record in caplog.records
+        if getattr(record, "request_id", None) == response.headers["X-Request-ID"]
+    ]
+    assert len(matching_records) == 1
+    assert matching_records[0].exception_type == "RuntimeError"
+    assert "database-password" not in matching_records[0].getMessage()

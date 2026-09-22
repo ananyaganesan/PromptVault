@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Annotated, Literal, Self
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     environment: Literal["development", "test", "production"] = "development"
     database_url: str
-    secret_key: str
+    secret_key: str = Field(repr=False)
     api_port: int = 8000
     cors_origins: Annotated[tuple[str, ...], NoDecode] = ("http://localhost:5173",)
     db_pool_min_size: int = 1
@@ -33,8 +33,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_runtime_limits(self) -> Self:
-        if self.db_pool_min_size < 0 or self.db_pool_max_size < self.db_pool_min_size:
-            raise ValueError("database pool sizes must satisfy 0 <= min <= max")
+        if (
+            self.db_pool_min_size < 0
+            or self.db_pool_max_size < 1
+            or self.db_pool_max_size < self.db_pool_min_size
+        ):
+            raise ValueError("database pool sizes must satisfy 0 <= min <= max and max >= 1")
         if self.db_pool_timeout_seconds <= 0 or self.database_health_timeout_seconds <= 0:
             raise ValueError("database timeouts must be positive")
         if self.environment == "production" and (

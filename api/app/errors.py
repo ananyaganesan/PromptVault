@@ -1,5 +1,7 @@
 """Safe public error envelopes and FastAPI exception handlers."""
 
+import logging
+from collections.abc import Mapping
 from http import HTTPStatus
 
 from fastapi import FastAPI, Request
@@ -9,6 +11,8 @@ from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.app.dependencies.request_context import REQUEST_ID_HEADER, get_request_id
+
+logger = logging.getLogger(__name__)
 
 
 class ErrorEnvelope(BaseModel):
@@ -40,6 +44,7 @@ def _error_response(
     code: str,
     message: str,
     field_errors: dict[str, list[str]] | None = None,
+    headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
     request_id = get_request_id(request)
     envelope = ErrorEnvelope(
@@ -48,10 +53,12 @@ def _error_response(
         field_errors=field_errors,
         request_id=request_id,
     )
+    response_headers = dict(headers or {})
+    response_headers[REQUEST_ID_HEADER] = request_id
     return JSONResponse(
         status_code=status_code,
         content=envelope.model_dump(mode="json"),
-        headers={REQUEST_ID_HEADER: request_id},
+        headers=response_headers,
     )
 
 
@@ -92,10 +99,16 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException) -> J
         status_code=exc.status_code,
         code=codes.get(exc.status_code, "bad_request"),
         message=message,
+        headers=exc.headers,
     )
 
 
-async def internal_error_handler(request: Request, _exc: Exception) -> JSONResponse:
+async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    request_id = get_request_id(request)
+    logger.error(
+        "Unhandled API exception",
+        extra={"request_id": request_id, "exception_type": type(exc).__name__},
+    )
     return _error_response(
         request,
         status_code=500,
