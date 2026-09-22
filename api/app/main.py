@@ -4,11 +4,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.app.config import Settings, get_settings
 from api.app.db.pool import PoolFactory, create_pool
 from api.app.dependencies.request_context import RequestIdMiddleware
 from api.app.errors import install_exception_handlers
+from api.app.routers.health import router as health_router
 
 
 def create_app(
@@ -28,10 +30,26 @@ def create_app(
         finally:
             await pool.close()
 
-    application = FastAPI(title="PromptVault API", version="0.1.0", lifespan=lifespan)
+    expose_docs = resolved_settings.environment != "production"
+    application = FastAPI(
+        title="PromptVault API",
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/docs" if expose_docs else None,
+        redoc_url="/redoc" if expose_docs else None,
+        openapi_url="/openapi.json" if expose_docs else None,
+    )
     application.state.settings = resolved_settings
     install_exception_handlers(application)
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(resolved_settings.cors_origins),
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    )
     application.add_middleware(RequestIdMiddleware)
+    application.include_router(health_router)
     return application
 
 
