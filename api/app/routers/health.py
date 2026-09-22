@@ -4,22 +4,35 @@ from typing import Annotated
 
 from api.app.db.health import check_database
 from api.app.db.pool import PoolProtocol, get_pool
-from api.app.errors import AppError
+from api.app.errors import AppError, ErrorEnvelope
 from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel
 
 router = APIRouter(tags=["operations"])
 
 
-@router.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+class HealthResponse(BaseModel):
+    status: str
 
 
-@router.get("/ready")
+class ReadinessResponse(HealthResponse):
+    database: str
+
+
+@router.get("/health", response_model=HealthResponse)
+async def health() -> HealthResponse:
+    return HealthResponse(status="ok")
+
+
+@router.get(
+    "/ready",
+    response_model=ReadinessResponse,
+    responses={503: {"model": ErrorEnvelope, "description": "Database is unavailable"}},
+)
 async def readiness(
     request: Request,
     pool: Annotated[PoolProtocol, Depends(get_pool)],
-) -> dict[str, str]:
+) -> ReadinessResponse:
     try:
         await check_database(
             pool,
@@ -27,4 +40,4 @@ async def readiness(
         )
     except Exception as exc:
         raise AppError(503, "not_ready", "Database readiness check failed") from exc
-    return {"status": "ready", "database": "ok"}
+    return ReadinessResponse(status="ready", database="ok")

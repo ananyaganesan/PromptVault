@@ -10,6 +10,7 @@ from api.app.config import Settings, get_settings
 from api.app.db.pool import PoolFactory, create_pool
 from api.app.dependencies.request_context import RequestIdMiddleware
 from api.app.errors import install_exception_handlers
+from api.app.logging_config import RequestLoggingMiddleware, configure_logging
 from api.app.routers.health import router as health_router
 
 
@@ -19,6 +20,8 @@ def create_app(
     pool_factory: PoolFactory = create_pool,
 ) -> FastAPI:
     resolved_settings = settings or get_settings()
+    if resolved_settings.environment != "test":
+        configure_logging(resolved_settings.log_level)
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -48,6 +51,7 @@ def create_app(
         allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
+    application.add_middleware(RequestLoggingMiddleware)
     application.add_middleware(RequestIdMiddleware)
     application.include_router(health_router)
     return application

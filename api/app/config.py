@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     db_pool_max_size: int = 10
     db_pool_timeout_seconds: float = 5.0
     database_health_timeout_seconds: float = 2.0
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -50,7 +51,8 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    # Required values are supplied by BaseSettings from the environment.
+    return Settings()  # type: ignore[call-arg]
 
 
 def clear_settings_cache() -> None:

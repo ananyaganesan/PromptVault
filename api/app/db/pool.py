@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from api.app.config import Settings
 from fastapi import Request
@@ -32,4 +32,4 @@ def create_pool(settings: Settings) -> AsyncConnectionPool:
 
 
 def get_pool(request: Request) -> PoolProtocol:
-    return request.app.state.db_pool
+    return cast(PoolProtocol, request.app.state.db_pool)

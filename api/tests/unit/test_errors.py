@@ -128,7 +128,7 @@ def test_unhandled_exception_is_redacted_and_logged_with_request_id(
     app_client_no_raise: TestClient,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    with caplog.at_level(logging.ERROR, logger="api.app.errors"):
+    with caplog.at_level(logging.ERROR, logger="promptvault.error"):
         response = app_client_no_raise.get("/__test__/explode")
 
     assert response.status_code == 500

@@ -40,11 +40,15 @@ Dependencies point inward. Routers may depend on schemas, services, and authoriz
 - `api.app.config` validates environment, database, CORS, pool, timeout, and production-secret settings.
 - `api.app.main.create_app` builds the service and owns the pool lifespan; `api.app.main:app` is the Uvicorn entrypoint.
 - `api.app.db.pool` constructs one asynchronous Psycopg pool and exposes it through request state.
+- `api.app.db.migrations` discovers ordered SQL files, validates immutable checksums, serializes runners with an advisory lock, and records each applied migration transactionally.
+- `api.app.db.commands` provides atomic seed and guarded development-reset operations.
 - `api.app.dependencies.request_context` validates or creates request IDs and returns them on responses.
 - `api.app.errors` provides the public error envelope and redacts validation inputs and unexpected failures.
+- `api.app.logging_config` emits allowlisted JSON request/error events without request bodies, query strings, secrets, or exception messages.
 - `api.app.routers.health` separates process liveness from bounded database readiness.
+- `api.app.openapi` produces the deterministic `docs/openapi.json` frontend contract artifact.
 
-The application currently has only operational routes. Versioned product routers begin after the migration and authentication foundations.
+The application currently has only operational routes. Versioned product routers begin with the authentication batch.
 
 ## Primary data flow
 

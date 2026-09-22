@@ -12,7 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.app.dependencies.request_context import REQUEST_ID_HEADER, get_request_id
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("promptvault.error")
 
 
 class ErrorEnvelope(BaseModel):
@@ -118,7 +118,15 @@ async def internal_error_handler(request: Request, exc: Exception) -> JSONRespon
 
 
 def install_exception_handlers(application: FastAPI) -> None:
-    application.add_exception_handler(AppError, app_error_handler)
-    application.add_exception_handler(RequestValidationError, validation_error_handler)
-    application.add_exception_handler(StarletteHTTPException, http_error_handler)
+    # FastAPI's registration API types all handlers as accepting Exception, while
+    # dispatch preserves the narrower registered exception class at runtime.
+    application.add_exception_handler(AppError, app_error_handler)  # type: ignore[arg-type]
+    application.add_exception_handler(
+        RequestValidationError,
+        validation_error_handler,  # type: ignore[arg-type]
+    )
+    application.add_exception_handler(
+        StarletteHTTPException,
+        http_error_handler,  # type: ignore[arg-type]
+    )
     application.add_exception_handler(Exception, internal_error_handler)
