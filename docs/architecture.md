@@ -35,6 +35,17 @@ Dependencies point inward. Routers may depend on schemas, services, and authoriz
 - Serve authentication uses a separate high-entropy bearer token. Only its SHA-256 hash is stored.
 - Every protected write opens one database transaction and runs `SET LOCAL app.user_id = ...` before audited mutations.
 
+### Implemented API foundation
+
+- `api.app.config` validates environment, database, CORS, pool, timeout, and production-secret settings.
+- `api.app.main.create_app` builds the service and owns the pool lifespan; `api.app.main:app` is the Uvicorn entrypoint.
+- `api.app.db.pool` constructs one asynchronous Psycopg pool and exposes it through request state.
+- `api.app.dependencies.request_context` validates or creates request IDs and returns them on responses.
+- `api.app.errors` provides the public error envelope and redacts validation inputs and unexpected failures.
+- `api.app.routers.health` separates process liveness from bounded database readiness.
+
+The application currently has only operational routes. Versioned product routers begin after the migration and authentication foundations.
+
 ## Primary data flow
 
 ### Save a prompt version

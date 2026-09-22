@@ -21,9 +21,9 @@
 
 ## Review gate
 
-- [ ] Jobin and Ananya review the shared contract for frontend compatibility.
-- [ ] Resolve any proposed changes through `contract-questions.md`.
-- [ ] Freeze Batch 0 and begin the Batch 1 FastAPI foundation plan.
+- [x] Jobin reviewed and approved the shared contract before starting Batch 1.
+- [x] No unresolved contract changes remain; future proposals use `contract-questions.md`.
+- [x] Batch 0 is frozen and Batch 1 implementation has started.
 
 ## Batch 0 outputs
 
