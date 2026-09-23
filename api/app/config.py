@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     db_pool_max_size: int = 10
     db_pool_timeout_seconds: float = 5.0
     database_health_timeout_seconds: float = 2.0
+    provider_timeout_seconds: float = 30.0
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     @field_validator("cors_origins", mode="before")
@@ -43,8 +44,12 @@ class Settings(BaseSettings):
             or self.db_pool_max_size < self.db_pool_min_size
         ):
             raise ValueError("database pool sizes must satisfy 0 <= min <= max and max >= 1")
-        if self.db_pool_timeout_seconds <= 0 or self.database_health_timeout_seconds <= 0:
-            raise ValueError("database timeouts must be positive")
+        if (
+            self.db_pool_timeout_seconds <= 0
+            or self.database_health_timeout_seconds <= 0
+            or self.provider_timeout_seconds <= 0
+        ):
+            raise ValueError("database and provider timeouts must be positive")
         if self.access_token_ttl_minutes <= 0:
             raise ValueError("access token lifetime must be positive")
         if self.environment == "production" and (

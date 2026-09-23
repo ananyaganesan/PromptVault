@@ -56,8 +56,12 @@ Dependencies point inward. Routers may depend on schemas, services, and authoriz
 - `api.app.services.projects` owns project/member workflows and audit attribution.
 - `api.app.services.prompt_versioning` owns prompt metadata, variable extraction, immutable version creation, structured diff, and recursive lineage.
 - `api.app.routers.projects`, `prompts`, and `versions` expose the Phase 2 HTTP contract.
+- `api.app.providers` defines the bounded provider interface and deterministic mock behavior.
+- `api.app.repositories.runs`, `pricing`, and `budgets` resolve scoped targets, effective prices, and append-only ledger data.
+- `api.app.services.playground`, `budget_enforcement`, and `analytics` orchestrate safe rendering, execution, atomic admission, and live personal aggregates.
+- `api.app.routers.runs` and `dashboard` expose the Phase 3 HTTP contract.
 
-Operational, authentication, project/member, prompt, and version routes are implemented. Run, deployment, Serve, and governance routers build on these foundations in later batches.
+Operational, authentication, project/member, prompt/version, run, and personal-dashboard routes are implemented. Deployment, Serve, and governance routers build on these foundations in later batches.
 
 ## Primary data flow
 
@@ -73,10 +77,10 @@ Operational, authentication, project/member, prompt, and version routes are impl
 ### Execute a version
 
 1. Authorization and exact variable matching are checked before provider use.
-2. Applicable user and project budgets are pre-checked to avoid a known charge.
-3. The selected provider adapter executes the rendered prompt.
-4. PostgreSQL calculates historical cost from the effective model price.
-5. The run ledger insertion performs the authoritative budget check and records success, failure, or blocked status.
+2. The effective provider/model price is selected for the execution timestamp.
+3. The selected provider adapter executes within a configured timeout.
+4. Token usage and the effective price produce a six-decimal historical cost snapshot.
+5. The run ledger insertion locks applicable user/project budgets, performs the authoritative admission check, and records success, failure, or blocked status atomically.
 
 ### Deploy and serve
 
@@ -108,6 +112,8 @@ The executable migrations in `db/migrations/` now provide the complete v1 storag
 Concurrency-sensitive writes use database functions rather than read-then-write application sequences. Prompt rows serialize version numbering, prompt/deployment rows serialize activation and review, and budget rows serialize spend admission. Immutable version/run history and audit attribution are enforced with triggers even if a future repository attempts an unsafe write.
 
 Project-member and prompt-member access rows are locked for the lifetime of scoped write transactions. Concurrent membership removal therefore waits for an already-authorized mutation to commit, while a mutation that begins after removal is rejected. Direct prompt/version reads include membership scope in the lookup and use the same not-found result for inaccessible and unknown identifiers.
+
+Provider execution uses no database connection: short transactions load the immutable version and effective price before the call, then revalidate and lock current user/membership access while recording the result. Completed run insertion uses the `SECURITY DEFINER` `record_run` function as the application role's only budget-admission boundary. Applicable budget rows are locked in deterministic order before timezone-correct monthly spend is read, so concurrent executions cannot overspend either a user or project limit. Failure and blocked rows commit before the client receives a normalized 502/504 or 409 response.
 
 ## Testing boundaries
 

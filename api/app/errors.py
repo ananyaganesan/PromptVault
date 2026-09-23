@@ -14,7 +14,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from api.app.dependencies.request_context import REQUEST_ID_HEADER, get_request_id
 
 logger = logging.getLogger("promptvault.error")
-_FILTER_QUERY_FIELDS = {"page", "page_size", "sort", "direction", "search"}
 _ERROR_RESPONSE_DESCRIPTIONS = {
     400: "Bad Request",
     401: "Unauthorized",
@@ -104,12 +103,7 @@ async def validation_error_handler(
     for error in exc.errors():
         field = ".".join(str(part) for part in error["loc"])
         field_errors.setdefault(field, []).append(error["msg"])
-    invalid_filter = any(
-        len(error["loc"]) >= 2
-        and error["loc"][0] == "query"
-        and error["loc"][1] in _FILTER_QUERY_FIELDS
-        for error in exc.errors()
-    )
+    invalid_filter = any(error["loc"] and error["loc"][0] == "query" for error in exc.errors())
     return _error_response(
         request,
         status_code=400 if invalid_filter else 422,

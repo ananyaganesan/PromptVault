@@ -27,6 +27,11 @@ def test_settings_reject_zero_maximum_pool_size() -> None:
         Settings(**BASE, db_pool_min_size=0, db_pool_max_size=0)
 
 
+def test_settings_reject_nonpositive_provider_timeout() -> None:
+    with pytest.raises(ValidationError):
+        Settings(**BASE, provider_timeout_seconds=0)
+
+
 def test_production_rejects_placeholder_secret() -> None:
     values = {**BASE, "environment": "production", "secret_key": "change-me"}
 

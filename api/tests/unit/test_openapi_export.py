@@ -38,6 +38,9 @@ def test_export_openapi_writes_deterministic_frontend_contract(
     assert "/api/v1/versions/{version_id}" in document["paths"]
     assert "/api/v1/versions/{version_id}/diff" in document["paths"]
     assert "/api/v1/versions/{version_id}/lineage" in document["paths"]
+    assert "/api/v1/runs" in document["paths"]
+    assert "/api/v1/runs/{run_id}" in document["paths"]
+    assert "/api/v1/dashboard/me" in document["paths"]
     project_list_responses = document["paths"]["/api/v1/projects"]["get"]["responses"]
     assert {"200", "400", "401", "403", "422"}.issubset(project_list_responses)
     for status_code in ("400", "401", "403", "422"):
@@ -48,6 +51,14 @@ def test_export_openapi_writes_deterministic_frontend_contract(
     assert project_create_responses["409"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/ErrorEnvelope"
     }
+    run_create_responses = document["paths"]["/api/v1/runs"]["post"]["responses"]
+    assert {"201", "401", "404", "409", "422", "502", "504"}.issubset(
+        run_create_responses
+    )
+    for status_code in ("409", "502", "504"):
+        assert run_create_responses[status_code]["content"]["application/json"]["schema"] == {
+            "$ref": "#/components/schemas/ErrorEnvelope"
+        }
     assert "ErrorEnvelope" in document["components"]["schemas"]
     register_fields = document["components"]["schemas"]["RegisterRequest"]["properties"]
     assert set(register_fields) == {"email", "password", "display_name"}

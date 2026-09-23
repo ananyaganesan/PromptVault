@@ -168,10 +168,10 @@ A task is complete only when:
 
 ### Jobin — execution ledger and budget rules
 
-- [ ] **J3.1 — Implement provider abstraction and deterministic mock (1 day).** Complete the base/factory/mock provider flow with stable test output, token accounting, latency, timeout/error translation, and optional Gemini adapter behind configuration.
-- [ ] **J3.2 — Implement run ledger and execution transaction (1 day).** Render variables safely, execute the provider, store status/output/tokens/latency/model/pricing/cost/user/project, and never store provider secrets.
-- [ ] **J3.3 — Implement effective-dated pricing and atomic budgets (1 day).** Add user/project monthly limits, decimal cost calculation, applicable price lookup, and database-boundary enforcement that remains correct under concurrent runs.
-- [ ] **J3.4 — Implement run and personal-dashboard APIs with tests (1 day).** Add scoped filters/pagination and aggregate queries; test calculation precision, blocked runs, provider failures, authorization, and concurrent budget consumption.
+- [x] **J3.1 — Implement provider abstraction and deterministic mock (1 day).** Complete the base/factory/mock provider flow with stable test output, token accounting, latency, timeout/error translation, and optional Gemini adapter behind configuration.
+- [x] **J3.2 — Implement run ledger and execution transaction (1 day).** Render variables safely, execute the provider, store status/output/tokens/latency/model/pricing/cost/user/project, and never store provider secrets.
+- [x] **J3.3 — Implement effective-dated pricing and atomic budgets (1 day).** Add user/project monthly limits, decimal cost calculation, applicable price lookup, and database-boundary enforcement that remains correct under concurrent runs.
+- [x] **J3.4 — Implement run and personal-dashboard APIs with tests (1 day).** Add scoped filters/pagination and aggregate queries; test calculation precision, blocked runs, provider failures, authorization, and concurrent budget consumption.
 
 ### Phase 3 exit criteria
 

@@ -19,9 +19,10 @@ Prompt versioning, evaluation, deployment, and serving platform.
 | 2 | PostgreSQL migrations, constraints, indexes, triggers, concurrency functions, views, roles, and development seeds | Complete |
 | 3 | Argon2id/JWT authentication, register/login/me endpoints, active-user checks, and reusable admin/project authorization dependencies | Complete |
 | 4 | Scoped project/member CRUD, prompt metadata, immutable versions, history, diff, lineage, and concurrency-safe version saves | Complete |
-| 5+ | Run, budget, deployment, Serve, and administration APIs | Not yet implemented |
+| 5 | Deterministic providers, run ledger, effective pricing, atomic budgets, scoped run APIs, and personal dashboard | Complete |
+| 6+ | Deployment, Serve, and administration APIs | Not yet implemented |
 
-The database schema covers the complete v1 data model, but the application modules for Batch 5 and later are still placeholders. The currently runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, and immutable prompt versions under `/api/v1`.
+The database schema covers the complete v1 data model. The runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, immutable prompt versions, deterministic execution, scoped run history, and the personal dashboard under `/api/v1`. Deployment, Serve, and governance application modules remain for later batches.
 
 ## API development
 
@@ -38,7 +39,7 @@ python3 scripts/seed-database.py
 uvicorn api.app.main:app --reload --port 8000
 ```
 
-The required settings are `DATABASE_URL` and `SECRET_KEY`. `.env.example` also documents the token lifetime/issuer/audience, environment name, allowed CORS origins, database-pool bounds, and database-health timeout. Production refuses the placeholder signing secret and requires at least 32 characters.
+The required settings are `DATABASE_URL` and `SECRET_KEY`. `.env.example` also documents the token lifetime/issuer/audience, environment name, allowed CORS origins, database-pool bounds, database-health timeout, and provider timeout. Production refuses the placeholder signing secret and requires at least 32 characters.
 
 Operational endpoints:
 
@@ -47,6 +48,8 @@ Operational endpoints:
 - `/docs`, `/redoc`, and `/openapi.json` are available outside production.
 
 Authentication endpoints are rooted at `/api/v1/auth`: `POST /register`, `POST /login`, and bearer-protected `GET /me`. Access tokens are short-lived HS256 JWTs; the database user is reloaded on every protected request so role changes and deactivation take effect immediately.
+
+Run endpoints are rooted at `/api/v1/runs`. `POST /runs` renders an immutable version using exact variable keys, executes the deterministic mock provider through a bounded provider interface, snapshots tokens/latency/model/cost, and records completed, failed, or budget-blocked ledger rows. `GET /runs` and `GET /runs/{id}` enforce owner/project-member scope; `GET /api/v1/dashboard/me` returns live personal monthly aggregates and recent runs.
 
 API startup expects the configured PostgreSQL server to be reachable because the connection pool opens during application lifespan. Requests are logged as redacted JSON with their method, path, status, duration, and request ID; query strings and request bodies are not logged.
 
@@ -64,7 +67,7 @@ python3 scripts/reset-development.py --confirm-reset
 
 Migration history is stored in `schema_migrations`. Applied files are protected by SHA-256 checksums, migration execution is serialized with a PostgreSQL advisory lock, and each migration is atomic. The reset command refuses non-development environments and requires `--confirm-reset`.
 
-The ten migrations create the complete v1 relational schema, constraints, partitions, concurrency functions, audit triggers, reporting views, and database roles. Seed files use numeric prefixes so identities are always loaded before dependent demo data.
+The eleven migrations create the complete v1 relational schema, constraints, partitions, concurrency functions, audit triggers, reporting views, and database roles. The final run-boundary migration makes budget enforcement DST-safe and removes direct application-role ledger insertion. Seed files use numeric prefixes so identities are always loaded before dependent demo data.
 
 Development seed accounts:
 
