@@ -3,6 +3,7 @@
 import logging
 from collections.abc import Mapping
 from http import HTTPStatus
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -13,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from api.app.dependencies.request_context import REQUEST_ID_HEADER, get_request_id
 
 logger = logging.getLogger("promptvault.error")
+_FILTER_QUERY_FIELDS = {"page", "page_size", "sort", "direction", "search"}
 
 
 class ErrorEnvelope(BaseModel):
@@ -20,6 +22,12 @@ class ErrorEnvelope(BaseModel):
     message: str
     field_errors: dict[str, list[str]] | None = None
     request_id: str
+
+
+def error_responses(*status_codes: int) -> dict[int | str, dict[str, Any]]:
+    """Describe the application's real public error envelope in OpenAPI."""
+
+    return {status_code: {"model": ErrorEnvelope} for status_code in status_codes}
 
 
 class AppError(Exception):
@@ -82,11 +90,17 @@ async def validation_error_handler(
     for error in exc.errors():
         field = ".".join(str(part) for part in error["loc"])
         field_errors.setdefault(field, []).append(error["msg"])
+    invalid_filter = any(
+        len(error["loc"]) >= 2
+        and error["loc"][0] == "query"
+        and error["loc"][1] in _FILTER_QUERY_FIELDS
+        for error in exc.errors()
+    )
     return _error_response(
         request,
-        status_code=422,
-        code="validation_error",
-        message="Request is invalid",
+        status_code=400 if invalid_filter else 422,
+        code="invalid_filter" if invalid_filter else "validation_error",
+        message="Query filter is invalid" if invalid_filter else "Request is invalid",
         field_errors=field_errors,
     )
 

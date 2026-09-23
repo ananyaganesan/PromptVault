@@ -52,8 +52,12 @@ Dependencies point inward. Routers may depend on schemas, services, and authoriz
 - `api.app.services.auth` implements register/login without accepting a client role.
 - `api.app.dependencies.auth` reloads the active database user for every protected request.
 - `api.app.dependencies.authorization` provides active Super Admin and project member/owner guards.
+- `api.app.repositories.projects`, `prompts`, and `versions` provide parameterized, membership-scoped persistence and deterministic pagination.
+- `api.app.services.projects` owns project/member workflows and audit attribution.
+- `api.app.services.prompt_versioning` owns prompt metadata, variable extraction, immutable version creation, structured diff, and recursive lineage.
+- `api.app.routers.projects`, `prompts`, and `versions` expose the Phase 2 HTTP contract.
 
-Operational and `/api/v1/auth` routes are implemented. Project and later product routers build on the shared authorization dependencies.
+Operational, authentication, project/member, prompt, and version routes are implemented. Run, deployment, Serve, and governance routers build on these foundations in later batches.
 
 ## Primary data flow
 
@@ -102,6 +106,8 @@ Expected application failures map to 400, 401, 403, 404, 409, or 422. Provider a
 The executable migrations in `db/migrations/` now provide the complete v1 storage shape. UUID-backed identity, project, prompt, governance, token, deployment, and audit tables are normalized; the append-only run ledger is partitioned monthly. Composite foreign keys prevent cross-prompt parent/deployment references, effective-date exclusion constraints prevent overlapping prices, and partial unique indexes enforce one active deployment and one budget per target.
 
 Concurrency-sensitive writes use database functions rather than read-then-write application sequences. Prompt rows serialize version numbering, prompt/deployment rows serialize activation and review, and budget rows serialize spend admission. Immutable version/run history and audit attribution are enforced with triggers even if a future repository attempts an unsafe write.
+
+Project-member and prompt-member access rows are locked for the lifetime of scoped write transactions. Concurrent membership removal therefore waits for an already-authorized mutation to commit, while a mutation that begins after removal is rejected. Direct prompt/version reads include membership scope in the lookup and use the same not-found result for inaccessible and unknown identifiers.
 
 ## Testing boundaries
 

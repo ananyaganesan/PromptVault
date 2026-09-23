@@ -27,6 +27,26 @@ def test_export_openapi_writes_deterministic_frontend_contract(
     assert "/api/v1/auth/register" in document["paths"]
     assert "/api/v1/auth/login" in document["paths"]
     assert "/api/v1/auth/me" in document["paths"]
+    assert "/api/v1/projects" in document["paths"]
+    assert "/api/v1/projects/{project_id}" in document["paths"]
+    assert "/api/v1/projects/{project_id}/members" in document["paths"]
+    assert "/api/v1/projects/{project_id}/members/{user_id}" in document["paths"]
+    assert "/api/v1/projects/{project_id}/prompts" in document["paths"]
+    assert "/api/v1/prompts/{prompt_id}" in document["paths"]
+    assert "/api/v1/prompts/{prompt_id}/versions" in document["paths"]
+    assert "/api/v1/versions/{version_id}" in document["paths"]
+    assert "/api/v1/versions/{version_id}/diff" in document["paths"]
+    assert "/api/v1/versions/{version_id}/lineage" in document["paths"]
+    project_list_responses = document["paths"]["/api/v1/projects"]["get"]["responses"]
+    assert {"200", "400", "401", "403", "422"}.issubset(project_list_responses)
+    for status_code in ("400", "401", "403", "422"):
+        schema = project_list_responses[status_code]["content"]["application/json"]["schema"]
+        assert schema == {"$ref": "#/components/schemas/ErrorEnvelope"}
+    project_create_responses = document["paths"]["/api/v1/projects"]["post"]["responses"]
+    assert {"201", "401", "403", "409", "422"}.issubset(project_create_responses)
+    assert project_create_responses["409"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ErrorEnvelope"
+    }
     assert "ErrorEnvelope" in document["components"]["schemas"]
     register_fields = document["components"]["schemas"]["RegisterRequest"]["properties"]
     assert set(register_fields) == {"email", "password", "display_name"}

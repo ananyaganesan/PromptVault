@@ -18,9 +18,10 @@ Prompt versioning, evaluation, deployment, and serving platform.
 | 1 | FastAPI settings, database pool, request IDs, structured errors/logging, CORS, health/readiness, and test tooling | Complete |
 | 2 | PostgreSQL migrations, constraints, indexes, triggers, concurrency functions, views, roles, and development seeds | Complete |
 | 3 | Argon2id/JWT authentication, register/login/me endpoints, active-user checks, and reusable admin/project authorization dependencies | Complete |
-| 4+ | Project, prompt, version, run, budget, deployment, Serve, and administration APIs | Not yet implemented |
+| 4 | Scoped project/member CRUD, prompt metadata, immutable versions, history, diff, lineage, and concurrency-safe version saves | Complete |
+| 5+ | Run, budget, deployment, Serve, and administration APIs | Not yet implemented |
 
-The database schema covers the complete v1 data model, but the application modules for Batch 4 and later are still placeholders. The currently runnable backend surface is `/health`, `/ready`, and `/api/v1/auth/*`.
+The database schema covers the complete v1 data model, but the application modules for Batch 5 and later are still placeholders. The currently runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, and immutable prompt versions under `/api/v1`.
 
 ## API development
 

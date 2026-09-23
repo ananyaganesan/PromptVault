@@ -1,6 +1,6 @@
 # Authorization matrix (Phase 0)
 
-Stored roles are `user` and `admin`; the UI label for `admin` is Super Admin. Inactive users fail every JWT-protected operation. Missing/invalid authentication returns 401; valid authentication without scope returns 403. Repositories scope queries before returning data so object-ID guessing cannot bypass membership.
+Stored roles are `user` and `admin`; the UI label for `admin` is Super Admin. Inactive users fail every JWT-protected operation. Missing/invalid authentication returns 401; valid authentication without scope generally returns 403. Direct prompt/version lookup returns the same 404 for unknown and inaccessible IDs so object-ID guessing cannot reveal their existence. Repositories scope those queries before returning data.
 
 | Endpoint group | Anonymous | User | Admin | Required scope |
 |---|---:|---:|---:|---|
