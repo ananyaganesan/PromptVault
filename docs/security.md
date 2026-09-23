@@ -14,6 +14,8 @@ The token role is informational, not authoritative. Every protected request load
 - Inactive users return `403 inactive_user`.
 - Normal users attempting an admin operation return `403 forbidden`.
 - Project-member and project-owner dependencies query scoped relationships using parameterized SQL. Super Admin bypass is explicit in those dependencies.
+- Direct prompt/version lookups apply membership scope in the SQL statement and return the same not-found response for inaccessible and unknown IDs.
+- Scoped mutations lock the relevant membership row so removal cannot race between authorization and the write.
 - Registration rejects unknown fields, so clients cannot supply a role or active status.
 
 ## Stored and logged secrets

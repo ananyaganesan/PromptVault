@@ -13,6 +13,9 @@ from api.app.errors import install_exception_handlers
 from api.app.logging_config import RequestLoggingMiddleware, configure_logging
 from api.app.routers.auth import router as auth_router
 from api.app.routers.health import router as health_router
+from api.app.routers.projects import router as projects_router
+from api.app.routers.prompts import router as prompts_router
+from api.app.routers.versions import router as versions_router
 
 
 def create_app(
@@ -56,6 +59,9 @@ def create_app(
     application.add_middleware(RequestIdMiddleware)
     application.include_router(health_router)
     application.include_router(auth_router)
+    application.include_router(projects_router)
+    application.include_router(prompts_router)
+    application.include_router(versions_router)
     return application
 
 

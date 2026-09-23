@@ -1,16 +1,18 @@
 # PromptVault
 
-PromptVault is a prompt versioning, evaluation, deployment, and serving platform in development. The React frontend is a runnable, in-memory prototype for User and Super Admin workflows. The FastAPI backend now has a PostgreSQL schema, development seeds, health checks, and authentication endpoints; the remaining application APIs are still being built.
+PromptVault is a prompt versioning, evaluation, deployment, and serving platform in development. The React frontend supports database-backed authentication and uses in-memory prototype data for the remaining workflows. The FastAPI backend has a PostgreSQL schema, development seeds, health checks, authentication, projects, prompts, and immutable prompt versions; later application APIs are still being built.
 
 ## Implementation status
 
 | Area | Available now | Still to build |
 | --- | --- | --- |
 | Frontend | Responsive user and admin demo, database-backed login and registration through FastAPI, typed API client, unit and browser tests | Integration of projects, prompts, runs, deployments, and governance with their future APIs |
-| API | Configuration, database pool, health/readiness, request logging and errors, JWT registration/login/current-user endpoints, authorization dependencies | Project, prompt, version, run, deployment, budget, Serve, and governance endpoints |
+| API | Configuration, database pool, health/readiness, request logging and errors, JWT authentication, scoped projects and members, prompts, and immutable versions | Run, deployment, budget, Serve, and governance endpoints |
 | Database | Ten migrations, constraints, triggers, functions, views, roles, and development/demo seeds | Integration of the remaining API workflows |
 
 Login and registration use the FastAPI authentication endpoints by default. The other frontend workflows still use in-memory prototype data. A separate opt-in demo auth mode retains the old browser-only accounts for walkthroughs and UI tests.
+
+Backend batches 0–4 are complete. Batch 4 adds project/member CRUD, prompt metadata, immutable versions, history, diff, lineage, and concurrency-safe version saves. Run, budget, deployment, Serve, and administration APIs remain unimplemented.
 
 ## Project structure
 
@@ -113,6 +115,7 @@ Available API routes:
 - `GET /health`: process liveness, without a database query.
 - `GET /ready`: database readiness; returns 503 when PostgreSQL is unavailable.
 - `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, and bearer-protected `GET /api/v1/auth/me`.
+- Project/member, prompt, and immutable version endpoints under `/api/v1`.
 - `/docs`, `/redoc`, and `/openapi.json` outside production.
 
 Backend development seed accounts are listed in the [login table above](#frontend-with-database-backed-login). Rerun `python3 scripts/seed-database.py` to add or restore them.
