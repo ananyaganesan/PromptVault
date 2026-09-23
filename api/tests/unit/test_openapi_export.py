@@ -1,3 +1,4 @@
+import http.client
 import json
 import os
 import subprocess
@@ -73,3 +74,18 @@ def test_openapi_export_script_exposes_help() -> None:
 
     assert result.returncode == 0, result.stderr
     assert "usage:" in result.stdout.lower()
+
+
+def test_openapi_error_descriptions_do_not_depend_on_python_reason_phrases(
+    tmp_path: Path,
+    test_settings: Settings,
+    monkeypatch,
+) -> None:
+    monkeypatch.setitem(http.client.responses, 422, "Interpreter-specific wording")
+    output = tmp_path / "openapi.json"
+
+    export_openapi(create_app(test_settings), output)
+
+    document = json.loads(output.read_text(encoding="utf-8"))
+    response = document["paths"]["/api/v1/projects"]["get"]["responses"]["422"]
+    assert response["description"] == "Unprocessable Content"

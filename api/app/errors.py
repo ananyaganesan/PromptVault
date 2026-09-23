@@ -15,6 +15,14 @@ from api.app.dependencies.request_context import REQUEST_ID_HEADER, get_request_
 
 logger = logging.getLogger("promptvault.error")
 _FILTER_QUERY_FIELDS = {"page", "page_size", "sort", "direction", "search"}
+_ERROR_RESPONSE_DESCRIPTIONS = {
+    400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "Not Found",
+    409: "Conflict",
+    422: "Unprocessable Content",
+}
 
 
 class ErrorEnvelope(BaseModel):
@@ -27,7 +35,13 @@ class ErrorEnvelope(BaseModel):
 def error_responses(*status_codes: int) -> dict[int | str, dict[str, Any]]:
     """Describe the application's real public error envelope in OpenAPI."""
 
-    return {status_code: {"model": ErrorEnvelope} for status_code in status_codes}
+    return {
+        status_code: {
+            "model": ErrorEnvelope,
+            "description": _ERROR_RESPONSE_DESCRIPTIONS.get(status_code, "Error Response"),
+        }
+        for status_code in status_codes
+    }
 
 
 class AppError(Exception):
