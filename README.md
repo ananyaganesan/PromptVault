@@ -7,6 +7,20 @@ Prompt versioning, evaluation, deployment, and serving platform.
 - `api/` contains the Python API service.
 - `web/` contains the Vite/React client.
 - `db/` contains PostgreSQL migrations, seeds, and showcase queries.
+- `tests/` contains database, concurrency, security, end-to-end, and performance test areas.
+- `scripts/` contains migration, seed, reset, maintenance, and demo commands.
+
+## Implementation status
+
+| Batch | Scope | Status |
+|---|---|---|
+| 0 | Architecture, API contracts, authorization matrix, and route contract | Complete |
+| 1 | FastAPI settings, database pool, request IDs, structured errors/logging, CORS, health/readiness, and test tooling | Complete |
+| 2 | PostgreSQL migrations, constraints, indexes, triggers, concurrency functions, views, roles, and development seeds | Complete |
+| 3 | Argon2id/JWT authentication, register/login/me endpoints, active-user checks, and reusable admin/project authorization dependencies | Complete |
+| 4+ | Project, prompt, version, run, budget, deployment, Serve, and administration APIs | Not yet implemented |
+
+The database schema covers the complete v1 data model, but the application modules for Batch 4 and later are still placeholders. The currently runnable backend surface is `/health`, `/ready`, and `/api/v1/auth/*`.
 
 ## API development
 
@@ -17,6 +31,9 @@ python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -r api/requirements-dev.txt
 cp .env.example .env
+docker compose up -d db
+python3 scripts/run-migrations.py
+python3 scripts/seed-database.py
 uvicorn api.app.main:app --reload --port 8000
 ```
 
@@ -31,6 +48,8 @@ Operational endpoints:
 Authentication endpoints are rooted at `/api/v1/auth`: `POST /register`, `POST /login`, and bearer-protected `GET /me`. Access tokens are short-lived HS256 JWTs; the database user is reloaded on every protected request so role changes and deactivation take effect immediately.
 
 API startup expects the configured PostgreSQL server to be reachable because the connection pool opens during application lifespan. Requests are logged as redacted JSON with their method, path, status, duration, and request ID; query strings and request bodies are not logged.
+
+`docker compose up -d db` starts the PostgreSQL dependency. The API image is not packaged yet because `api/Dockerfile` is reserved for the stabilization/delivery batch; run Uvicorn locally as shown above.
 
 ## Database commands
 
@@ -67,20 +86,36 @@ The generated file lets the frontend create TypeScript clients/models without wa
 
 ## API verification
 
+The full suite needs a separate PostgreSQL database. Create `promptvault_test` once in your local PostgreSQL instance, set `TEST_DATABASE_URL`, and then run:
+
 ```bash
-ruff check api scripts
+export TEST_DATABASE_URL=postgresql://promptvault:promptvault@localhost:5432/promptvault_test
+ruff check api scripts tests
 mypy --config-file api/pyproject.toml api/app
-pytest -q --cov=api.app --cov-config=api/pyproject.toml
-python3 -m compileall -q api/app api/tests scripts
+pytest -q --cov=api.app --cov-config=api/pyproject.toml --cov-report=term-missing
+python3 -m compileall -q api/app scripts tests
+python3 -m pip check
+
+DATABASE_URL="$TEST_DATABASE_URL" \
+SECRET_KEY=test-secret-that-is-at-least-32-characters \
+python3 scripts/export-openapi.py --output /tmp/promptvault-openapi.json
+diff -u docs/openapi.json /tmp/promptvault-openapi.json
 ```
 
-The unit suite injects a fake pool and does not require PostgreSQL. Database tests use `TEST_DATABASE_URL` and skip when it is not configured; CI runs them against PostgreSQL 16. Coverage is branch-aware and must remain at or above 85%.
+The unit suite injects a fake pool and does not require PostgreSQL. Database and authentication integration tests use `TEST_DATABASE_URL` and skip when it is not configured; CI runs them against PostgreSQL 16. Test fixtures apply migrations and idempotent seeds automatically. Coverage is branch-aware and must remain at or above 85%.
 
 ## Frontend development
 
 ```bash
-npm install --prefix web
+npm ci --prefix web
 npm run dev --prefix web
 ```
 
 The frontend reads its API location from `VITE_API_URL`. Never put signing secrets or provider keys in Vite environment variables.
+
+Frontend checks available on this branch are:
+
+```bash
+npm run typecheck --prefix web
+npm run build --prefix web
+```
