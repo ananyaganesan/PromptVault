@@ -6,10 +6,16 @@ from api.app.db.transactions import DatabaseConnection, get_connection
 from api.app.dependencies.auth import CurrentUser
 from api.app.errors import ErrorEnvelope
 from api.app.repositories.users import UserRepository
-from api.app.schemas.auth import LoginRequest, RegisterRequest, SessionResponse
+from api.app.schemas.auth import (
+    LoginRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    RegisterRequest,
+    SessionResponse,
+)
 from api.app.schemas.users import UserResponse
 from api.app.services.auth import AuthService
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
 
@@ -44,6 +50,32 @@ async def login(
     service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> SessionResponse:
     return await service.login(payload)
+
+
+@router.post(
+    "/password-reset",
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={503: {"model": ErrorEnvelope}},
+)
+async def request_password_reset(
+    payload: PasswordResetRequest,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+) -> None:
+    await service.request_password_reset(payload)
+
+
+@router.post(
+    "/password-reset/confirm",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    responses={400: {"model": ErrorEnvelope}},
+)
+async def confirm_password_reset(
+    payload: PasswordResetConfirm,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+) -> Response:
+    await service.reset_password(payload)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

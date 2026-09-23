@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from typing import Literal
 from uuid import UUID
 
@@ -41,6 +42,10 @@ def verify_password(encoded_hash: str, password: str) -> bool:
         return _PASSWORD_HASHER.verify(encoded_hash, password)
     except (InvalidHashError, VerificationError, VerifyMismatchError):
         return False
+
+
+def hash_one_time_token(token: str) -> str:
+    return sha256(token.encode("utf-8")).hexdigest()
 
 
 def create_access_token(

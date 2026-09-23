@@ -2,7 +2,7 @@
 
 ## Setup
 
-From `web/`, run `npm ci`, copy `.env.example` to `.env.local`, set `VITE_USE_MOCK_AUTH=true`, and run `npm run dev`. Open the URL printed by Vite. Leave the other `VITE_USE_MOCK_*` flags set to `true`; the backend is not required for this UI demo. Use a fresh browser tab if you want the seeded starting state. The mock stores live in memory, so reloading resets projects, prompts, runs, deployments, and tokens created during the demo. The signed-in demo account survives a reload within the same tab.
+From `web/`, run `npm ci`, copy `.env.example` to `.env.local`, set `VITE_USE_MOCK_AUTH=true`, and run `npm run dev`. Open the URL printed by Vite. Leave the other `VITE_USE_MOCK_*` flags set to `true`; the backend is not required for this UI demo. Use a fresh browser tab if you want the seeded starting state. The mock stores live in memory, so reloading resets projects, runs, deployments, and tokens created during the demo.
 
 Demo credentials:
 

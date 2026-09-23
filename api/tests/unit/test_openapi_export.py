@@ -28,6 +28,8 @@ def test_export_openapi_writes_deterministic_frontend_contract(
     assert "/api/v1/auth/register" in document["paths"]
     assert "/api/v1/auth/login" in document["paths"]
     assert "/api/v1/auth/me" in document["paths"]
+    assert "/api/v1/auth/password-reset" in document["paths"]
+    assert "/api/v1/auth/password-reset/confirm" in document["paths"]
     assert "/api/v1/projects" in document["paths"]
     assert "/api/v1/projects/{project_id}" in document["paths"]
     assert "/api/v1/projects/{project_id}/members" in document["paths"]

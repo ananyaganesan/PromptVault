@@ -1,61 +1,17 @@
-import { useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/page-header";
 import { Button, Field, Stat, Status } from "../../components/ui/prototype";
 import { EmptyState } from "../../components/ui/empty-state";
 import { useAuth } from "../auth/auth-context";
-import { runStore } from "../runs/run-service";
 import type { Project } from "../../types/projects";
 import {
   memberStore,
   projectFor,
   projectStore,
-  promptStore,
   displayDate,
 } from "./workspace-data";
 
-export function PromptRows({
-  projectId,
-  search = "",
-}: {
-  projectId?: string;
-  search?: string;
-}) {
-  const prompts = promptStore.filter(
-    (prompt) =>
-      (!projectId || prompt.project_id === projectId) &&
-      `${prompt.name} ${prompt.key}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-  );
-  return !prompts.length ? (
-    <div className="prompt-row no-results">No prompts match this search.</div>
-  ) : (
-    <div className="rows">
-      {prompts.map((prompt) => (
-        <Link
-          className="prompt-row"
-          key={prompt.id}
-          to={`/prompts/${prompt.id}`}
-        >
-          <div>
-            <code>{prompt.key}</code>
-            <b>{prompt.name}</b>
-          </div>
-          <code className="version-code">v{prompt.latest_version_number}</code>
-          <Status
-            tone={
-              prompt.active_environment === "production" ? "success" : "neutral"
-            }
-          >
-            {prompt.active_environment}
-          </Status>
-          <span className="row-arrow">→</span>
-        </Link>
-      ))}
-    </div>
-  );
-}
 export function ProjectsPage() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -72,7 +28,7 @@ export function ProjectsPage() {
     <>
       <PageHeader
         title="Projects"
-        description="Organize prompts and collaborate with your team."
+        description="Organize workspaces and collaborate with your team."
         action={
           <Link to="/projects/new">
             <Button>New project</Button>
@@ -105,10 +61,7 @@ export function ProjectsPage() {
               <span>⋯</span>
             </div>
             <code>{project.key}</code>
-            <p>
-              {project.prompt_count} prompts · Updated{" "}
-              {displayDate(project.updated_at)}
-            </p>
+            <p>Updated {displayDate(project.updated_at)}</p>
             <div className="project-footer">
               <span>{project.member_count} members</span>
               <Status>Active</Status>
@@ -164,7 +117,7 @@ export function NewProjectPage() {
       <PageHeader
         title="Create project"
         eyebrow="PROJECTS"
-        description="Set up a workspace for your prompt library."
+        description="Set up a workspace for your team."
       />
       <form className="form-panel" onSubmit={submit}>
         {error && <p className="form-error" role="alert">{error}</p>}
@@ -209,18 +162,12 @@ export function ProjectDetailPage() {
   return <ProjectDetailContent project={project} />;
 }
 function ProjectDetailContent({ project }: { project: Project }) {
-  useSyncExternalStore(runStore.subscribe, runStore.getSnapshot);
-  const [tab, setTab] = useState<
-    "overview" | "prompts" | "members" | "settings"
-  >("overview");
+  const [tab, setTab] = useState<"overview" | "members" | "settings">("overview");
   const [members, setMembers] = useState(memberStore[project.id] ?? []);
   const [memberEmail, setMemberEmail] = useState("");
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
   const [notice, setNotice] = useState("");
-  const projectPrompts = promptStore.filter(
-    (prompt) => prompt.project_id === project.id,
-  );
   function addMember(event: FormEvent) {
     event.preventDefault();
     const email = memberEmail.trim().toLowerCase();
@@ -255,17 +202,10 @@ function ProjectDetailContent({ project }: { project: Project }) {
       <PageHeader
         title={project.name}
         eyebrow={`PROJECTS / ${project.key.toUpperCase()}`}
-        description={
-          project.description ?? "A workspace for your prompt library."
-        }
-        action={
-          <Link to={`/prompts/new?project=${project.id}`}>
-            <Button>New prompt</Button>
-          </Link>
-        }
+        description={project.description ?? "A workspace for your team."}
       />
       <div className="tabs">
-        {(["overview", "prompts", "members", "settings"] as const).map(
+        {(["overview", "members", "settings"] as const).map(
           (item) => (
             <button
               key={item}
@@ -276,7 +216,6 @@ function ProjectDetailContent({ project }: { project: Project }) {
               }}
             >
               {item[0].toUpperCase() + item.slice(1)}{" "}
-              {item === "prompts" && <span>{projectPrompts.length}</span>}
               {item === "members" && <span>{members.length}</span>}
             </button>
           ),
@@ -288,53 +227,17 @@ function ProjectDetailContent({ project }: { project: Project }) {
         </p>
       )}
       {tab === "overview" && (
-        <>
-          <div className="detail-stats">
-            <Stat
-              label="PROMPTS"
-              value={String(projectPrompts.length)}
-              note="Reusable templates in this project"
-            />
-            <Stat
-              label="VERSIONS"
-              value={String(
-                projectPrompts.reduce(
-                  (sum, prompt) => sum + prompt.latest_version_number,
-                  0,
-                ),
-              )}
-              note="All versions immutable"
-            />
-            <Stat
-              label="MONTHLY SPEND"
-              value={`$${runStore.getRuns().filter((run) => run.project_id === project.id && run.status === "completed" && run.created_at.startsWith(new Date().toISOString().slice(0, 7))).reduce((total, run) => total + Number(run.cost), 0).toFixed(4)}`}
-              note="Recorded runs this month"
-            />
-          </div>
-          <section className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>Prompt library</h2>
-                <p>Reusable templates in this project.</p>
-              </div>
-              <button className="text-button" onClick={() => setTab("prompts")}>
-                View all
-              </button>
-            </div>
-            <PromptRows projectId={project.id} />
-          </section>
-        </>
-      )}
-      {tab === "prompts" && (
         <section className="panel">
           <div className="panel-head">
             <div>
-              <h2>Prompt library</h2>
-              <p>{projectPrompts.length} templates in this project.</p>
+              <h2>Project overview</h2>
+              <p>Manage members and workspace settings from this project.</p>
             </div>
-            <Link to={`/prompts/new?project=${project.id}`}>New prompt</Link>
           </div>
-          <PromptRows projectId={project.id} />
+          <div className="detail-stats">
+            <Stat label="MEMBERS" value={String(members.length)} note="People with project access" />
+            <Stat label="STATUS" value="Active" note="Workspace is available" />
+          </div>
         </section>
       )}
       {tab === "members" && (

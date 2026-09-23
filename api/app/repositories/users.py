@@ -81,6 +81,47 @@ class UserRepository:
         row = await cursor.fetchone()
         return _user_from_row(row) if row is not None else None
 
+    async def create_password_reset_token(
+        self,
+        *,
+        user_id: UUID,
+        token_hash: str,
+        expires_at: datetime,
+    ) -> None:
+        await self.connection.execute(
+            "DELETE FROM password_reset_tokens WHERE user_id = %s AND used_at IS NULL",
+            (user_id,),
+        )
+        await self.connection.execute(
+            """
+            INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+            VALUES (%s, %s, %s)
+            """,
+            (user_id, token_hash, expires_at),
+        )
+
+    async def consume_password_reset_token(self, *, token_hash: str, password_hash: str) -> bool:
+        cursor = await self.connection.execute(
+            """
+            WITH consumed_token AS (
+                UPDATE password_reset_tokens
+                SET used_at = CURRENT_TIMESTAMP
+                WHERE token_hash = %s
+                  AND used_at IS NULL
+                  AND expires_at > CURRENT_TIMESTAMP
+                RETURNING user_id
+            )
+            UPDATE users
+            SET password_hash = %s,
+                updated_at = CURRENT_TIMESTAMP
+            FROM consumed_token
+            WHERE users.id = consumed_token.user_id
+            RETURNING users.id
+            """,
+            (token_hash, password_hash),
+        )
+        return await cursor.fetchone() is not None
+
     async def is_project_member(self, user_id: UUID, project_id: UUID) -> bool:
         cursor = await self.connection.execute(
             """

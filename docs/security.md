@@ -24,6 +24,10 @@ Development seed SQL stores fixed Argon2id hashes, never plaintext passwords. Pr
 
 Serve tokens are a separate credential type and are not accepted by application JWT dependencies. Their generation, hashing, scope, and revocation are implemented in the deployment/Serve batch.
 
+## Password reset and email delivery
+
+Password reset requests create a random one-time token, store only its SHA-256 hash in PostgreSQL, and send the raw token only in an SMTP email. Tokens expire after `PASSWORD_RESET_TTL_MINUTES` (30 minutes by default) and are consumed atomically when the password changes. The reset request returns the same successful response for unknown or inactive emails. Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, and `SMTP_STARTTLS` in `.env` to deliver real email.
+
 ## Current limitations
 
-The prototype has no refresh token, password reset, email verification, MFA, SSO, or distributed token-revocation list. Browser access tokens are stored in tab session storage and validated after refresh. TLS termination, rate limiting, secret rotation, and production key management belong to the deployment environment.
+The prototype has no refresh token, email verification, MFA, SSO, or distributed token-revocation list. Browser access tokens are stored in tab session storage and validated after refresh. TLS termination, rate limiting, secret rotation, and production key management belong to the deployment environment.

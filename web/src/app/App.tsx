@@ -5,17 +5,15 @@ import { AdminDashboardPage, AdminRunsExplorerPage, ProviderKeyManagementPage, U
 import { AuditLogPage, BudgetManagementPage, MaintenanceHealthPage, PricingManagementPage } from '../features/admin/governance-console'
 import { DeploymentApprovalQueuePage, DeploymentApprovalReviewPage, DeploymentRollbackPage } from '../features/admin/deployment-governance'
 import { AdminOnly } from '../features/admin/admin-only'
-import { ApiTokensPage, CostsPage, ProfilePage } from '../features/account/account-pages'
-import { ForgotPasswordPage, LoginPage, RegisterPage } from '../features/auth/pages'
+import { ApiTokensPage, ProfilePage } from '../features/account/account-pages'
+import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from '../features/auth/pages'
 import { AuthProvider } from '../features/auth/auth-context'
 import { RequireAuth } from '../features/auth/guards'
 import { DashboardPage } from '../features/dashboard/dashboard-page'
 import { DeploymentDetailPage, DeploymentListPage, NewDeploymentPage } from '../features/deployments/deployment-pages'
 import { PlaygroundPage } from '../features/playground/playground-page'
 import { NewProjectPage, ProjectDetailPage, ProjectsPage } from '../features/projects/project-pages'
-import { NewPromptPage, PromptDetailPage, PromptsPage } from '../features/prompts/prompt-pages'
 import { RunDetailPage, RunsPage } from '../features/runs/runs-page'
-import { CompareVersionPage, VersionDetailPage, VersionLineagePage } from '../features/versions/version-pages'
 import { ErrorPage } from '../features/workspace/error-page'
 
 export function App() {
@@ -25,6 +23,7 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/403" element={<ErrorPage code="403" />} />
       <Route path="/404" element={<ErrorPage code="404" />} />
     </Route>
@@ -33,19 +32,12 @@ export function App() {
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/projects/new" element={<NewProjectPage />} />
       <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
-      <Route path="/prompts" element={<PromptsPage />} />
-      <Route path="/prompts/new" element={<NewPromptPage />} />
-      <Route path="/prompts/:promptId" element={<PromptDetailPage />} />
-      <Route path="/versions/:versionId" element={<VersionDetailPage />} />
-      <Route path="/versions/:versionId/compare" element={<CompareVersionPage />} />
-      <Route path="/versions/:versionId/lineage" element={<VersionLineagePage />} />
       <Route path="/playground" element={<PlaygroundPage />} />
       <Route path="/runs" element={<RunsPage />} />
       <Route path="/runs/:runId" element={<RunDetailPage />} />
       <Route path="/deployments" element={<DeploymentListPage />} />
       <Route path="/deployments/new" element={<NewDeploymentPage />} />
       <Route path="/deployments/:deploymentId" element={<DeploymentDetailPage />} />
-      <Route path="/costs" element={<CostsPage />} />
       <Route path="/api-tokens" element={<ApiTokensPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route element={<AdminOnly />}>

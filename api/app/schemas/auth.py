@@ -47,6 +47,33 @@ class LoginRequest(AuthRequest):
     pass
 
 
+class PasswordResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+
+class PasswordResetConfirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: Annotated[str, Field(min_length=32, max_length=512)]
+    password: RegistrationPassword
+
+    @field_validator("password")
+    @classmethod
+    def reject_password_whitespace(cls, value: SecretStr) -> SecretStr:
+        if any(character.isspace() for character in value.get_secret_value()):
+            raise ValueError("password must not contain whitespace")
+        return value
+
+
 class SessionResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

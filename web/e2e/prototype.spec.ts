@@ -41,7 +41,7 @@ test('standard user is denied administration', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Access restricted' })).toBeVisible()
 })
 
-test('user creates a project, prompt, and version', async ({ page }) => {
+test('user creates a project', async ({ page }) => {
   await page.goto('/login')
   await page.getByLabel('Email address').fill('user@promptvault.dev')
   await page.getByLabel('Password', { exact: true }).fill('UserDemo2026!')
@@ -51,15 +51,6 @@ test('user creates a project, prompt, and version', async ({ page }) => {
   await page.getByLabel('Project key').fill('demo-workspace')
   await page.getByRole('button', { name: 'Create project' }).click()
   await expect(page.getByRole('heading', { name: 'Demo Workspace' })).toBeVisible()
-  await page.getByRole('link', { name: 'New prompt' }).first().click()
-  await page.getByLabel('Prompt key').fill('demo-reply')
-  await page.getByLabel('Prompt name').fill('Demo Reply')
-  await page.getByLabel('Template').fill('Answer {{customer_message}} clearly.')
-  await page.getByRole('button', { name: 'Create prompt' }).click()
-  await expect(page.getByRole('heading', { name: 'Demo Reply' })).toBeVisible()
-  await page.getByLabel('Commit message').fill('Clarify response')
-  await page.getByRole('button', { name: 'Save new version' }).click()
-  await expect(page.getByText('Version 2 was saved as an immutable snapshot.')).toBeVisible()
 })
 
 test('registration creates a user session and rejects duplicate email', async ({ page }) => {
@@ -102,17 +93,13 @@ test('workspace routes render without a blank page or horizontal overflow', asyn
   await page.getByLabel('Email address').fill('user@promptvault.dev')
   await page.getByLabel('Password', { exact: true }).fill('UserDemo2026!')
   await page.getByRole('button', { name: 'Sign in' }).click()
-  for (const path of ['/dashboard', '/projects', '/prompts', '/playground', '/runs', '/deployments', '/costs', '/api-tokens', '/profile', '/projects/checkout', '/prompts/checkout-reply', '/versions/checkout-v3']) {
+  for (const path of ['/dashboard', '/projects', '/playground', '/runs', '/deployments', '/api-tokens', '/profile', '/projects/checkout']) {
     await page.goto(path)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), { message: `${path} has horizontal overflow` }).toBe(true)
   }
   await page.goto('/projects/does-not-exist')
   await expect(page.getByText('Project not found')).toBeVisible()
-  await page.goto('/prompts/does-not-exist')
-  await expect(page.getByText('Prompt not found')).toBeVisible()
-  await page.goto('/versions/does-not-exist')
-  await expect(page.getByText('Version not found')).toBeVisible()
 })
 
 test('administration routes render without a blank page or horizontal overflow', async ({ page }) => {
@@ -134,7 +121,7 @@ test('top-level user screens have no serious accessibility violations', async ({
   await page.getByLabel('Password', { exact: true }).fill('UserDemo2026!')
   await page.getByRole('button', { name: 'Sign in' }).click()
   const issues: string[] = []
-  for (const path of ['/projects', '/prompts', '/playground', '/runs', '/deployments', '/costs', '/api-tokens', '/profile']) {
+  for (const path of ['/projects', '/playground', '/runs', '/deployments', '/api-tokens', '/profile']) {
     await page.goto(path)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     const audit = await new AxeBuilder({ page }).analyze()

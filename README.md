@@ -6,7 +6,7 @@ PromptVault is a prompt versioning, evaluation, deployment, and serving platform
 
 | Area | Available now | Still to build |
 | --- | --- | --- |
-| Frontend | Responsive user and admin demo, database-backed login and registration through FastAPI, typed API client, unit and browser tests | Integration of projects, prompts, runs, deployments, and governance with their future APIs |
+| Frontend | Responsive user and admin demo, database-backed login and registration through FastAPI, typed API client, unit and browser tests | Integration of projects, runs, deployments, and governance with their future APIs |
 | API | Configuration, database pool, health/readiness, request logging and errors, JWT authentication, scoped projects and members, prompts, and immutable versions | Run, deployment, budget, Serve, and governance endpoints |
 | Database | Ten migrations, constraints, triggers, functions, views, roles, and development/demo seeds | Integration of the remaining API workflows |
 
@@ -65,9 +65,9 @@ Open the local URL printed by Vite, normally `http://localhost:5173`. `VITE_USE_
 
 The API returns a JWT on login or registration. The frontend keeps it in tab session storage and verifies it with `/api/v1/auth/me` after a refresh, so a valid session stays signed in within that tab. Signing out clears the saved token; an expired or invalid token requires signing in again. Login succeeds only for active users with matching database credentials. An unknown email shows “Email address not found.”; a password mismatch shows “Incorrect password.” Passwords are never stored in browser storage. New passwords must have at least 12 non-whitespace characters; spaces are ignored in the form and rejected by the registration API.
 
-Projects, prompts, runs, deployments, budgets, and admin workflows still use local prototype stores until their backend APIs are implemented. Their changes do not persist to PostgreSQL. `web/.env.example` sets `VITE_API_BASE_URL=http://localhost:8000`; the root `.env.example` is for backend settings. The root `VITE_API_URL` value is not used by the current frontend client.
+Projects, runs, deployments, budgets, and admin workflows still use local prototype stores until their backend APIs are implemented. Their changes do not persist to PostgreSQL. The prompt and version APIs remain available only through the backend contract. `web/.env.example` sets `VITE_API_BASE_URL=http://localhost:8000`; the root `.env.example` is for backend settings. The root `VITE_API_URL` value is not used by the current frontend client.
 
-For the standalone UI walkthrough without the API, set `VITE_USE_MOCK_AUTH=true` in `web/.env.local` and restart Vite. That mode uses the same listed development credentials as the database seed, restores the demo account within the same tab, and does not create database users. See the [demo runbook](docs/demo-runbook.md).
+For the standalone UI walkthrough without the API, set `VITE_USE_MOCK_AUTH=true` in `web/.env.local` and restart Vite. That mode uses the same listed development credentials as the database seed and does not create database users. See the [demo runbook](docs/demo-runbook.md).
 
 ### Build and test the frontend
 

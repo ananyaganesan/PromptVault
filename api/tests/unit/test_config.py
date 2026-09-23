@@ -38,3 +38,8 @@ def test_settings_representation_redacts_secret() -> None:
     settings = Settings(**BASE)
 
     assert BASE["secret_key"] not in repr(settings)
+
+
+def test_settings_require_smtp_credentials_as_a_pair() -> None:
+    with pytest.raises(ValidationError):
+        Settings(**BASE, smtp_username="username")

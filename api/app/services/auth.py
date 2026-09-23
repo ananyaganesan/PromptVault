@@ -1,11 +1,26 @@
 """Authentication use cases."""
 
+from datetime import UTC, datetime, timedelta
+from secrets import token_urlsafe
+
 from api.app.config import Settings
+from api.app.email import EmailDeliveryError, send_password_reset_email
 from api.app.errors import AppError
 from api.app.repositories.users import UserRecord, UserRepository
-from api.app.schemas.auth import LoginRequest, RegisterRequest, SessionResponse
+from api.app.schemas.auth import (
+    LoginRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    RegisterRequest,
+    SessionResponse,
+)
 from api.app.schemas.users import UserResponse
-from api.app.security import create_access_token, hash_password, verify_password
+from api.app.security import (
+    create_access_token,
+    hash_one_time_token,
+    hash_password,
+    verify_password,
+)
 from psycopg.errors import UniqueViolation
 from starlette.concurrency import run_in_threadpool
 
@@ -60,6 +75,45 @@ class AuthService:
         if not user.is_active:
             raise AppError(403, "inactive_user", "User account is inactive")
         return self._session(user)
+
+    async def request_password_reset(self, request: PasswordResetRequest) -> None:
+        user = await self.repository.get_by_email(str(request.email))
+        if user is None or not user.is_active:
+            return
+
+        token = token_urlsafe(32)
+        expires_at = datetime.now(UTC) + timedelta(
+            minutes=self.settings.password_reset_ttl_minutes
+        )
+        await self.repository.create_password_reset_token(
+            user_id=user.id,
+            token_hash=hash_one_time_token(token),
+            expires_at=expires_at,
+        )
+        try:
+            await run_in_threadpool(send_password_reset_email, self.settings, user.email, token)
+        except EmailDeliveryError as exc:
+            raise AppError(
+                503,
+                "email_delivery_unavailable",
+                "Password reset email could not be delivered",
+            ) from exc
+
+    async def reset_password(self, request: PasswordResetConfirm) -> None:
+        password_hash = await run_in_threadpool(
+            hash_password,
+            request.password.get_secret_value(),
+        )
+        consumed = await self.repository.consume_password_reset_token(
+            token_hash=hash_one_time_token(request.token),
+            password_hash=password_hash,
+        )
+        if not consumed:
+            raise AppError(
+                400,
+                "invalid_reset_token",
+                "Password reset link is invalid or expired",
+            )
 
     def _session(self, user: UserRecord) -> SessionResponse:
         return SessionResponse(

@@ -1,6 +1,6 @@
 # PromptVault frontend
 
-This is a React/Vite frontend prototype with User and Super Admin screens. Login and registration use the PostgreSQL-backed FastAPI endpoints by default. Projects, prompts, runs, deployments, budgets, and administration remain in-memory demo workflows until their backend APIs are implemented.
+This is a React/Vite frontend prototype with User and Super Admin screens. Login and registration use the PostgreSQL-backed FastAPI endpoints by default. Projects, runs, deployments, budgets, and administration remain in-memory demo workflows until their backend APIs are implemented. Prompt and version workflows are available through the backend API only.
 
 ## Start
 

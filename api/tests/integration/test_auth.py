@@ -6,7 +6,7 @@ import psycopg
 import pytest
 from api.app.config import Settings
 from api.app.main import create_app
-from api.app.security import create_access_token
+from api.app.security import create_access_token, hash_password
 from fastapi.testclient import TestClient
 
 SEEDED_USER_ID = UUID("11111111-1111-4111-8111-111111111111")
@@ -105,6 +105,53 @@ def test_login_accepts_seeded_credentials(auth_client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json()["user"]["email"] == "user@promptvault.dev"
+
+
+@pytest.mark.database
+def test_password_reset_delivers_a_one_time_link_and_updates_the_password(
+    auth_client: TestClient,
+    seeded_database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    delivered_tokens: list[tuple[str, str]] = []
+
+    def capture_reset_email(_settings: Settings, recipient: str, token: str) -> None:
+        delivered_tokens.append((recipient, token))
+
+    monkeypatch.setattr("api.app.services.auth.send_password_reset_email", capture_reset_email)
+    requested = auth_client.post(
+        "/api/v1/auth/password-reset",
+        json={"email": "user@promptvault.dev"},
+    )
+
+    assert requested.status_code == 202
+    assert delivered_tokens[0][0] == "user@promptvault.dev"
+
+    try:
+        confirmed = auth_client.post(
+            "/api/v1/auth/password-reset/confirm",
+            json={"token": delivered_tokens[0][1], "password": "NewPassword2026!"},
+        )
+        assert confirmed.status_code == 204
+
+        login = auth_client.post(
+            "/api/v1/auth/login",
+            json={"email": "user@promptvault.dev", "password": "NewPassword2026!"},
+        )
+        assert login.status_code == 200
+
+        reused = auth_client.post(
+            "/api/v1/auth/password-reset/confirm",
+            json={"token": delivered_tokens[0][1], "password": "AnotherPassword2026!"},
+        )
+        assert reused.status_code == 400
+        assert reused.json()["code"] == "invalid_reset_token"
+    finally:
+        with psycopg.connect(seeded_database_url, autocommit=True) as connection:
+            connection.execute(
+                "UPDATE users SET password_hash = %s WHERE id = %s",
+                (hash_password("UserDemo2026!"), SEEDED_USER_ID),
+            )
 
 
 @pytest.mark.database

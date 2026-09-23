@@ -1,14 +1,15 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Logo } from '../../components/layout/brand'
 import { Button, Field } from '../../components/ui/prototype'
 import { ApiClientError } from '../../lib/api/client'
 import { useAuth } from './auth-context'
+import { authApi } from './api'
 
 function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { login, register, mode: authMode } = useAuth()
+  const { login, register } = useAuth()
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -53,11 +54,69 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     <Field label="Email address" placeholder="you@company.com" type="email" value={email} onChange={update(setEmail)} error={errors.email} />
     <Field label="Password" placeholder={mode === 'login' ? 'Enter your password' : 'Create a strong password (12+ characters, no spaces)'} type="password" value={password} onChange={update(setPassword)} error={errors.password} />
     {formError && <p className="form-error" role="alert">{formError}</p>}
-    {mode === 'login' && <div className="form-row"><span>{authMode === 'demo' ? 'Demo session lasts for this tab.' : 'Session stays active in this tab after refresh.'}</span><Link to="/forgot-password">Forgot password?</Link></div>}
+    {mode === 'login' && <div className="form-row"><span /><Link to="/forgot-password">Forgot password?</Link></div>}
     <Button type="submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</Button>
     <p className="switch">{mode === 'login' ? "Don't have an account?" : 'Already have an account?'} <Link to={mode === 'login' ? '/register' : '/login'}>{mode === 'login' ? 'Register' : 'Sign in'}</Link></p>
   </form></main>
 }
 export function LoginPage() { return <AuthPage mode="login" /> }
 export function RegisterPage() { return <AuthPage mode="register" /> }
-export function ForgotPasswordPage() { const [sent, setSent] = useState(false); return <main className="auth-main"><div className="auth-card"><h1>Forgot password?</h1><p>{sent ? 'This is a prototype: no email was sent. Contact an administrator to restore access.' : 'Password recovery is not connected in this prototype.'}</p>{!sent && <Button onClick={() => setSent(true)}>How do I regain access?</Button>}<p className="switch"><Link to="/login">Back to sign in</Link></p></div></main> }
+
+export function ForgotPasswordPage() {
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState('')
+  const [sent, setSent] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      setError('Enter a valid email address.')
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      await authApi.requestPasswordReset(normalizedEmail)
+      setSent(true)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to send reset email.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <main className="auth-main"><form className="auth-card" onSubmit={submit} noValidate><h1>Reset your password</h1><p>{sent ? 'If this email belongs to an active account, a reset link has been sent. Check your inbox.' : 'Enter your email address and we will send a one-time password reset link.'}</p>{!sent && <><Field label="Email address" placeholder="you@company.com" type="email" value={email} onChange={(event) => setEmail(event.target.value.replace(/\s/g, ''))} error={error} />{error && <p className="form-error" role="alert">{error}</p>}<Button type="submit" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</Button></>}<p className="switch"><Link to="/login">Back to sign in</Link></p></form></main>
+}
+
+export function ResetPasswordPage() {
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const token = params.get('token') ?? ''
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
+  const [complete, setComplete] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (!token) return setError('This password reset link is invalid.')
+    if (password.length < 12) return setError('Use at least 12 characters.')
+    if (/\s/.test(password)) return setError('Password must not contain spaces.')
+    if (password !== confirmPassword) return setError('Passwords do not match.')
+    setBusy(true)
+    setError('')
+    try {
+      await authApi.confirmPasswordReset(token, password)
+      setComplete(true)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to reset password.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <main className="auth-main"><form className="auth-card" onSubmit={submit} noValidate><h1>Choose a new password</h1><p>{complete ? 'Your password has been reset. You can now sign in.' : 'Use at least 12 characters with no spaces.'}</p>{!complete && <><Field label="New password" placeholder="Create a strong password" type="password" value={password} onChange={(event) => setPassword(event.target.value.replace(/\s/g, ''))} /><Field label="Confirm password" placeholder="Repeat your new password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value.replace(/\s/g, ''))} />{error && <p className="form-error" role="alert">{error}</p>}<Button type="submit" disabled={busy}>{busy ? 'Resetting…' : 'Reset password'}</Button></>}{complete && <Button type="button" onClick={() => navigate('/login')}>Sign in</Button>}<p className="switch"><Link to="/login">Back to sign in</Link></p></form></main>
+}

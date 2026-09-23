@@ -1,5 +1,10 @@
 import pytest
-from api.app.schemas.auth import LoginRequest, RegisterRequest
+from api.app.schemas.auth import (
+    LoginRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    RegisterRequest,
+)
 from pydantic import ValidationError
 
 
@@ -57,3 +62,15 @@ def test_login_rejects_unknown_fields() -> None:
                 "role": "admin",
             }
         )
+
+
+def test_password_reset_request_normalizes_email() -> None:
+    request = PasswordResetRequest(email="  Alex@Example.COM ")
+
+    assert request.email == "alex@example.com"
+
+
+@pytest.mark.parametrize("password", ["short", "password with spaces"])
+def test_password_reset_requires_a_valid_new_password(password: str) -> None:
+    with pytest.raises(ValidationError):
+        PasswordResetConfirm(token="x" * 43, password=password)

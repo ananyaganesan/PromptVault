@@ -31,7 +31,7 @@ Clients may send `X-Request-ID` using 1-128 visible ASCII characters; otherwise 
 }
 ```
 
-`field_errors` is `null` for non-field errors. Stable codes include `bad_request`, `invalid_filter`, `invalid_variables`, `unauthorized`, `email_not_found`, `invalid_password`, `invalid_token`, `token_expired`, `forbidden`, `inactive_user`, `not_found`, `no_active_deployment`, `conflict`, `duplicate_email`, `duplicate_key`, `already_reviewed`, `last_admin`, `validation_error`, `rate_limited`, `budget_exceeded`, `provider_error`, `provider_timeout`, `not_ready`, `missing_partition`, and `internal_error`.
+`field_errors` is `null` for non-field errors. Stable codes include `bad_request`, `invalid_filter`, `invalid_variables`, `unauthorized`, `email_not_found`, `invalid_password`, `invalid_reset_token`, `email_delivery_unavailable`, `invalid_token`, `token_expired`, `forbidden`, `inactive_user`, `not_found`, `no_active_deployment`, `conflict`, `duplicate_email`, `duplicate_key`, `already_reviewed`, `last_admin`, `validation_error`, `rate_limited`, `budget_exceeded`, `provider_error`, `provider_timeout`, `not_ready`, `missing_partition`, and `internal_error`.
 
 Database constraint names, SQL text, stack traces, hashes, and encrypted values never appear in a response.
 
@@ -159,9 +159,11 @@ Environments are `dev`, `staging`, and `prod`. Statuses are `pending`, `active`,
 |---|---|---|
 | `POST /auth/register` | `email`, `password`, `display_name` | `201` with `access_token`, `token_type`, `expires_in`, and `user` |
 | `POST /auth/login` | `email`, `password` | `200` with the same session shape |
+| `POST /auth/password-reset` | `email` | `202`; sends a reset email for an active matching account |
+| `POST /auth/password-reset/confirm` | `token`, `password` | `204`; changes the password when the one-time token is valid |
 | `GET /auth/me` | None | `200` User |
 
-Passwords contain 12-128 characters. Register/login never accept a role. Email comparison is case-insensitive and normalized.
+Registration and password reset passwords contain 12-128 non-whitespace characters. Login accepts 1-128 characters so credential checks can return the correct error. Register/login never accept a role. Email comparison is case-insensitive and normalized. Reset tokens are random, stored only as SHA-256 hashes, expire after 30 minutes by default, and can be used once.
 
 ## Project and member endpoints
 
