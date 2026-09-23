@@ -92,6 +92,12 @@ Expected application failures map to 400, 401, 403, 404, 409, or 422. Provider a
 - Runs and audit records are append-only from application roles.
 - Monthly run partitions are created explicitly for the current and next month.
 
+### Implemented database foundation
+
+The executable migrations in `db/migrations/` now provide the complete v1 storage shape. UUID-backed identity, project, prompt, governance, token, deployment, and audit tables are normalized; the append-only run ledger is partitioned monthly. Composite foreign keys prevent cross-prompt parent/deployment references, effective-date exclusion constraints prevent overlapping prices, and partial unique indexes enforce one active deployment and one budget per target.
+
+Concurrency-sensitive writes use database functions rather than read-then-write application sequences. Prompt rows serialize version numbering, prompt/deployment rows serialize activation and review, and budget rows serialize spend admission. Immutable version/run history and audit attribution are enforced with triggers even if a future repository attempts an unsafe write.
+
 ## Testing boundaries
 
 - Unit tests cover security helpers, template parsing/rendering, provider normalization, and cost/error mapping.

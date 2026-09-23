@@ -42,7 +42,16 @@ python3 scripts/reset-development.py --confirm-reset
 
 Migration history is stored in `schema_migrations`. Applied files are protected by SHA-256 checksums, migration execution is serialized with a PostgreSQL advisory lock, and each migration is atomic. The reset command refuses non-development environments and requires `--confirm-reset`.
 
-The SQL migration and seed files are Batch 2 placeholders at present. Empty files are deliberately rejected, so these commands become runnable when the schema SQL is filled in rather than silently marking an empty schema as complete.
+The ten migrations create the complete v1 relational schema, constraints, partitions, concurrency functions, audit triggers, reporting views, and database roles. Seed files use numeric prefixes so identities are always loaded before dependent demo data.
+
+Development seed accounts:
+
+| Role | Email | Password |
+|---|---|---|
+| User | `user@promptvault.local` | `UserDemo2026!` |
+| Super Admin | `admin@promptvault.local` | `AdminDemo2026!` |
+
+These credentials are development-only. Their Argon2id hashes—not plaintext passwords—are stored in the seed SQL.
 
 ## API contract
 
@@ -63,7 +72,7 @@ pytest -q --cov=api.app --cov-config=api/pyproject.toml
 python3 -m compileall -q api/app api/tests scripts
 ```
 
-The unit suite injects a fake pool and does not require PostgreSQL. Database tests use `TEST_DATABASE_URL` and skip when it is not configured. Coverage is branch-aware and must remain at or above 85%.
+The unit suite injects a fake pool and does not require PostgreSQL. Database tests use `TEST_DATABASE_URL` and skip when it is not configured; CI runs them against PostgreSQL 16. Coverage is branch-aware and must remain at or above 85%.
 
 ## Frontend development
 
