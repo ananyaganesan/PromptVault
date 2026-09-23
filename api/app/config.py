@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
     database_url: str
     secret_key: str = Field(repr=False)
+    access_token_ttl_minutes: int = 30
+    jwt_issuer: str = "promptvault"
+    jwt_audience: str = "promptvault-web"
     api_port: int = 8000
     cors_origins: Annotated[tuple[str, ...], NoDecode] = ("http://localhost:5173",)
     db_pool_min_size: int = 1
@@ -42,6 +45,8 @@ class Settings(BaseSettings):
             raise ValueError("database pool sizes must satisfy 0 <= min <= max and max >= 1")
         if self.db_pool_timeout_seconds <= 0 or self.database_health_timeout_seconds <= 0:
             raise ValueError("database timeouts must be positive")
+        if self.access_token_ttl_minutes <= 0:
+            raise ValueError("access token lifetime must be positive")
         if self.environment == "production" and (
             self.secret_key == "change-me" or len(self.secret_key) < 32
         ):

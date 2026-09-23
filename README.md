@@ -20,13 +20,15 @@ cp .env.example .env
 uvicorn api.app.main:app --reload --port 8000
 ```
 
-The required settings are `DATABASE_URL` and `SECRET_KEY`. `.env.example` also documents the environment name, allowed CORS origins, database-pool bounds, and database-health timeout. Production refuses the placeholder signing secret and requires at least 32 characters.
+The required settings are `DATABASE_URL` and `SECRET_KEY`. `.env.example` also documents the token lifetime/issuer/audience, environment name, allowed CORS origins, database-pool bounds, and database-health timeout. Production refuses the placeholder signing secret and requires at least 32 characters.
 
 Operational endpoints:
 
 - `GET /health` is process liveness and never queries PostgreSQL.
 - `GET /ready` runs a bounded `SELECT 1` and returns 503 when PostgreSQL is unavailable.
 - `/docs`, `/redoc`, and `/openapi.json` are available outside production.
+
+Authentication endpoints are rooted at `/api/v1/auth`: `POST /register`, `POST /login`, and bearer-protected `GET /me`. Access tokens are short-lived HS256 JWTs; the database user is reloaded on every protected request so role changes and deactivation take effect immediately.
 
 API startup expects the configured PostgreSQL server to be reachable because the connection pool opens during application lifespan. Requests are logged as redacted JSON with their method, path, status, duration, and request ID; query strings and request bodies are not logged.
 
@@ -48,8 +50,8 @@ Development seed accounts:
 
 | Role | Email | Password |
 |---|---|---|
-| User | `user@promptvault.local` | `UserDemo2026!` |
-| Super Admin | `admin@promptvault.local` | `AdminDemo2026!` |
+| User | `user@promptvault.dev` | `UserDemo2026!` |
+| Super Admin | `admin@promptvault.dev` | `AdminDemo2026!` |
 
 These credentials are development-only. Their Argon2id hashes—not plaintext passwords—are stored in the seed SQL.
 

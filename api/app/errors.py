@@ -29,12 +29,14 @@ class AppError(Exception):
         code: str,
         message: str,
         field_errors: dict[str, list[str]] | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.code = code
         self.message = message
         self.field_errors = field_errors
+        self.headers = dict(headers or {})
 
 
 def _error_response(
@@ -69,6 +71,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
         code=exc.code,
         message=exc.message,
         field_errors=exc.field_errors,
+        headers=exc.headers,
     )
 
 

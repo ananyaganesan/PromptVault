@@ -47,8 +47,13 @@ Dependencies point inward. Routers may depend on schemas, services, and authoriz
 - `api.app.logging_config` emits allowlisted JSON request/error events without request bodies, query strings, secrets, or exception messages.
 - `api.app.routers.health` separates process liveness from bounded database readiness.
 - `api.app.openapi` produces the deterministic `docs/openapi.json` frontend contract artifact.
+- `api.app.security` owns Argon2id password handling and issuer/audience-bound HS256 access tokens.
+- `api.app.repositories.users` performs parameterized identity and project-scope lookups.
+- `api.app.services.auth` implements register/login without accepting a client role.
+- `api.app.dependencies.auth` reloads the active database user for every protected request.
+- `api.app.dependencies.authorization` provides active Super Admin and project member/owner guards.
 
-The application currently has only operational routes. Versioned product routers begin with the authentication batch.
+Operational and `/api/v1/auth` routes are implemented. Project and later product routers build on the shared authorization dependencies.
 
 ## Primary data flow
 

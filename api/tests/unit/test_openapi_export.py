@@ -24,8 +24,15 @@ def test_export_openapi_writes_deterministic_frontend_contract(
     assert document["info"]["title"] == "PromptVault API"
     assert "/health" in document["paths"]
     assert "/ready" in document["paths"]
+    assert "/api/v1/auth/register" in document["paths"]
+    assert "/api/v1/auth/login" in document["paths"]
+    assert "/api/v1/auth/me" in document["paths"]
     assert "ErrorEnvelope" in document["components"]["schemas"]
+    register_fields = document["components"]["schemas"]["RegisterRequest"]["properties"]
+    assert set(register_fields) == {"email", "password", "display_name"}
     first_render = output.read_text(encoding="utf-8")
+    assert "password_hash" not in first_render
+    assert "HTTPBearer" in document["components"]["securitySchemes"]
     export_openapi(app, output)
     assert output.read_text(encoding="utf-8") == first_render
     assert first_render.endswith("\n")

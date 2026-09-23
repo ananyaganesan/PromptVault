@@ -107,8 +107,8 @@ def test_seed_files_define_deterministic_demo_identities() -> None:
     ).lower()
     demo = (seeds_directory / "002_demo.sql").read_text(encoding="utf-8").lower()
 
-    assert "user@promptvault.local" in development
-    assert "admin@promptvault.local" in development
+    assert "user@promptvault.dev" in development
+    assert "admin@promptvault.dev" in development
     assert "on conflict" in development
     assert "checkout-assistant" in demo
     assert "on conflict" in demo

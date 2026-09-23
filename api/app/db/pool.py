@@ -6,6 +6,7 @@ from typing import Any, Protocol, cast
 
 from api.app.config import Settings
 from fastapi import Request
+from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 
@@ -27,7 +28,7 @@ def create_pool(settings: Settings) -> AsyncConnectionPool:
         max_size=settings.db_pool_max_size,
         timeout=settings.db_pool_timeout_seconds,
         open=False,
-        kwargs={"autocommit": False},
+        kwargs={"autocommit": False, "row_factory": dict_row},
     )
 
 

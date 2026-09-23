@@ -10,7 +10,7 @@ def test_email_uniqueness_is_case_insensitive(
         db_connection.execute(
             """
             INSERT INTO users (email, display_name, password_hash)
-            VALUES ('USER@PROMPTVAULT.LOCAL', 'Duplicate', 'not-a-real-hash')
+            VALUES ('USER@PROMPTVAULT.DEV', 'Duplicate', 'not-a-real-hash')
             """
         )
 
