@@ -1,0 +1,24 @@
+import { describe, expect, it, vi } from 'vitest'
+import { createApiClient } from './client'
+
+describe('api client', () => {
+  it('adds query parameters, JSON headers, and a bearer token', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'project_1' }), { headers: { 'Content-Type': 'application/json' } }))
+    const client = createApiClient({ baseUrl: 'https://api.example.test', getAccessToken: () => 'demo-token', fetcher })
+
+    await client.request<{ id: string }>('/projects', { method: 'POST', body: { name: 'Checkout' }, query: { page: 2, search: 'checkout' } })
+
+    expect(fetcher).toHaveBeenCalledWith('https://api.example.test/projects?page=2&search=checkout', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ name: 'Checkout' }),
+      headers: expect.objectContaining({ Authorization: 'Bearer demo-token', 'Content-Type': 'application/json' }),
+    }))
+  })
+
+  it('throws a typed error for the documented error envelope', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'forbidden', message: 'Access denied', request_id: 'req_123' }), { status: 403, headers: { 'Content-Type': 'application/json' } }))
+    const client = createApiClient({ fetcher })
+
+    await expect(client.request('/admin/users')).rejects.toMatchObject({ code: 'forbidden', status: 403, requestId: 'req_123' })
+  })
+})
