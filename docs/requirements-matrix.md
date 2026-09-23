@@ -2,17 +2,19 @@
 
 | ID | Requirement | Acceptance evidence | Status |
 |---|---|---|---|
-| F1 | Authentication and two roles | Register/login/current-user; no client role selector | Planned |
-| F2 | Projects and membership | Owner/member permissions and duplicate-member errors | Planned |
-| F3 | Immutable prompt versioning | Every save creates a numbered snapshot with parent and commit | Planned |
-| F4 | Diff and lineage | Side-by-side diff and recursive ancestor view | Planned |
-| F5 | Playground and run ledger | Mock/live provider result with tokens, latency, status, and cost | Planned |
-| F6 | Dev/staging/prod deployments | Prod requests require Super Admin review | Planned |
-| F7 | Serve API | Hashed token fetches active prompt by project-scoped key/environment | Planned |
-| F8 | Rollback | Creates a new deployment pointing to an earlier immutable version | Planned |
-| F9 | Budgets and costs | User/project limits block runs at database boundary | Planned |
-| F10 | Governance | Users, keys, pricing, audit, maintenance, organization analytics | Planned |
-| F11 | Security | Argon2, JWT, encryption, token hashing, least privilege, redaction | Planned |
-| F12 | Delivery evidence | Tests, ERD/3NF report, queries, Docker, demo and viva materials | Planned |
+| F1 | Authentication and two roles | API tests: register/login/me succeed; duplicate email, wrong password, inactive user, expired/tampered JWT, and client-supplied role fail | Verified (`api/tests/integration/test_auth.py`, `test_authorization_dependencies.py`) |
+| F2 | Projects and membership | API tests: owner/member/admin permissions, atomic owner membership, duplicate/missing member, owner-removal guard, and ID-guessing denial | Verified (`api/tests/integration/test_projects_prompts_versions.py`) |
+| F3 | Immutable prompt versioning | DB/API tests: every save inserts a numbered snapshot; update/delete, wrong parent, and 20 concurrent saves prove rejection/safe numbering | Verified (`test_projects_prompts_versions.py`, `tests/database/test_immutability.py`, `tests/concurrency/test_version_numbering_race.py`) |
+| F4 | Diff and lineage | API tests: same-prompt diff plus recursive ordered ancestry; cross-prompt comparison and cycles fail safely | Verified (`api/tests/integration/test_projects_prompts_versions.py`) |
+| F5 | Playground and run ledger | Mock/live execution records output, tokens, latency, status, request ID, and historical cost; provider failures are normalized | Planned |
+| F6 | Dev/staging/prod deployments | Dev/staging activate atomically; prod remains pending; user review is denied; 100 competing reviews yield one transition | Planned |
+| F7 | Serve API | Plaintext token appears once; only hash persists; valid scoped token fetches active prompt; revoked/cross-project/no-active cases fail safely | Planned |
+| F8 | Rollback | Procedure creates a new deployment referencing an older immutable version, preserves history, requires a reason, and changes Serve output | Planned |
+| F9 | Budgets and costs | Exact-limit, zero, unlimited, overlapping user/project, month-boundary, and concurrent attempts prove database enforcement | Planned |
+| F10 | Governance | Admin-only tests cover users, encrypted keys, immutable pricing, redacted audit, analytics reconciliation, partitions, and view freshness | Planned |
+| F11 | Security | Security suite proves Argon2, JWT checks, parameterized/scoped SQL, encryption/hashing, safe errors/logs, CORS, DCL, and dependency review | Planned |
+| F12 | Delivery evidence | Clean-machine run builds containers, migrates, seeds 2,000 runs, passes all suites, runs showcase queries, and completes the storyboard | Planned |
 
 Deferred from v1: A/B tests, semantic search, LLM-as-judge, SSO, branch UI, and RLS multi-tenancy.
+
+`Planned` means the acceptance contract is frozen but implementation evidence does not yet exist. Status changes to `Verified` only when the cited automated or clean-machine evidence is stored in the repository.

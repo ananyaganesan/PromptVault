@@ -1,6 +1,6 @@
 # PromptVault v1 route map
 
-This is the Phase 0 contract for the web application. Paths are frontend routes; the API paths are listed separately in `api-contracts.md`.
+This is the Phase 0 contract for the web application. Paths are frontend routes; application API paths use the `/api/v1` base and are listed in `api-contracts.md`.
 
 | Area | Route | Access | Page responsibility |
 |---|---|---|---|
@@ -9,7 +9,7 @@ This is the Phase 0 contract for the web application. Paths are frontend routes;
 | Public | `/403`, `/404` | Any | Safe authorization/not-found recovery |
 | User | `/dashboard` | Authenticated | Personal project, prompt, spend, and pending-approval summary |
 | User | `/projects`, `/projects/new`, `/projects/:id` | Member/owner | List, create/edit, members, and project prompt library |
-| User | `/prompts/new`, `/prompts/:id` | Project member | Create prompt and save immutable versions |
+| User | `/prompts/new`, `/prompts/:id` | Project member | Select a permitted project, create a prompt, and save immutable versions |
 | User | `/versions/:id`, `/versions/:id/compare`, `/versions/:id/lineage` | Project member | Inspect snapshot, diff, and parent lineage |
 | User | `/playground` | Project member | Render variables and execute a version |
 | User | `/runs` | Authenticated | Filter and inspect own permitted run ledger |

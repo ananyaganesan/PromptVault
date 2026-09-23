@@ -139,10 +139,10 @@ A task is complete only when:
 
 ### Jobin — project and versioning domain
 
-- [ ] **J2.1 — Create project/member schema and endpoints (1.5 days).** Add ownership/membership constraints and indexes; implement scoped project CRUD plus list/add/remove-member operations and duplicate-member conflicts.
-- [ ] **J2.2 — Create prompt/version schema (1.5 days).** Store stable project-scoped prompt keys, immutable version snapshots, variables/model config, author, commit message, parent version, and per-prompt version number.
-- [ ] **J2.3 — Implement prompt and atomic version endpoints (1.5 days).** Build scoped prompt create/read/list and version create/list/read operations; allocate version numbers safely under concurrent saves and prohibit update/delete of snapshots.
-- [ ] **J2.4 — Implement diff/lineage queries and tests (1.5 days).** Return deterministic template/config diffs and ordered recursive ancestry; test membership scoping, immutability, uniqueness, concurrency, and missing parents.
+- [x] **J2.1 — Create project/member schema and endpoints (1.5 days).** Add ownership/membership constraints and indexes; implement scoped project CRUD plus list/add/remove-member operations and duplicate-member conflicts.
+- [x] **J2.2 — Create prompt/version schema (1.5 days).** Store stable project-scoped prompt keys, immutable version snapshots, variables/model config, author, commit message, parent version, and per-prompt version number.
+- [x] **J2.3 — Implement prompt and atomic version endpoints (1.5 days).** Build scoped prompt create/read/list and version create/list/read operations; allocate version numbers safely under concurrent saves and prohibit update/delete of snapshots.
+- [x] **J2.4 — Implement diff/lineage queries and tests (1.5 days).** Return deterministic template/config diffs and ordered recursive ancestry; test membership scoping, immutability, uniqueness, concurrency, and missing parents.
 
 ### Phase 2 exit criteria
 
@@ -346,4 +346,3 @@ A task is complete only when:
 | **M4 — Release control** | 4 | Deployment, approval, runtime serving, tokens, rollback |
 | **M5 — Governed prototype** | 5 | Admin operations, audit, organization analytics, maintenance |
 | **M6 — Delivery candidate** | 6–7 | Tested, secured, documented, containerized, repeatable demo |
-
