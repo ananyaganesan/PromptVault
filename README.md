@@ -6,11 +6,11 @@ PromptVault is a prompt versioning, evaluation, deployment, and serving platform
 
 | Area | Available now | Still to build |
 | --- | --- | --- |
-| Frontend | Responsive user and admin demo, typed API client, unit and browser tests | Integration with the application APIs and production authentication |
+| Frontend | Responsive user and admin demo, database-backed login and registration through FastAPI, typed API client, unit and browser tests | Integration of projects, prompts, runs, deployments, and governance with their future APIs |
 | API | Configuration, database pool, health/readiness, request logging and errors, JWT registration/login/current-user endpoints, authorization dependencies | Project, prompt, version, run, deployment, budget, Serve, and governance endpoints |
 | Database | Ten migrations, constraints, triggers, functions, views, roles, and development/demo seeds | Integration of the remaining API workflows |
 
-The frontend demo and backend development seed use the same email addresses but **different passwords**. The frontend login currently uses local demo accounts; it does not call the backend authentication endpoints. Its mock data resets on reload, while the backend uses PostgreSQL.
+Login and registration use the FastAPI authentication endpoints by default. The other frontend workflows still use in-memory prototype data. A separate opt-in demo auth mode retains the old browser-only accounts for walkthroughs and UI tests.
 
 ## Project structure
 
@@ -38,9 +38,9 @@ PromptVault/
 └── docker-compose.yml    PostgreSQL service and draft API service
 ```
 
-## Frontend demo
+## Frontend with database-backed login
 
-**Prerequisites:** Node.js and npm compatible with `web/package-lock.json` (a current Node.js LTS release). The standalone demo does not need Python or PostgreSQL.
+**Prerequisites:** Node.js and npm compatible with `web/package-lock.json` (a current Node.js LTS release), a migrated and seeded PostgreSQL database, and the FastAPI server running on port `8000`. Follow the backend setup below first.
 
 From the repository root:
 
@@ -51,16 +51,21 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open the local URL printed by Vite, normally `http://localhost:5173`.
+Open the local URL printed by Vite, normally `http://localhost:5173`. `VITE_USE_MOCK_AUTH=false` makes login and registration call FastAPI. The browser never connects to PostgreSQL directly. New registrations save `email`, `display_name`, an Argon2 password hash, the default `user` role, active status, and timestamps in the `users` table.
 
-| Frontend demo role | Email | Password |
-| --- | --- | --- |
-| User | `user@promptvault.dev` | `User@123` |
-| Super Admin | `admin@promptvault.dev` | `Admin@123` |
+| Seeded database role | Email | Password | Login |
+| --- | --- | --- | --- |
+| User | `user@promptvault.dev` | `UserDemo2026!` | Allowed |
+| User | `alice@promptvault.dev` | `AliceDemo2026!` | Allowed |
+| User | `bob@promptvault.dev` | `BobDemo2026!` | Allowed |
+| Super Admin | `admin@promptvault.dev` | `AdminDemo2026!` | Allowed |
+| Inactive user | `inactive@promptvault.dev` | `InactiveDemo2026!` | Denied (403) |
 
-The frontend covers projects and members, prompts and immutable version snapshots, version comparison and lineage, playground scenarios, run history and costs, deployments and approvals, API tokens, and administration. The mock services keep records in browser memory. Reloading restores seeded records; the signed-in account survives a reload in the same tab. These public credentials and simulated token/provider flows are for demonstration only. See the [demo runbook](docs/demo-runbook.md).
+The API returns a JWT on login or registration. The frontend keeps it in tab session storage and verifies it with `/api/v1/auth/me` after a refresh, so a valid session stays signed in within that tab. Signing out clears the saved token; an expired or invalid token requires signing in again. Login succeeds only for active users with matching database credentials. An unknown email shows “Email address not found.”; a password mismatch shows “Incorrect password.” Passwords are never stored in browser storage. New passwords must have at least 12 non-whitespace characters; spaces are ignored in the form and rejected by the registration API.
 
-`web/.env.example` defines `VITE_API_BASE_URL` and enables `VITE_USE_MOCK_RUNS`, `VITE_USE_MOCK_DEPLOYMENTS`, and `VITE_USE_MOCK_ADMIN`. Keep the mock flags enabled for this demo. Projects, prompts, and frontend authentication are also local demo implementations. The typed API client exists, but the corresponding application endpoints are not yet available. The root `.env.example` is for backend configuration; its `VITE_API_URL` entry is not the variable currently read by the frontend client.
+Projects, prompts, runs, deployments, budgets, and admin workflows still use local prototype stores until their backend APIs are implemented. Their changes do not persist to PostgreSQL. `web/.env.example` sets `VITE_API_BASE_URL=http://localhost:8000`; the root `.env.example` is for backend settings. The root `VITE_API_URL` value is not used by the current frontend client.
+
+For the standalone UI walkthrough without the API, set `VITE_USE_MOCK_AUTH=true` in `web/.env.local` and restart Vite. That mode uses the same listed development credentials as the database seed, restores the demo account within the same tab, and does not create database users. See the [demo runbook](docs/demo-runbook.md).
 
 ### Build and test the frontend
 
@@ -86,7 +91,7 @@ Playwright starts its own Vite server on port `4173`. It covers desktop Chrome a
 
 ## Backend and database development
 
-**Prerequisites:** Python 3.11 or newer and Docker with Compose for PostgreSQL. The API opens its database pool on startup, so PostgreSQL must be reachable before starting Uvicorn.
+**Prerequisites:** Python 3.11 or newer and PostgreSQL. You can use a local PostgreSQL installation or Docker Compose. The API opens its database pool on startup, so PostgreSQL must be reachable before starting Uvicorn.
 
 From the repository root:
 
@@ -95,7 +100,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -r api/requirements-dev.txt
 cp .env.example .env
-docker compose up -d db
+# Start PostgreSQL first; use `docker compose up -d db` if using Docker.
 python3 scripts/run-migrations.py
 python3 scripts/seed-database.py
 python3 -m uvicorn api.app.main:app --reload --port 8000
@@ -110,14 +115,9 @@ Available API routes:
 - `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, and bearer-protected `GET /api/v1/auth/me`.
 - `/docs`, `/redoc`, and `/openapi.json` outside production.
 
-Backend development seed accounts:
+Backend development seed accounts are listed in the [login table above](#frontend-with-database-backed-login). Rerun `python3 scripts/seed-database.py` to add or restore them.
 
-| Backend role | Email | Password |
-| --- | --- | --- |
-| User | `user@promptvault.dev` | `UserDemo2026!` |
-| Super Admin | `admin@promptvault.dev` | `AdminDemo2026!` |
-
-The seed SQL stores Argon2id hashes. These backend accounts do not sign in to the current frontend demo.
+The seed SQL stores Argon2id hashes. These accounts sign in when `VITE_USE_MOCK_AUTH=false`; the standalone demo has separate browser-only credentials.
 
 ### Database and API checks
 
@@ -161,6 +161,6 @@ diff -u docs/openapi.json /tmp/promptvault-openapi.json
 - [Frontend demo walkthrough](docs/demo-runbook.md)
 - [Frontend setup and limitations](web/README.md)
 - [Database migration and seed rules](db/README.md)
-- [API contract](docs/api-contracts.md) and [route map](docs/route-map.md)
+- [API contract](docs/api-contracts.md)
 - [Browser verification](docs/browser-smoke.md) and [screenshots](docs/screenshots/README.md)
 - [Working prototype plan](docs/working-prototype-plan.md)

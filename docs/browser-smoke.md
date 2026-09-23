@@ -1,6 +1,6 @@
 # Frontend browser smoke and accessibility record
 
-Tested 2026-09-23 against the local Vite prototype using installed Google Chrome. Playwright covers desktop, an iPhone 13-sized viewport, 320px mobile, and 768px tablet widths. This is viewport/device emulation, not a physical iPhone or Safari certification.
+Tested 2026-09-23 against the local Vite prototype in demo authentication mode using installed Google Chrome. Playwright covers desktop, an iPhone 13-sized viewport, 320px mobile, and 768px tablet widths. This is viewport/device emulation, not a physical iPhone or Safari certification. A separate live Chrome check confirmed database-backed login, rejection of the browser-only password, and registration; its temporary registration was removed afterward.
 
 | Check | Result |
 | --- | --- |

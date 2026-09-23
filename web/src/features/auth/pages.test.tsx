@@ -8,7 +8,7 @@ import { AuthProvider } from './auth-context'
 function Location() { return <output data-testid="location">{useLocation().pathname}</output> }
 
 function renderLogin() {
-  return render(<AuthProvider><MemoryRouter initialEntries={['/login']}><Routes><Route path="/login" element={<LoginPage />} /><Route path="/dashboard" element={<Location />} /><Route path="/admin" element={<Location />} /></Routes></MemoryRouter></AuthProvider>)
+  return render(<AuthProvider mode="demo"><MemoryRouter initialEntries={['/login']}><Routes><Route path="/login" element={<LoginPage />} /><Route path="/dashboard" element={<Location />} /><Route path="/admin" element={<Location />} /></Routes></MemoryRouter></AuthProvider>)
 }
 
 describe('LoginPage', () => {
@@ -27,7 +27,7 @@ describe('LoginPage', () => {
     renderLogin()
 
     await user.type(screen.getByLabelText('Email address'), 'user@promptvault.dev')
-    await user.type(screen.getByLabelText('Password'), 'User@123')
+    await user.type(screen.getByLabelText('Password'), 'UserDemo2026!')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByTestId('location')).toHaveTextContent('/dashboard')
@@ -38,9 +38,23 @@ describe('LoginPage', () => {
     renderLogin()
 
     await user.type(screen.getByLabelText('Email address'), 'admin@promptvault.dev')
-    await user.type(screen.getByLabelText('Password'), 'Admin@123')
+    await user.type(screen.getByLabelText('Password'), 'AdminDemo2026!')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByTestId('location')).toHaveTextContent('/admin')
+  })
+
+  it('shows the relevant login error for a missing email or wrong password', async () => {
+    const user = userEvent.setup()
+    renderLogin()
+    await user.type(screen.getByLabelText('Email address'), 'missing@promptvault.dev')
+    await user.type(screen.getByLabelText('Password'), 'WrongPassword2026!')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Email address not found.')
+
+    await user.clear(screen.getByLabelText('Email address'))
+    await user.type(screen.getByLabelText('Email address'), 'user@promptvault.dev')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect password.')
   })
 })

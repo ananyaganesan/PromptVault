@@ -5,7 +5,8 @@ from typing import Annotated
 from api.app.schemas.users import UserResponse
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
 
-Password = Annotated[SecretStr, Field(min_length=12, max_length=128)]
+Password = Annotated[SecretStr, Field(min_length=1, max_length=128)]
+RegistrationPassword = Annotated[SecretStr, Field(min_length=12, max_length=128)]
 
 
 class AuthRequest(BaseModel):
@@ -24,6 +25,7 @@ class AuthRequest(BaseModel):
 
 class RegisterRequest(AuthRequest):
     display_name: Annotated[str, Field(min_length=1, max_length=120)]
+    password: RegistrationPassword
 
     @field_validator("display_name")
     @classmethod
@@ -32,6 +34,13 @@ class RegisterRequest(AuthRequest):
         if not normalized:
             raise ValueError("display name must not be blank")
         return normalized
+
+    @field_validator("password")
+    @classmethod
+    def reject_password_whitespace(cls, value: SecretStr) -> SecretStr:
+        if any(character.isspace() for character in value.get_secret_value()):
+            raise ValueError("password must not contain whitespace")
+        return value
 
 
 class LoginRequest(AuthRequest):

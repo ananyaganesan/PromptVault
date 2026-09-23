@@ -38,19 +38,23 @@ class AuthService:
 
     async def login(self, request: LoginRequest) -> SessionResponse:
         user = await self.repository.get_by_email(str(request.email))
-        password_matches = bool(
-            user
-            and await run_in_threadpool(
-                verify_password,
-                user.password_hash,
-                request.password.get_secret_value(),
-            )
-        )
-        if not user or not password_matches:
+        if not user:
             raise AppError(
                 401,
-                "unauthorized",
-                "Invalid email or password",
+                "email_not_found",
+                "Email address not found.",
+                headers=_BEARER_HEADERS,
+            )
+        password_matches = await run_in_threadpool(
+            verify_password,
+            user.password_hash,
+            request.password.get_secret_value(),
+        )
+        if not password_matches:
+            raise AppError(
+                401,
+                "invalid_password",
+                "Incorrect password.",
                 headers=_BEARER_HEADERS,
             )
         if not user.is_active:

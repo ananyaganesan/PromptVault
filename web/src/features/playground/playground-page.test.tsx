@@ -6,7 +6,7 @@ import { PlaygroundPage } from './playground-page'
 import { runService } from '../runs/run-service'
 import { AuthProvider } from '../auth/auth-context'
 
-function setup() { return render(<AuthProvider><MemoryRouter><PlaygroundPage /></MemoryRouter></AuthProvider>) }
+function setup() { return render(<AuthProvider mode="demo"><MemoryRouter><PlaygroundPage /></MemoryRouter></AuthProvider>) }
 
 describe('Playground run states', () => {
   it('requires the version input before execution', async () => {

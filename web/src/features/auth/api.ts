@@ -1,8 +1,8 @@
 import { apiClient } from '../../lib/api/client'
-import type { AuthSession, LoginRequest, RegisterRequest, UserSummary } from '../../types/auth'
+import type { ApiAuthSession, ApiUserSummary, LoginRequest, RegisterRequest } from '../../types/auth'
 
 export const authApi = {
-  register: (request: RegisterRequest, signal?: AbortSignal) => apiClient.request<AuthSession>('/auth/register', { method: 'POST', body: request, auth: false, signal }),
-  login: (request: LoginRequest, signal?: AbortSignal) => apiClient.request<AuthSession>('/auth/login', { method: 'POST', body: request, auth: false, signal }),
-  me: (signal?: AbortSignal) => apiClient.request<UserSummary>('/auth/me', { signal }),
+  register: (request: RegisterRequest, signal?: AbortSignal) => apiClient.request<ApiAuthSession>('/api/v1/auth/register', { method: 'POST', body: request, auth: false, signal }),
+  login: (request: LoginRequest, signal?: AbortSignal) => apiClient.request<ApiAuthSession>('/api/v1/auth/login', { method: 'POST', body: request, auth: false, signal }),
+  me: (signal?: AbortSignal) => apiClient.request<ApiUserSummary>('/api/v1/auth/me', { signal }),
 }

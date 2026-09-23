@@ -2,14 +2,17 @@
 
 ## Setup
 
-From `web/`, run `npm ci` and `npm run dev`. Open the URL printed by Vite. Leave all `VITE_USE_MOCK_*` flags set to `true` as in `.env.example`; the backend is not required for this UI demo. Use a fresh browser tab if you want the seeded starting state. The mock stores live in memory, so reloading resets projects, prompts, runs, deployments, and tokens created during the demo. The signed-in demo account survives a reload within the same tab.
+From `web/`, run `npm ci`, copy `.env.example` to `.env.local`, set `VITE_USE_MOCK_AUTH=true`, and run `npm run dev`. Open the URL printed by Vite. Leave the other `VITE_USE_MOCK_*` flags set to `true`; the backend is not required for this UI demo. Use a fresh browser tab if you want the seeded starting state. The mock stores live in memory, so reloading resets projects, prompts, runs, deployments, and tokens created during the demo. The signed-in demo account survives a reload within the same tab.
 
 Demo credentials:
 
 | Role | Email | Password | Landing page |
 | --- | --- | --- | --- |
-| User | `user@promptvault.dev` | `User@123` | Dashboard |
-| Super Admin | `admin@promptvault.dev` | `Admin@123` | Administration overview |
+| User | `user@promptvault.dev` | `UserDemo2026!` | Dashboard |
+| Alice | `alice@promptvault.dev` | `AliceDemo2026!` | Dashboard |
+| Bob | `bob@promptvault.dev` | `BobDemo2026!` | Dashboard |
+| Super Admin | `admin@promptvault.dev` | `AdminDemo2026!` | Administration overview |
+| Inactive user | `inactive@promptvault.dev` | `InactiveDemo2026!` | Login denied |
 
 These credentials are public prototype fixtures. Never use them in a deployed environment.
 
@@ -29,7 +32,7 @@ These credentials are public prototype fixtures. Never use them in a deployed en
 - Refresh to restore the seeded mock data if a demo action leaves an undesirable state. Sign out if you need to switch roles.
 - Mock registration creates a User account only in the current running tab. Password recovery does not send email.
 - The provider output, spending, approvals, and token flows are frontend simulations. They do **not** prove real provider calls, server-side budget enforcement, persistent storage, backend authorization, or secure token serving.
-- The real API mode flags depend on backend endpoints being implemented and available. Do not switch flags to `false` for this standalone demo.
+- Real API login and registration are available when `VITE_USE_MOCK_AUTH=false` and FastAPI is running. The remaining application API mode flags depend on backend endpoints that are not implemented yet; keep those flags `true` for this walkthrough.
 - No production secrets should be entered into the prototype.
 
 ## Verification and visuals

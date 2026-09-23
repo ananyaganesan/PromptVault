@@ -11,5 +11,5 @@ export default defineConfig({
     { name: 'mobile-chrome-320', use: { ...devices['Desktop Chrome'], channel: 'chrome', viewport: { width: 320, height: 700 }, isMobile: true, hasTouch: true } },
     { name: 'tablet-chrome-768', use: { ...devices['Desktop Chrome'], channel: 'chrome', viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true } },
   ],
-  webServer: { command: 'npm run dev -- --host 127.0.0.1 --port 4173', url: 'http://127.0.0.1:4173/login', reuseExistingServer: !process.env.CI, timeout: 30_000 },
+  webServer: { command: 'npm run dev -- --host 127.0.0.1 --port 4173', env: { VITE_USE_MOCK_AUTH: 'true' }, url: 'http://127.0.0.1:4173/login', reuseExistingServer: !process.env.CI, timeout: 30_000 },
 })

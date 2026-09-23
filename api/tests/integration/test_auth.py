@@ -67,6 +67,17 @@ def test_register_rejects_role_escalation_field(auth_client: TestClient) -> None
 
 
 @pytest.mark.database
+def test_register_rejects_whitespace_in_password(auth_client: TestClient) -> None:
+    payload = registration_payload(f"spaces-{uuid4()}@example.com")
+    payload["password"] = "Short       123"
+
+    response = auth_client.post("/api/v1/auth/register", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "validation_error"
+
+
+@pytest.mark.database
 def test_register_returns_duplicate_email_conflict_case_insensitively(
     auth_client: TestClient,
 ) -> None:
@@ -98,16 +109,29 @@ def test_login_accepts_seeded_credentials(auth_client: TestClient) -> None:
 
 @pytest.mark.database
 @pytest.mark.parametrize(
-    ("email", "password"),
+    ("email", "password", "code", "message"),
     [
-        ("user@promptvault.dev", "WrongPassword2026!"),
-        ("missing-user@example.com", "WrongPassword2026!"),
+        (
+            "user@promptvault.dev",
+            "WrongPassword2026!",
+            "invalid_password",
+            "Incorrect password.",
+        ),
+        ("user@promptvault.dev", "User@123", "invalid_password", "Incorrect password."),
+        (
+            "missing-user@example.com",
+            "WrongPassword2026!",
+            "email_not_found",
+            "Email address not found.",
+        ),
     ],
 )
-def test_login_invalid_credentials_are_generic_and_challenge_bearer(
+def test_login_identifies_invalid_credential_and_challenges_bearer(
     auth_client: TestClient,
     email: str,
     password: str,
+    code: str,
+    message: str,
 ) -> None:
     response = auth_client.post(
         "/api/v1/auth/login",
@@ -115,8 +139,8 @@ def test_login_invalid_credentials_are_generic_and_challenge_bearer(
     )
 
     assert response.status_code == 401
-    assert response.json()["code"] == "unauthorized"
-    assert response.json()["message"] == "Invalid email or password"
+    assert response.json()["code"] == code
+    assert response.json()["message"] == message
     assert response.headers["www-authenticate"] == "Bearer"
 
 
