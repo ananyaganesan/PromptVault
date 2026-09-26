@@ -21,9 +21,10 @@ Prompt versioning, evaluation, deployment, and serving platform.
 | 4 | Scoped project/member CRUD, prompt metadata, immutable versions, history, diff, lineage, and concurrency-safe version saves | Complete |
 | 5 | Deterministic providers, run ledger, effective pricing, atomic budgets, scoped run APIs, and personal dashboard | Complete |
 | 6 | Deployment requests/history/cancellation, atomic production review, runtime tokens, Serve API, and auditable rollback | Complete |
-| 7+ | Administration, governance, and stabilization | Not yet implemented |
+| 7 | Super Admin users, organization analytics/runs, budgets, encrypted provider keys, pricing history, audit queries, and maintenance operations | Complete |
+| 8 | End-to-end integration, security hardening, performance, containers, and delivery evidence | Not yet implemented |
 
-The database schema covers the complete v1 data model. The runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, immutable prompt versions, deterministic execution, scoped run history, the personal dashboard, deployment control plane, runtime-token lifecycle, and Serve API. Organization-wide governance and stabilization remain for later batches.
+The database schema covers the complete v1 data model. The runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, immutable prompt versions, deterministic execution, scoped run history, dashboards, deployment control plane, runtime-token lifecycle, Serve API, and the Super Admin governance surface. End-to-end stabilization and delivery evidence remain for the final batches.
 
 ## API development
 
@@ -40,7 +41,7 @@ python3 scripts/seed-database.py
 uvicorn api.app.main:app --reload --port 8000
 ```
 
-The required settings are `DATABASE_URL` and `SECRET_KEY`. `.env.example` also documents the token lifetime/issuer/audience, environment name, allowed CORS origins, database-pool bounds, database-health timeout, and provider timeout. Production refuses the placeholder signing secret and requires at least 32 characters.
+The required settings are `DATABASE_URL` and `SECRET_KEY`. `.env.example` also documents `PROVIDER_ENCRYPTION_KEY`, token lifetime/issuer/audience, environment name, allowed CORS origins, database-pool bounds, database-health timeout, and provider timeout. Production refuses placeholder secrets and requires separate signing and provider-encryption secrets of at least 32 characters.
 
 Operational endpoints:
 
@@ -54,6 +55,8 @@ Run endpoints are rooted at `/api/v1/runs`. `POST /runs` renders an immutable ve
 
 Deployment endpoints are rooted at `/api/v1/deployments`. Development and staging activate immediately; production requests remain pending until a Super Admin uses `/api/v1/admin/deployments`. Approval/rejection and rollback execute through locking PostgreSQL functions, so competing reviews have one winner. Project owners manage hash-only runtime credentials at `/api/v1/api-tokens`; consumers present the one-time plaintext token to `GET /serve/v1/prompts/{key}?env=prod`, which returns the project-scoped active version with `ETag` and private cache headers.
 
+Super Admin governance endpoints are rooted at `/api/v1/admin`. They provide safe user role/status transitions with self-lockout and last-admin protection, live organization analytics and run filters, budget management, encrypted provider-key metadata, append-only pricing history, redacted audit search, maintenance/job status, audited materialized-view refresh, and idempotent next-month partition creation. Provider-key plaintext is accepted only on creation and is never returned.
+
 API startup expects the configured PostgreSQL server to be reachable because the connection pool opens during application lifespan. Requests are logged as redacted JSON with their method, path, status, duration, and request ID; query strings and request bodies are not logged.
 
 `docker compose up -d db` starts the PostgreSQL dependency. The API image is not packaged yet because `api/Dockerfile` is reserved for the stabilization/delivery batch; run Uvicorn locally as shown above.
@@ -66,11 +69,13 @@ The database tools load `.env` and also accept an explicit database URL:
 python3 scripts/run-migrations.py
 python3 scripts/seed-database.py
 python3 scripts/reset-development.py --confirm-reset
+python3 scripts/create-partition.py
+python3 scripts/refresh-views.py
 ```
 
 Migration history is stored in `schema_migrations`. Applied files are protected by SHA-256 checksums, migration execution is serialized with a PostgreSQL advisory lock, and each migration is atomic. The reset command refuses non-development environments and requires `--confirm-reset`.
 
-The twelve migrations create the complete v1 relational schema, constraints, partitions, concurrency functions, audit triggers, reporting views, and database roles. The final boundary migrations make budget enforcement DST-safe, remove direct application-role ledger insertion, and require rollback targets to be earlier than the active version. Seed files use numeric prefixes so identities are always loaded before dependent demo data.
+The thirteen migrations create the complete v1 relational schema, constraints, partitions, concurrency functions, audit triggers, reporting views, and database roles. The boundary migrations make budget enforcement DST-safe, remove direct application-role ledger insertion, require rollback targets to be earlier than the active version, and serialize user-role transitions so the final active Super Admin cannot be removed. Seed files use numeric prefixes so identities are always loaded before dependent demo data.
 
 Development seed accounts:
 

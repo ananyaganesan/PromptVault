@@ -63,8 +63,10 @@ Dependencies point inward. Routers may depend on schemas, services, and authoriz
 - `api.app.repositories.deployments` and `api.app.services.deployments` implement scoped history, cancellation, evidence-backed review, and database-serialized production transitions.
 - `api.app.repositories.tokens` stores only SHA-256 runtime-token hashes and resolves active prompts inside the credential's project scope.
 - `api.app.routers.deployments`, `admin`, `tokens`, and `serve` expose the Phase 4 deployment, review, rollback, token, and runtime contract.
+- `api.app.repositories.admin` and `api.app.services.admin` implement user governance, live organization analytics, budget management, encrypted provider-key metadata, effective-dated pricing, and maintenance operations.
+- `api.app.repositories.audit` and `api.app.services.audit` expose filterable, defensively redacted audit history to Super Admins.
 
-Operational, authentication, project/member, prompt/version, run, personal-dashboard, deployment, approval, rollback, runtime-token, and Serve routes are implemented. Organization governance routers build on these foundations in later batches.
+Operational, authentication, project/member, prompt/version, run, dashboards, deployment, approval, rollback, runtime-token, Serve, and organization-governance routes are implemented.
 
 ## Primary data flow
 
@@ -93,6 +95,14 @@ Operational, authentication, project/member, prompt/version, run, personal-dashb
 4. Rollback inserts a new deployment pointing to an earlier immutable version.
 5. The Serve endpoint hashes the presented token, resolves its project scope, and returns the active version for the requested environment.
 
+### Administer governance controls
+
+1. The reusable Super Admin dependency reloads the active database user and rejects stale roles or inactive accounts.
+2. User role/status transitions execute exclusively through a serialized database function that blocks self-lockout and preserves at least one active Super Admin.
+3. Provider secrets are encrypted before persistence; API responses contain metadata only.
+4. Budget, pricing, provider-key, and user changes set actor/request context so audit triggers capture attributable, redacted events.
+5. Analytics reconcile directly from the run ledger, while least-privilege security-definer maintenance functions refresh views or create partitions and append attributed audit events.
+
 ## Error handling and observability
 
 Every request receives a request ID. Clients may supply `X-Request-ID`; otherwise the API creates one. The same identifier is returned in the response and included in structured logs. Non-success responses use the envelope in `api-contracts.md`. Database constraint names and provider secrets never appear in client messages or logs.
@@ -107,6 +117,7 @@ Expected application failures map to 400, 401, 403, 404, 409, or 422. Provider a
 - Pending cancellation is a conditional atomic transition; a concurrent cancellation/review cannot both succeed.
 - Runtime-token authentication performs a hash lookup constrained to non-revoked, non-expired credentials, and prompt lookup is constrained to that token's project.
 - Budget admission locks the applicable target/month before evaluating ledger spend.
+- Admin role/status transitions use a transaction advisory lock so concurrent changes cannot remove every active Super Admin.
 - Runs and audit records are append-only from application roles.
 - Monthly run partitions are created explicitly for the current and next month.
 

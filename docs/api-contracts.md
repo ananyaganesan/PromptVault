@@ -247,7 +247,7 @@ Serve returns project ID, prompt key, environment, version, template, variables,
 | `POST /admin/maintenance/refresh-views` | None | `202` refresh result/job |
 | `POST /admin/maintenance/create-next-partition` | None | `200` idempotent result |
 
-Budgets require exactly one target. Prices are append-only; corrections create a new effective-dated row.
+Budgets require exactly one target. Prices are append-only; corrections create a new effective-dated row. Admin run/audit date filters require timezone offsets. Maintenance operations execute synchronously in v1, report their last completed status, and write attributed audit events.
 
 ## Universal acceptance rules
 

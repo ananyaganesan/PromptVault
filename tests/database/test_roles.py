@@ -64,3 +64,66 @@ def test_application_role_can_only_insert_runs_through_budget_function(
     assert privileges["direct_insert"] is False
     assert privileges["partition_insert"] is False
     assert privileges["function_execute"] is True
+
+
+@pytest.mark.database
+def test_application_role_has_only_required_governance_write_boundaries(
+    db_connection: psycopg.Connection,
+) -> None:
+    privileges = db_connection.execute(
+        """
+        SELECT has_function_privilege(
+                   'promptvault_app',
+                   'admin_update_user(uuid,uuid,user_role,boolean,boolean,boolean)',
+                   'EXECUTE'
+               ) AS user_transition,
+               has_table_privilege(
+                   'promptvault_app', 'budgets', 'DELETE'
+               ) AS budget_delete,
+               has_table_privilege(
+                   'promptvault_app', 'users', 'UPDATE'
+               ) AS direct_user_update
+        """
+    ).fetchone()
+
+    assert privileges is not None
+    assert privileges["user_transition"] is True
+    assert privileges["budget_delete"] is True
+    assert privileges["direct_user_update"] is False
+
+
+@pytest.mark.database
+def test_application_role_executes_audited_maintenance_wrappers(
+    db_connection: psycopg.Connection,
+) -> None:
+    privileges = db_connection.execute(
+        """
+        SELECT has_function_privilege(
+                   'promptvault_app',
+                   'admin_refresh_reporting_views(uuid,text)',
+                   'EXECUTE'
+               ) AS refresh_views,
+               has_function_privilege(
+                   'promptvault_app',
+                   'admin_create_next_run_partition(uuid,text)',
+                   'EXECUTE'
+               ) AS create_partition
+        """
+    ).fetchone()
+
+    assert privileges is not None
+    assert privileges["refresh_views"] is True
+    assert privileges["create_partition"] is True
+
+    db_connection.execute("SET LOCAL ROLE promptvault_app")
+    refreshed_at = db_connection.execute(
+        "SELECT admin_refresh_reporting_views(%s, %s) AS completed_at",
+        ("22222222-2222-4222-8222-222222222222", "role-refresh-test"),
+    ).fetchone()["completed_at"]
+    partition = db_connection.execute(
+        "SELECT * FROM admin_create_next_run_partition(%s, %s)",
+        ("22222222-2222-4222-8222-222222222222", "role-partition-test"),
+    ).fetchone()
+
+    assert refreshed_at is not None
+    assert partition["partition_name"].startswith("runs_")

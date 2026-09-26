@@ -93,7 +93,13 @@ def test_reset_allows_confirmed_development() -> None:
 
 @pytest.mark.parametrize(
     "script",
-    ["run-migrations.py", "seed-database.py", "reset-development.py"],
+    [
+        "run-migrations.py",
+        "seed-database.py",
+        "reset-development.py",
+        "create-partition.py",
+        "refresh-views.py",
+    ],
 )
 def test_database_script_exposes_help(script: str) -> None:
     result = subprocess.run(

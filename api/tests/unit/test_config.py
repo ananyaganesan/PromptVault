@@ -40,6 +40,53 @@ def test_production_rejects_placeholder_secret() -> None:
 
 
 def test_settings_representation_redacts_secret() -> None:
-    settings = Settings(**BASE)
+    provider_key = "provider-encryption-key-at-least-32-characters"
+    settings = Settings(**BASE, provider_encryption_key=provider_key)
 
     assert BASE["secret_key"] not in repr(settings)
+    assert provider_key not in repr(settings)
+
+
+def test_production_requires_dedicated_provider_encryption_key() -> None:
+    values = {
+        **BASE,
+        "environment": "production",
+        "secret_key": "production-secret-that-is-at-least-32-characters",
+    }
+
+    with pytest.raises(ValidationError):
+        Settings(**values)
+
+
+@pytest.mark.parametrize(
+    "provider_encryption_key",
+    [
+        "change-me-provider-encryption-key",
+        "production-secret-that-is-at-least-32-characters",
+    ],
+)
+def test_production_rejects_placeholder_or_reused_provider_key(
+    provider_encryption_key: str,
+) -> None:
+    values = {
+        **BASE,
+        "environment": "production",
+        "secret_key": "production-secret-that-is-at-least-32-characters",
+        "provider_encryption_key": provider_encryption_key,
+    }
+
+    with pytest.raises(ValidationError):
+        Settings(**values)
+
+
+def test_production_accepts_independent_provider_encryption_key() -> None:
+    values = {
+        **BASE,
+        "environment": "production",
+        "secret_key": "production-secret-that-is-at-least-32-characters",
+        "provider_encryption_key": "independent-provider-key-that-is-at-least-32-characters",
+    }
+
+    settings = Settings(**values)
+
+    assert settings.environment == "production"

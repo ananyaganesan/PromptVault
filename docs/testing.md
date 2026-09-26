@@ -24,3 +24,10 @@ Failure-path API tests verify that provider errors and budget rejection return a
 - `api/tests/unit/test_runtime_tokens.py` proves runtime-token prefix, entropy-bearing length, uniqueness, and deterministic one-way hashing.
 - `tests/concurrency/test_approval_race.py` submits two simultaneous production decisions and proves exactly one transition succeeds while the loser receives the database serialization conflict.
 - `api/tests/unit/test_openapi_export.py` requires every Phase 4 path in the deterministic Swagger/OpenAPI artifact.
+
+## Administration and governance coverage
+
+- `api/tests/integration/test_admin_governance.py` exercises every governance route against PostgreSQL, including role/status and self-lockout safeguards, organization aggregate reconciliation, all organization-run/audit filters, timezone validation, budget validation/rollback, exact encrypted provider-key persistence, effective-dated pricing conflicts, audit attribution/redaction, missing resources, maintenance/job status, view refresh, partition idempotence, and read/write non-admin denial.
+- `api/tests/unit/test_provider_key_encryption.py` proves provider secrets use randomized authenticated ciphertext and round-trip only with the configured server key.
+- `tests/concurrency/test_admin_role_race.py` submits reciprocal concurrent deactivations and proves database serialization leaves exactly one active administrator.
+- `tests/database/test_roles.py` verifies secret-column denial, revoked direct user updates, and the narrow application-role function privileges required for atomic, audited governance operations.

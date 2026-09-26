@@ -18,14 +18,17 @@ The token role is informational, not authoritative. Every protected request load
 - Run targets require current project membership; run detail/list access is limited to the actor's own runs, current project membership, or explicit Super Admin bypass.
 - Scoped mutations lock the relevant membership row so removal cannot race between authorization and the write.
 - Registration rejects unknown fields, so clients cannot supply a role or active status.
+- Every governance route requires the current database user to be an active Super Admin. Direct application-role updates to users are revoked; role/status changes run through a serialized database function that rejects self-demotion/deactivation and prevents concurrent requests from removing the final active Super Admin.
 
 ## Stored and logged secrets
 
-Development seed SQL stores fixed Argon2id hashes, never plaintext passwords. Provider-key ciphertext and runtime-token hashes have column-level protections from the read-only database role. Audit triggers remove `password_hash`, `encrypted_secret`, and `token_hash` from before/after documents. Structured request logs omit bodies and query strings.
+Development seed SQL stores fixed Argon2id hashes, never plaintext passwords. Provider secrets are encrypted with authenticated Fernet encryption under the server-only `PROVIDER_ENCRYPTION_KEY`; production requires that key to be distinct from configuration defaults. Provider-key create responses and all list responses expose metadata only. Provider-key ciphertext and runtime-token hashes have column-level protections from the read-only database role. Audit triggers remove `password_hash`, `encrypted_secret`, and `token_hash` from before/after documents. Structured request logs omit bodies and query strings.
 
 Run ledger rows contain rendered inputs, output text, usage, latency, model identity, and historical cost but never provider credentials. Provider failures expose stable codes and generic messages; raw provider exceptions are not returned or logged.
 
 Serve tokens are a separate credential type and are not accepted by application JWT dependencies. They contain 256 bits of random material with a recognizable `pv_live_` prefix. Plaintext is returned only by the create response; PostgreSQL stores only its SHA-256 hash and a short display prefix. Authentication rejects expired or revoked credentials, and active-prompt resolution is constrained to the token's project and requested environment. Token list/revoke operations require the project owner or a Super Admin.
+
+Audit search is Super Admin-only and applies defensive recursive redaction before serializing historical JSON. Provider-key, budget, pricing, deployment, token, project, prompt, version, user-governance, view-refresh, and partition operations carry the request actor and request ID into database audit events. Maintenance database privileges are exposed only through active-admin-checking security-definer functions.
 
 ## Current limitations
 

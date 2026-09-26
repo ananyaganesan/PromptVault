@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
     database_url: str
     secret_key: str = Field(repr=False)
+    provider_encryption_key: str | None = Field(default=None, repr=False)
     access_token_ttl_minutes: int = 30
     jwt_issuer: str = "promptvault"
     jwt_audience: str = "promptvault-web"
@@ -56,7 +57,20 @@ class Settings(BaseSettings):
             self.secret_key == "change-me" or len(self.secret_key) < 32
         ):
             raise ValueError("production SECRET_KEY must be at least 32 characters")
+        if self.environment == "production" and (
+            self.provider_encryption_key is None
+            or self.provider_encryption_key == "change-me-provider-encryption-key"
+            or self.provider_encryption_key == self.secret_key
+            or len(self.provider_encryption_key) < 32
+        ):
+            raise ValueError(
+                "production PROVIDER_ENCRYPTION_KEY must be unique and at least 32 characters"
+            )
         return self
+
+    @property
+    def resolved_provider_encryption_key(self) -> str:
+        return self.provider_encryption_key or self.secret_key
 
 
 @lru_cache

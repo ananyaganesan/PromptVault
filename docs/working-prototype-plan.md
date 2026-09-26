@@ -226,10 +226,10 @@ A task is complete only when:
 
 ### Jobin — governance services
 
-- [ ] **J5.1 — Implement users and organization analytics APIs (1 day).** Add paginated user management, safe role/status transitions, organization aggregates, spend-by-model, and organization run filters.
-- [ ] **J5.2 — Implement provider keys, budgets, and pricing APIs (1 day).** Encrypt provider keys at rest, return metadata only, support deactivation, validate budget targets/periods, and preserve effective-dated price history.
-- [ ] **J5.3 — Implement audit trail and admin query APIs (1 day).** Record actor/action/resource/before-after/request metadata for security-sensitive mutations and expose secure, filterable, read-only audit results.
-- [ ] **J5.4 — Implement maintenance operations and governance tests (1 day).** Add health/partition/view-refresh endpoints and scripts; test Super Admin enforcement, encryption/redaction, self-demotion/deactivation safeguards, audit coverage, and aggregation accuracy.
+- [x] **J5.1 — Implement users and organization analytics APIs (1 day).** Add paginated user management, safe role/status transitions, organization aggregates, spend-by-model, and organization run filters.
+- [x] **J5.2 — Implement provider keys, budgets, and pricing APIs (1 day).** Encrypt provider keys at rest, return metadata only, support deactivation, validate budget targets/periods, and preserve effective-dated price history.
+- [x] **J5.3 — Implement audit trail and admin query APIs (1 day).** Record actor/action/resource/before-after/request metadata for security-sensitive mutations and expose secure, filterable, read-only audit results.
+- [x] **J5.4 — Implement maintenance operations and governance tests (1 day).** Add health/partition/view-refresh endpoints and scripts; test Super Admin enforcement, encryption/redaction, self-demotion/deactivation safeguards, audit coverage, and aggregation accuracy.
 
 ### Phase 5 exit criteria
 
