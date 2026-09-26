@@ -1,5 +1,7 @@
 """Password hashing and signed application access tokens."""
 
+import hashlib
+import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -14,6 +16,7 @@ from api.app.config import Settings
 UserRole = Literal["user", "admin"]
 _JWT_ALGORITHM = "HS256"
 _PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
+_RUNTIME_TOKEN_PREFIX = "pv_live_"
 
 
 class InvalidAccessToken(ValueError):
@@ -30,6 +33,18 @@ class AccessTokenClaims:
     role: UserRole
     issued_at: datetime
     expires_at: datetime
+
+
+def generate_runtime_token() -> str:
+    """Create a project runtime credential whose plaintext is shown once."""
+
+    return f"{_RUNTIME_TOKEN_PREFIX}{secrets.token_urlsafe(32)}"
+
+
+def hash_runtime_token(token: str) -> str:
+    """Return the non-reversible lookup value persisted for a runtime token."""
+
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def hash_password(password: str) -> str:

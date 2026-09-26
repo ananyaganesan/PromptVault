@@ -33,7 +33,7 @@ Dependencies point inward. Routers may depend on schemas, services, and authoriz
 - Runtime prompt delivery remains `/serve/v1/prompts/{key}` so consumers are not coupled to the application API namespace.
 - Browser authentication uses a short-lived bearer JWT in v1. The client keeps it in memory; page refresh requires signing in again. Refresh tokens and cookie sessions are deferred.
 - Serve authentication uses a separate high-entropy bearer token. Only its SHA-256 hash is stored.
-- Every protected write opens one database transaction and runs `SET LOCAL app.user_id = ...` before audited mutations.
+- Every protected write opens one database transaction and sets local `app.user_id` and `app.request_id` values before audited mutations.
 
 ### Implemented API foundation
 
@@ -60,8 +60,11 @@ Dependencies point inward. Routers may depend on schemas, services, and authoriz
 - `api.app.repositories.runs`, `pricing`, and `budgets` resolve scoped targets, effective prices, and append-only ledger data.
 - `api.app.services.playground`, `budget_enforcement`, and `analytics` orchestrate safe rendering, execution, atomic admission, and live personal aggregates.
 - `api.app.routers.runs` and `dashboard` expose the Phase 3 HTTP contract.
+- `api.app.repositories.deployments` and `api.app.services.deployments` implement scoped history, cancellation, evidence-backed review, and database-serialized production transitions.
+- `api.app.repositories.tokens` stores only SHA-256 runtime-token hashes and resolves active prompts inside the credential's project scope.
+- `api.app.routers.deployments`, `admin`, `tokens`, and `serve` expose the Phase 4 deployment, review, rollback, token, and runtime contract.
 
-Operational, authentication, project/member, prompt/version, run, and personal-dashboard routes are implemented. Deployment, Serve, and governance routers build on these foundations in later batches.
+Operational, authentication, project/member, prompt/version, run, personal-dashboard, deployment, approval, rollback, runtime-token, and Serve routes are implemented. Organization governance routers build on these foundations in later batches.
 
 ## Primary data flow
 
@@ -101,6 +104,8 @@ Expected application failures map to 400, 401, 403, 404, 409, or 422. Provider a
 - Prompt version numbering locks one prompt row, allowing unrelated prompts to proceed concurrently.
 - A partial unique index guarantees one active deployment per prompt and environment.
 - Approval and rollback lock the deployment state and run atomically.
+- Pending cancellation is a conditional atomic transition; a concurrent cancellation/review cannot both succeed.
+- Runtime-token authentication performs a hash lookup constrained to non-revoked, non-expired credentials, and prompt lookup is constrained to that token's project.
 - Budget admission locks the applicable target/month before evaluating ledger spend.
 - Runs and audit records are append-only from application roles.
 - Monthly run partitions are created explicitly for the current and next month.

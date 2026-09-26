@@ -197,10 +197,10 @@ A task is complete only when:
 
 ### Jobin — deployment control plane
 
-- [ ] **J4.1 — Implement deployment schema and user endpoints (1 day).** Model immutable deployment events and active environment state; activate dev/staging immediately, create pending production requests, and allow only valid pending cancellations.
-- [ ] **J4.2 — Implement atomic admin review (1 day).** Add pending/detail, approve, and reject operations with evidence payloads; enforce Super Admin access, rejection reasons, state transitions, and one-winner concurrent review behavior.
-- [ ] **J4.3 — Implement runtime token lifecycle and Serve API (1.5 days).** Generate project-scoped tokens, show plaintext once, store only a hash, list safe metadata, revoke tokens, authenticate Serve requests, and return the active prompt for key/environment.
-- [ ] **J4.4 — Implement rollback and lifecycle tests (1.5 days).** Create rollback as a new auditable deployment to an earlier version; test no-active-deployment, revoked/wrong-project token, approval race, cancel/review conflicts, fetch-before/after rollback, and secret redaction.
+- [x] **J4.1 — Implement deployment schema and user endpoints (1 day).** Model immutable deployment events and active environment state; activate dev/staging immediately, create pending production requests, and allow only valid pending cancellations.
+- [x] **J4.2 — Implement atomic admin review (1 day).** Add pending/detail, approve, and reject operations with evidence payloads; enforce Super Admin access, rejection reasons, state transitions, and one-winner concurrent review behavior.
+- [x] **J4.3 — Implement runtime token lifecycle and Serve API (1.5 days).** Generate project-scoped tokens, show plaintext once, store only a hash, list safe metadata, revoke tokens, authenticate Serve requests, and return the active prompt for key/environment.
+- [x] **J4.4 — Implement rollback and lifecycle tests (1.5 days).** Create rollback as a new auditable deployment to an earlier version; test no-active-deployment, revoked/wrong-project token, approval race, cancel/review conflicts, fetch-before/after rollback, and secret redaction.
 
 ### Phase 4 exit criteria
 

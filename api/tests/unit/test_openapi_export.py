@@ -41,6 +41,14 @@ def test_export_openapi_writes_deterministic_frontend_contract(
     assert "/api/v1/runs" in document["paths"]
     assert "/api/v1/runs/{run_id}" in document["paths"]
     assert "/api/v1/dashboard/me" in document["paths"]
+    assert "/api/v1/deployments" in document["paths"]
+    assert "/api/v1/deployments/{deployment_id}/cancel" in document["paths"]
+    assert "/api/v1/admin/deployments/pending" in document["paths"]
+    assert "/api/v1/admin/deployments/{deployment_id}/approve" in document["paths"]
+    assert "/api/v1/admin/prompts/{prompt_id}/rollback" in document["paths"]
+    assert "/api/v1/api-tokens" in document["paths"]
+    assert "/api/v1/api-tokens/{token_id}" in document["paths"]
+    assert "/serve/v1/prompts/{key}" in document["paths"]
     project_list_responses = document["paths"]["/api/v1/projects"]["get"]["responses"]
     assert {"200", "400", "401", "403", "422"}.issubset(project_list_responses)
     for status_code in ("400", "401", "403", "422"):
@@ -58,6 +66,20 @@ def test_export_openapi_writes_deterministic_frontend_contract(
     for status_code in ("409", "502", "504"):
         assert run_create_responses[status_code]["content"]["application/json"]["schema"] == {
             "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+    rollback_responses = document["paths"][
+        "/api/v1/admin/prompts/{prompt_id}/rollback"
+    ]["post"]["responses"]
+    assert "409" in rollback_responses
+    assert rollback_responses["409"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ErrorEnvelope"
+    }
+    serve_responses = document["paths"]["/serve/v1/prompts/{key}"]["get"]["responses"]
+    for status_code in ("200", "304"):
+        assert set(serve_responses[status_code]["headers"]) == {
+            "ETag",
+            "Cache-Control",
+            "Vary",
         }
     assert "ErrorEnvelope" in document["components"]["schemas"]
     register_fields = document["components"]["schemas"]["RegisterRequest"]["properties"]

@@ -25,7 +25,7 @@ Development seed SQL stores fixed Argon2id hashes, never plaintext passwords. Pr
 
 Run ledger rows contain rendered inputs, output text, usage, latency, model identity, and historical cost but never provider credentials. Provider failures expose stable codes and generic messages; raw provider exceptions are not returned or logged.
 
-Serve tokens are a separate credential type and are not accepted by application JWT dependencies. Their generation, hashing, scope, and revocation are implemented in the deployment/Serve batch.
+Serve tokens are a separate credential type and are not accepted by application JWT dependencies. They contain 256 bits of random material with a recognizable `pv_live_` prefix. Plaintext is returned only by the create response; PostgreSQL stores only its SHA-256 hash and a short display prefix. Authentication rejects expired or revoked credentials, and active-prompt resolution is constrained to the token's project and requested environment. Token list/revoke operations require the project owner or a Super Admin.
 
 ## Current limitations
 

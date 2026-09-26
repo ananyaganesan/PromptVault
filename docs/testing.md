@@ -17,3 +17,10 @@ pytest -q --cov=api.app --cov-config=api/pyproject.toml --cov-report=term-missin
 - `tests/concurrency/test_budget_race.py` submits 20 simultaneous charges against one budget and reconciles admitted, blocked, and stored totals.
 
 Failure-path API tests verify that provider errors and budget rejection return a safe public envelope while the corresponding append-only ledger row commits. Unknown or inaccessible run identifiers have the same not-found behavior. Generated OpenAPI is compared byte-for-byte with `docs/openapi.json` so frontend contract drift fails CI.
+
+## Deployment and Serve coverage
+
+- `api/tests/integration/test_deployments_tokens_serve.py` exercises staging activation, pending production requests, scoped history/detail, requester-only cancellation, Super Admin approval/rejection, review evidence, rollback, one-time token disclosure, hash-only persistence, project isolation, expiration/revocation, and conditional Serve responses.
+- `api/tests/unit/test_runtime_tokens.py` proves runtime-token prefix, entropy-bearing length, uniqueness, and deterministic one-way hashing.
+- `tests/concurrency/test_approval_race.py` submits two simultaneous production decisions and proves exactly one transition succeeds while the loser receives the database serialization conflict.
+- `api/tests/unit/test_openapi_export.py` requires every Phase 4 path in the deterministic Swagger/OpenAPI artifact.

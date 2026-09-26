@@ -20,9 +20,10 @@ Prompt versioning, evaluation, deployment, and serving platform.
 | 3 | Argon2id/JWT authentication, register/login/me endpoints, active-user checks, and reusable admin/project authorization dependencies | Complete |
 | 4 | Scoped project/member CRUD, prompt metadata, immutable versions, history, diff, lineage, and concurrency-safe version saves | Complete |
 | 5 | Deterministic providers, run ledger, effective pricing, atomic budgets, scoped run APIs, and personal dashboard | Complete |
-| 6+ | Deployment, Serve, and administration APIs | Not yet implemented |
+| 6 | Deployment requests/history/cancellation, atomic production review, runtime tokens, Serve API, and auditable rollback | Complete |
+| 7+ | Administration, governance, and stabilization | Not yet implemented |
 
-The database schema covers the complete v1 data model. The runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, immutable prompt versions, deterministic execution, scoped run history, and the personal dashboard under `/api/v1`. Deployment, Serve, and governance application modules remain for later batches.
+The database schema covers the complete v1 data model. The runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, immutable prompt versions, deterministic execution, scoped run history, the personal dashboard, deployment control plane, runtime-token lifecycle, and Serve API. Organization-wide governance and stabilization remain for later batches.
 
 ## API development
 
@@ -51,6 +52,8 @@ Authentication endpoints are rooted at `/api/v1/auth`: `POST /register`, `POST /
 
 Run endpoints are rooted at `/api/v1/runs`. `POST /runs` renders an immutable version using exact variable keys, executes the deterministic mock provider through a bounded provider interface, snapshots tokens/latency/model/cost, and records completed, failed, or budget-blocked ledger rows. `GET /runs` and `GET /runs/{id}` enforce owner/project-member scope; `GET /api/v1/dashboard/me` returns live personal monthly aggregates and recent runs.
 
+Deployment endpoints are rooted at `/api/v1/deployments`. Development and staging activate immediately; production requests remain pending until a Super Admin uses `/api/v1/admin/deployments`. Approval/rejection and rollback execute through locking PostgreSQL functions, so competing reviews have one winner. Project owners manage hash-only runtime credentials at `/api/v1/api-tokens`; consumers present the one-time plaintext token to `GET /serve/v1/prompts/{key}?env=prod`, which returns the project-scoped active version with `ETag` and private cache headers.
+
 API startup expects the configured PostgreSQL server to be reachable because the connection pool opens during application lifespan. Requests are logged as redacted JSON with their method, path, status, duration, and request ID; query strings and request bodies are not logged.
 
 `docker compose up -d db` starts the PostgreSQL dependency. The API image is not packaged yet because `api/Dockerfile` is reserved for the stabilization/delivery batch; run Uvicorn locally as shown above.
@@ -67,7 +70,7 @@ python3 scripts/reset-development.py --confirm-reset
 
 Migration history is stored in `schema_migrations`. Applied files are protected by SHA-256 checksums, migration execution is serialized with a PostgreSQL advisory lock, and each migration is atomic. The reset command refuses non-development environments and requires `--confirm-reset`.
 
-The eleven migrations create the complete v1 relational schema, constraints, partitions, concurrency functions, audit triggers, reporting views, and database roles. The final run-boundary migration makes budget enforcement DST-safe and removes direct application-role ledger insertion. Seed files use numeric prefixes so identities are always loaded before dependent demo data.
+The twelve migrations create the complete v1 relational schema, constraints, partitions, concurrency functions, audit triggers, reporting views, and database roles. The final boundary migrations make budget enforcement DST-safe, remove direct application-role ledger insertion, and require rollback targets to be earlier than the active version. Seed files use numeric prefixes so identities are always loaded before dependent demo data.
 
 Development seed accounts:
 
