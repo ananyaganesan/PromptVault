@@ -18,6 +18,15 @@ pytest -q --cov=api.app --cov-config=api/pyproject.toml --cov-report=term-missin
 
 Failure-path API tests verify that provider errors and budget rejection return a safe public envelope while the corresponding append-only ledger row commits. Unknown or inaccessible run identifiers have the same not-found behavior. Generated OpenAPI is compared byte-for-byte with `docs/openapi.json` so frontend contract drift fails CI.
 
+## Stabilization and storyboard coverage
+
+- `tests/security/` verifies the cross-route authorization matrix, inactive-user and escalation rejection, JWT/runtime-token boundaries, safe validation responses, write-only runtime/provider secrets, and structured-log allowlisting.
+- `tests/e2e/` executes the user/project/version/run flow, staging and production approval with forbidden/conflict evidence, Serve token plus rollback/revocation, budget block/recovery, and application-pool restart persistence.
+- `tests/concurrency/test_rollback_race.py` proves two same-target rollbacks serialize with one winner and one invalid stale request.
+- `tests/performance/test_query_plans.py` loads 2,000 deterministic ledger rows, verifies partition pruning, and asserts user/project/prompt/version histories remain index-backed.
+
+The representative ledger is idempotent and can be loaded manually with `python3 scripts/simulate-traffic.py --runs 2000`. Cross-layer API fixtures recreate and reseed only a database whose name ends in `_test`, giving every security/E2E case an isolated schema; their assertions use per-test identities and exact owned-state counts. For release verification, reset the disposable test database and execute the entire suite twice; this proves migration/seed repeatability rather than relying on accumulated local state.
+
 ## Deployment and Serve coverage
 
 - `api/tests/integration/test_deployments_tokens_serve.py` exercises staging activation, pending production requests, scoped history/detail, requester-only cancellation, Super Admin approval/rejection, review evidence, rollback, one-time token disclosure, hash-only persistence, project isolation, expiration/revocation, and conditional Serve responses.

@@ -11,6 +11,7 @@ The currently implemented FastAPI surface is exported deterministically to `docs
 - Dates are ISO-8601 UTC strings such as `2026-09-23T10:30:00Z`.
 - Money is a decimal string with two-to-six fractional digits, never a JSON float.
 - Unknown JSON fields and unsupported query filters are rejected.
+- Request bodies are capped by `MAX_REQUEST_BODY_BYTES` (1 MiB by default); larger bodies return `413 request_too_large`.
 
 ## Authentication
 
@@ -31,7 +32,7 @@ Clients may send `X-Request-ID` using 1-128 visible ASCII characters; otherwise 
 }
 ```
 
-`field_errors` is `null` for non-field errors. Stable codes include `bad_request`, `invalid_filter`, `invalid_variables`, `unauthorized`, `invalid_token`, `token_expired`, `forbidden`, `inactive_user`, `not_found`, `no_active_deployment`, `conflict`, `invalid_state`, `invalid_rollback_target`, `duplicate_email`, `duplicate_key`, `already_reviewed`, `last_admin`, `validation_error`, `rate_limited`, `budget_exceeded`, `pricing_not_configured`, `provider_error`, `provider_timeout`, `not_ready`, `missing_partition`, and `internal_error`.
+`field_errors` is `null` for non-field errors. Stable codes include `bad_request`, `invalid_filter`, `invalid_variables`, `request_too_large`, `unauthorized`, `invalid_token`, `token_expired`, `forbidden`, `inactive_user`, `not_found`, `no_active_deployment`, `conflict`, `invalid_state`, `invalid_rollback_target`, `duplicate_email`, `duplicate_key`, `already_reviewed`, `last_admin`, `validation_error`, `rate_limited`, `budget_exceeded`, `pricing_not_configured`, `provider_error`, `provider_timeout`, `not_ready`, `missing_partition`, and `internal_error`.
 
 Database constraint names, SQL text, stack traces, hashes, and encrypted values never appear in a response.
 

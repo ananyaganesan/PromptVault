@@ -255,10 +255,10 @@ A task is complete only when:
 
 ### Jobin — backend stabilization
 
-- [ ] **J6.1 — Complete database constraints, indexes, and transaction review (1 day).** Enforce referential integrity and valid states, add query-driven indexes, verify isolation/locking for version, approval, budget, and rollback races, and document ownership rules.
-- [ ] **J6.2 — Complete security hardening pass (1 day).** Validate inputs, restrict CORS, redact logs/errors, cap pagination/request sizes, prevent identifier-based data leaks, enforce least-privilege DB roles where practical, and document prototype limitations.
-- [ ] **J6.3 — Complete automated backend/database suites (1 day).** Fill the existing database, security, concurrency, E2E, and performance test files; make fixtures isolated and repeatable from a clean database.
-- [ ] **J6.4 — Validate performance and operational recovery (1 day).** Seed a representative dataset, inspect key query plans, add missing indexes, verify partition/view maintenance scripts, test restart behavior, and document backup/reset expectations for the prototype.
+- [x] **J6.1 — Complete database constraints, indexes, and transaction review (1 day).** Enforce referential integrity and valid states, add query-driven indexes, verify isolation/locking for version, approval, budget, and rollback races, and document ownership rules.
+- [x] **J6.2 — Complete security hardening pass (1 day).** Validate inputs, restrict CORS, redact logs/errors, cap pagination/request sizes, prevent identifier-based data leaks, enforce least-privilege DB roles where practical, and document prototype limitations.
+- [x] **J6.3 — Complete automated backend/database suites (1 day).** Fill the existing database, security, concurrency, E2E, and performance test files; make fixtures isolated and repeatable from a clean database.
+- [x] **J6.4 — Validate performance and operational recovery (1 day).** Seed a representative dataset, inspect key query plans, add missing indexes, verify partition/view maintenance scripts, test restart behavior, and document backup/reset expectations for the prototype.
 
 ### Phase 6 exit criteria
 

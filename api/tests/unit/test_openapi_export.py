@@ -68,7 +68,10 @@ def test_export_openapi_writes_deterministic_frontend_contract(
         schema = project_list_responses[status_code]["content"]["application/json"]["schema"]
         assert schema == {"$ref": "#/components/schemas/ErrorEnvelope"}
     project_create_responses = document["paths"]["/api/v1/projects"]["post"]["responses"]
-    assert {"201", "401", "403", "409", "422"}.issubset(project_create_responses)
+    assert {"201", "401", "403", "409", "413", "422"}.issubset(project_create_responses)
+    assert project_create_responses["413"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ErrorEnvelope"
+    }
     assert project_create_responses["409"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/ErrorEnvelope"
     }

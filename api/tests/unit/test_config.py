@@ -32,6 +32,33 @@ def test_settings_reject_nonpositive_provider_timeout() -> None:
         Settings(**BASE, provider_timeout_seconds=0)
 
 
+def test_settings_reject_nonpositive_request_body_limit() -> None:
+    with pytest.raises(ValidationError):
+        Settings(**BASE, max_request_body_bytes=0)
+
+
+@pytest.mark.parametrize(
+    "cors_origins",
+    ["*", "http://example.com/path", "not-an-origin"],
+)
+def test_settings_reject_unsafe_cors_origins(cors_origins: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(**BASE, cors_origins=cors_origins)
+
+
+def test_production_requires_https_cors_origins() -> None:
+    values = {
+        **BASE,
+        "environment": "production",
+        "secret_key": "production-secret-that-is-at-least-32-characters",
+        "provider_encryption_key": "independent-provider-key-that-is-at-least-32-characters",
+        "cors_origins": "http://app.example.com",
+    }
+
+    with pytest.raises(ValidationError):
+        Settings(**values)
+
+
 def test_production_rejects_placeholder_secret() -> None:
     values = {**BASE, "environment": "production", "secret_key": "change-me"}
 
@@ -85,6 +112,7 @@ def test_production_accepts_independent_provider_encryption_key() -> None:
         "environment": "production",
         "secret_key": "production-secret-that-is-at-least-32-characters",
         "provider_encryption_key": "independent-provider-key-that-is-at-least-32-characters",
+        "cors_origins": "https://app.example.com",
     }
 
     settings = Settings(**values)

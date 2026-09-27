@@ -9,8 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.app.config import Settings, get_settings
 from api.app.db.pool import PoolFactory, create_pool
 from api.app.dependencies.request_context import RequestIdMiddleware
-from api.app.errors import install_exception_handlers
+from api.app.errors import error_responses, install_exception_handlers
 from api.app.logging_config import RequestLoggingMiddleware, configure_logging
+from api.app.request_limits import RequestBodyLimitMiddleware
 from api.app.routers.admin import router as admin_router
 from api.app.routers.auth import router as auth_router
 from api.app.routers.dashboard import router as dashboard_router
@@ -51,9 +52,14 @@ def create_app(
         docs_url="/docs" if expose_docs else None,
         redoc_url="/redoc" if expose_docs else None,
         openapi_url="/openapi.json" if expose_docs else None,
+        responses=error_responses(413),
     )
     application.state.settings = resolved_settings
     install_exception_handlers(application)
+    application.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_bytes=resolved_settings.max_request_body_bytes,
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=list(resolved_settings.cors_origins),

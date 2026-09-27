@@ -22,9 +22,9 @@ Prompt versioning, evaluation, deployment, and serving platform.
 | 5 | Deterministic providers, run ledger, effective pricing, atomic budgets, scoped run APIs, and personal dashboard | Complete |
 | 6 | Deployment requests/history/cancellation, atomic production review, runtime tokens, Serve API, and auditable rollback | Complete |
 | 7 | Super Admin users, organization analytics/runs, budgets, encrypted provider keys, pricing history, audit queries, and maintenance operations | Complete |
-| 8 | End-to-end integration, security hardening, performance, containers, and delivery evidence | Not yet implemented |
+| 8 | End-to-end integration, security hardening, performance, containers, and delivery evidence | Backend stabilization complete; delivery packaging remains |
 
-The database schema covers the complete v1 data model. The runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, immutable prompt versions, deterministic execution, scoped run history, dashboards, deployment control plane, runtime-token lifecycle, Serve API, and the Super Admin governance surface. End-to-end stabilization and delivery evidence remain for the final batches.
+The database schema covers the complete v1 data model. The runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, immutable prompt versions, deterministic execution, scoped run history, dashboards, deployment control plane, runtime-token lifecycle, Serve API, and the Super Admin governance surface. Backend stabilization is complete; container packaging and clean-machine delivery evidence remain for the final batch.
 
 ## API development
 
@@ -41,7 +41,7 @@ python3 scripts/seed-database.py
 uvicorn api.app.main:app --reload --port 8000
 ```
 
-The required settings are `DATABASE_URL` and `SECRET_KEY`. `.env.example` also documents `PROVIDER_ENCRYPTION_KEY`, token lifetime/issuer/audience, environment name, allowed CORS origins, database-pool bounds, database-health timeout, and provider timeout. Production refuses placeholder secrets and requires separate signing and provider-encryption secrets of at least 32 characters.
+The required settings are `DATABASE_URL` and `SECRET_KEY`. `.env.example` also documents `PROVIDER_ENCRYPTION_KEY`, token lifetime/issuer/audience, environment name, allowed CORS origins, database-pool bounds, database-health timeout, provider timeout, and the global request-body limit. Production refuses placeholder secrets, requires HTTPS CORS origins, and requires separate signing and provider-encryption secrets of at least 32 characters.
 
 Operational endpoints:
 
@@ -71,11 +71,12 @@ python3 scripts/seed-database.py
 python3 scripts/reset-development.py --confirm-reset
 python3 scripts/create-partition.py
 python3 scripts/refresh-views.py
+python3 scripts/simulate-traffic.py --runs 2000
 ```
 
 Migration history is stored in `schema_migrations`. Applied files are protected by SHA-256 checksums, migration execution is serialized with a PostgreSQL advisory lock, and each migration is atomic. The reset command refuses non-development environments and requires `--confirm-reset`.
 
-The thirteen migrations create the complete v1 relational schema, constraints, partitions, concurrency functions, audit triggers, reporting views, and database roles. The boundary migrations make budget enforcement DST-safe, remove direct application-role ledger insertion, require rollback targets to be earlier than the active version, and serialize user-role transitions so the final active Super Admin cannot be removed. Seed files use numeric prefixes so identities are always loaded before dependent demo data.
+The fourteen migrations create the complete v1 relational schema, constraints, partitions, concurrency functions, audit triggers, reporting views, and database roles. The boundary migrations make budget enforcement DST-safe, remove direct application-role ledger insertion, require rollback targets to be earlier than the active version, serialize user-role transitions so the final active Super Admin cannot be removed, and add final cross-entity/lifecycle integrity checks plus query-driven indexes. Seed files use numeric prefixes so identities are always loaded before dependent demo data.
 
 Development seed accounts:
 

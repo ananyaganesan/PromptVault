@@ -45,6 +45,7 @@ Dependencies point inward. Routers may depend on schemas, services, and authoriz
 - `api.app.dependencies.request_context` validates or creates request IDs and returns them on responses.
 - `api.app.errors` provides the public error envelope and redacts validation inputs and unexpected failures.
 - `api.app.logging_config` emits allowlisted JSON request/error events without request bodies, query strings, secrets, or exception messages.
+- `api.app.request_limits` rejects oversized bodies before request parsing with the standard public error envelope.
 - `api.app.routers.health` separates process liveness from bounded database readiness.
 - `api.app.openapi` produces the deterministic `docs/openapi.json` frontend contract artifact.
 - `api.app.security` owns Argon2id password handling and issuer/audience-bound HS256 access tokens.
@@ -114,6 +115,7 @@ Expected application failures map to 400, 401, 403, 404, 409, or 422. Provider a
 - Prompt version numbering locks one prompt row, allowing unrelated prompts to proceed concurrently.
 - A partial unique index guarantees one active deployment per prompt and environment.
 - Approval and rollback lock the deployment state and run atomically.
+- Same-target rollback requests serialize on the prompt; the first creates a new event and a stale competitor fails the earlier-version precondition.
 - Pending cancellation is a conditional atomic transition; a concurrent cancellation/review cannot both succeed.
 - Runtime-token authentication performs a hash lookup constrained to non-revoked, non-expired credentials, and prompt lookup is constrained to that token's project.
 - Budget admission locks the applicable target/month before evaluating ledger spend.
@@ -137,7 +139,7 @@ Provider execution uses no database connection: short transactions load the immu
 - Database tests prove constraints, triggers, functions, procedures, partitions, and grants against PostgreSQL 16.
 - API tests cover every endpoint's happy path, validation, anonymous, forbidden, missing, conflict, and safe database-failure behavior.
 - End-to-end tests prove the storyboard in `demo-storyboard.md`.
-- Concurrency tests run 20 competing version saves, 100 competing approvals, and parallel budget-consuming runs.
+- Concurrency tests run competing version saves, reviews, cancellations, role changes, membership changes, rollbacks, and parallel budget-consuming runs.
 
 ## Ownership and integration
 

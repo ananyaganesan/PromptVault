@@ -6,6 +6,8 @@ Passwords are accepted only over the register/login request models, limited to 1
 
 Application access tokens are HS256 JWTs containing `sub`, `role`, `iat`, `exp`, `iss`, and `aud`. Verification pins the algorithm, signing secret, issuer, and audience and distinguishes expired tokens from malformed or tampered tokens. Production requires a non-placeholder signing secret of at least 32 characters. Tokens are short-lived; refresh tokens are outside v1.
 
+Browser origins are an explicit allowlist of absolute HTTP origins. Wildcards, credentials, paths, queries, and fragments are rejected; production origins must use HTTPS. Requests are capped globally by `MAX_REQUEST_BODY_BYTES` before JSON/form parsing, list pages are capped at 100 records, and unsupported query parameters fail closed.
+
 The token role is informational, not authoritative. Every protected request loads the user by `sub` and enforces the current database `role` and `is_active` values. Deactivation therefore invalidates existing sessions immediately, and forging an `admin` role claim with an otherwise valid token cannot elevate a normal database user.
 
 ## Authorization
@@ -17,6 +19,7 @@ The token role is informational, not authoritative. Every protected request load
 - Direct prompt/version lookups apply membership scope in the SQL statement and return the same not-found response for inaccessible and unknown IDs.
 - Run targets require current project membership; run detail/list access is limited to the actor's own runs, current project membership, or explicit Super Admin bypass.
 - Scoped mutations lock the relevant membership row so removal cannot race between authorization and the write.
+- Prompt/version direct lookups deliberately collapse unknown and inaccessible identifiers to the same `404 not_found` result, preventing object-existence probing.
 - Registration rejects unknown fields, so clients cannot supply a role or active status.
 - Every governance route requires the current database user to be an active Super Admin. Direct application-role updates to users are revoked; role/status changes run through a serialized database function that rejects self-demotion/deactivation and prevents concurrent requests from removing the final active Super Admin.
 
@@ -30,6 +33,8 @@ Serve tokens are a separate credential type and are not accepted by application 
 
 Audit search is Super Admin-only and applies defensive recursive redaction before serializing historical JSON. Provider-key, budget, pricing, deployment, token, project, prompt, version, user-governance, view-refresh, and partition operations carry the request actor and request ID into database audit events. Maintenance database privileges are exposed only through active-admin-checking security-definer functions.
 
+The `promptvault_app` role is a trusted server role, never an end-user login. It cannot directly insert immutable versions/runs or insert/update deployments; those race-sensitive writes use fixed-`search_path` security-definer functions. Ordinary project CRUD and the current budget/provider-key/runtime-token repositories still use direct table grants, with authorization enforced by the API transaction before DML. Moving every remaining governance mutation behind a database procedure and provisioning separate login credentials are production hardening work, not claims made by this prototype.
+
 ## Current limitations
 
-The prototype has no refresh token, password reset, email verification, MFA, SSO, or distributed token-revocation list. Browser access tokens are intended to remain in memory. TLS termination, rate limiting, secret rotation, and production key management belong to the deployment environment.
+The prototype has no refresh token, password reset, email verification, MFA, SSO, distributed token-revocation list, or edge rate limiter. Browser access tokens are intended to remain in memory. TLS termination, per-IP/request rate limiting, secret rotation, database credential provisioning, and production key management belong to the deployment environment.

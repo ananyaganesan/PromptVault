@@ -20,6 +20,7 @@ _ERROR_RESPONSE_DESCRIPTIONS = {
     403: "Forbidden",
     404: "Not Found",
     409: "Conflict",
+    413: "Content Too Large",
     422: "Unprocessable Content",
 }
 

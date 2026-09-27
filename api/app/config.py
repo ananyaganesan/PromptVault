@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from typing import Annotated, Literal, Self
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -26,6 +27,7 @@ class Settings(BaseSettings):
     db_pool_timeout_seconds: float = 5.0
     database_health_timeout_seconds: float = 2.0
     provider_timeout_seconds: float = 30.0
+    max_request_body_bytes: int = 1_048_576
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     @field_validator("cors_origins", mode="before")
@@ -53,6 +55,23 @@ class Settings(BaseSettings):
             raise ValueError("database and provider timeouts must be positive")
         if self.access_token_ttl_minutes <= 0:
             raise ValueError("access token lifetime must be positive")
+        if self.max_request_body_bytes <= 0:
+            raise ValueError("MAX_REQUEST_BODY_BYTES must be positive")
+        for origin in self.cors_origins:
+            parsed = urlsplit(origin)
+            if (
+                origin == "*"
+                or parsed.scheme not in {"http", "https"}
+                or not parsed.netloc
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.path not in {"", "/"}
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError("CORS_ORIGINS must contain absolute HTTP origins")
+            if self.environment == "production" and parsed.scheme != "https":
+                raise ValueError("production CORS_ORIGINS must use HTTPS")
         if self.environment == "production" and (
             self.secret_key == "change-me" or len(self.secret_key) < 32
         ):
