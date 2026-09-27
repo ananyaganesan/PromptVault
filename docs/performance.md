@@ -10,6 +10,8 @@ The command is idempotent for the requested size and runs `ANALYZE runs`. `tests
 
 The run ledger indexes follow the API's primary access paths: `(user_id, created_at)`, `(project_id, created_at)`, `(prompt_id, created_at)`, `(version_id, created_at)`, status/time, and provider/model/time. Administration adds indexes for user-list filtering, provider-key history, and recently updated budgets. List endpoints cap `page_size` at 100, and repositories add stable ID tie-breakers.
 
+`python3 scripts/run-showcase.py` discovers stable demo IDs, safely renders the parameterized SQL in `db/showcase/`, and executes cost, deployment, lineage, and `EXPLAIN (ANALYZE, BUFFERS)` examples. It fails when no seeded version exists or a query/placeholder drifts from the schema.
+
 ## Operational expectations
 
 - Create the next monthly partition before month rollover with `python3 scripts/create-partition.py`.

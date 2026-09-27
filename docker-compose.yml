@@ -1,17 +1,125 @@
+x-api-common: &api-common
+  image: ${COMPOSE_PROJECT_NAME:-promptvault}-api:local
+  build:
+    context: .
+    dockerfile: api/Dockerfile
+    target: runtime
+  environment: &api-environment
+    ENVIRONMENT: ${ENVIRONMENT:-development}
+    DATABASE_URL: postgresql://${POSTGRES_USER:-promptvault}:${POSTGRES_PASSWORD:-promptvault}@db:5432/${POSTGRES_DB:-promptvault}
+    SECRET_KEY: ${SECRET_KEY:-change-me}
+    PROVIDER_ENCRYPTION_KEY: ${PROVIDER_ENCRYPTION_KEY:-change-me-provider-encryption-key}
+    ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-30}
+    JWT_ISSUER: ${JWT_ISSUER:-promptvault}
+    JWT_AUDIENCE: ${JWT_AUDIENCE:-promptvault-web}
+    CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
+    DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-10}
+    DB_POOL_TIMEOUT_SECONDS: ${DB_POOL_TIMEOUT_SECONDS:-5}
+    DATABASE_HEALTH_TIMEOUT_SECONDS: ${DATABASE_HEALTH_TIMEOUT_SECONDS:-2}
+    PROVIDER_TIMEOUT_SECONDS: ${PROVIDER_TIMEOUT_SECONDS:-30}
+    MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-1048576}
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
 services:
   db:
-    image: postgres:16
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     environment:
-      POSTGRES_DB: promptvault
-      POSTGRES_USER: promptvault
-      POSTGRES_PASSWORD: promptvault
+      POSTGRES_DB: ${POSTGRES_DB:-promptvault}
+      POSTGRES_USER: ${POSTGRES_USER:-promptvault}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-promptvault}
     ports:
-      - "5432:5432"
-  api:
-    build: ./api
-    environment:
-      DATABASE_URL: postgresql://promptvault:promptvault@db:5432/promptvault
-    ports:
-      - "8000:8000"
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - promptvault-data:/var/lib/postgresql/data
+      - ./docker/init-test-database.sql:/docker-entrypoint-initdb.d/10-test-database.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-promptvault} -d ${POSTGRES_DB:-promptvault}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    <<: *api-common
+    command:
+      - sh
+      - -c
+      - python scripts/run-migrations.py && python scripts/seed-database.py
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *api-common
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 12
+    restart: unless-stopped
+
+  web:
+    image: ${COMPOSE_PROJECT_NAME:-promptvault}-web:local
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    ports:
+      - "${WEB_PORT:-5173}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  verify:
+    image: ${COMPOSE_PROJECT_NAME:-promptvault}-api-test:local
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+      target: test
+    profiles: ["verification"]
+    environment:
+      <<: *api-environment
+      ENVIRONMENT: test
+      DATABASE_URL: postgresql://${POSTGRES_USER:-promptvault}:${POSTGRES_PASSWORD:-promptvault}@db:5432/promptvault_test
+      TEST_DATABASE_URL: postgresql://${POSTGRES_USER:-promptvault}:${POSTGRES_PASSWORD:-promptvault}@db:5432/promptvault_test
+      SECRET_KEY: test-secret-that-is-at-least-32-characters
+      CORS_ORIGINS: http://localhost:5173
+      COVERAGE_FILE: /tmp/promptvault.coverage
+      MYPY_CACHE_DIR: /tmp/promptvault-mypy
+      RUFF_CACHE_DIR: /tmp/promptvault-ruff
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - >-
+        ruff check api scripts tests &&
+        mypy --config-file api/pyproject.toml api/app &&
+        pytest -q -o cache_dir=/tmp/promptvault-pytest --cov=api.app --cov-config=api/pyproject.toml &&
+        python -m compileall -q api/app api/tests scripts tests &&
+        python -m pip check &&
+        python scripts/export-openapi.py --output /tmp/promptvault-openapi.json &&
+        diff -u docs/openapi.json /tmp/promptvault-openapi.json &&
+        python scripts/run-showcase.py --database-url "$${TEST_DATABASE_URL}" --max-rows 2
+
+volumes:
+  promptvault-data:

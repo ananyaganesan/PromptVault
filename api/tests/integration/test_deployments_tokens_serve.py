@@ -346,7 +346,9 @@ def test_runtime_token_is_disclosed_once_scoped_revocable_and_serves_rollback(
     assert served.json()["project_id"] == project["id"]
     assert served.json()["version"]["id"] == version_one["id"]
     assert served.headers["cache-control"] == "private, max-age=30"
-    assert served.headers["vary"] == "Authorization"
+    assert "Authorization" in {
+        value.strip() for value in served.headers["vary"].split(",")
+    }
     assert served.headers["etag"]
     conditional = deployment_client.get(
         "/serve/v1/prompts/support-reply",
@@ -354,7 +356,9 @@ def test_runtime_token_is_disclosed_once_scoped_revocable_and_serves_rollback(
         params={"env": "prod"},
     )
     assert conditional.status_code == 304
-    assert conditional.headers["vary"] == "Authorization"
+    assert "Authorization" in {
+        value.strip() for value in conditional.headers["vary"].split(",")
+    }
     weak_or_multiple = deployment_client.get(
         "/serve/v1/prompts/support-reply",
         headers={
@@ -505,7 +509,10 @@ def test_runtime_token_cannot_cross_project_or_outlive_expiration(
     assert first_project.status_code == second_project.status_code == 200
     assert first_project.json()["project_id"] == project_without_active["id"]
     assert second_project.json()["project_id"] == project_with_active["id"]
-    assert first_project.headers["vary"] == second_project.headers["vary"] == "Authorization"
+    for response in (first_project, second_project):
+        assert "Authorization" in {
+            value.strip() for value in response.headers["vary"].split(",")
+        }
 
     with psycopg.connect(seeded_database_url) as connection:
         connection.execute(

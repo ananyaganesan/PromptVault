@@ -4,6 +4,8 @@ This document is the shared frontend/backend contract. Application paths below a
 
 The currently implemented FastAPI surface is exported deterministically to `docs/openapi.json`. Frontend types and clients should be generated from that file; regenerate it with `python3 scripts/export-openapi.py` whenever response models or routes change. This narrative contract includes planned endpoints until their implementation reaches the OpenAPI artifact.
 
+Runnable login, deployment approval, runtime-token, and Serve requests are in `docs/api-examples.md`.
+
 ## Transport and representation
 
 - JSON over HTTPS in deployed environments.

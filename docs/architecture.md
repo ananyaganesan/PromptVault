@@ -17,6 +17,8 @@ The v1 roles are stored as `user` and `admin`; the UI labels `admin` as **Super 
 | Provider adapters | Deterministic mock and Gemini execution behind one interface | Database writes or API responses |
 | PostgreSQL 16 | Durable state, referential integrity, immutable history, concurrency control, cost and budget rules, audit | HTTP authentication or presentation formatting |
 
+Local Compose adds a one-shot `migrate` container between PostgreSQL readiness and API startup. The web container is built with the public API URL and is gated on API readiness. An opt-in `verification` profile reuses a test-target API image to run the backend suite against a separate disposable database.
+
 ## Dependency direction
 
 ```text

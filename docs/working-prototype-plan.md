@@ -284,9 +284,9 @@ A task is complete only when:
 
 ### Jobin — reproducible delivery
 
-- [ ] **J7.1 — Complete the local container stack (0.5 day).** Add the web service, migration/seed startup path, health checks, dependency ordering, persistent volume behavior, and `.env.example` values without real secrets.
-- [ ] **J7.2 — Complete technical documentation (0.5 day).** Finish architecture, ERD, normalization, security, testing, performance, deployment, API examples, and known prototype limitations.
-- [ ] **J7.3 — Make reset/seed/showcase scripts reliable (0.5 day).** Provide one-command clean reset, deterministic demo data, Serve API example, approval/version race demonstrations, and analytics/lineage/deployment queries.
+- [x] **J7.1 — Complete the local container stack (0.5 day).** Add the web service, migration/seed startup path, health checks, dependency ordering, persistent volume behavior, and `.env.example` values without real secrets.
+- [x] **J7.2 — Complete technical documentation (0.5 day).** Finish architecture, ERD, normalization, security, testing, performance, deployment, API examples, and known prototype limitations.
+- [x] **J7.3 — Make reset/seed/showcase scripts reliable (0.5 day).** Provide one-command clean reset, deterministic demo data, Serve API example, approval/version race demonstrations, and analytics/lineage/deployment queries.
 - [ ] **J7.4 — Run clean-machine release verification (0.5 day).** Clone/start/migrate/seed/test the documented workflow, tag the tested revision, and archive command output needed as delivery evidence.
 
 ### Phase 7 exit criteria

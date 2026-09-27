@@ -19,6 +19,8 @@ erDiagram
     prompt_versions ||--o{ deployments : promotes
     deployments o|--o{ deployments : rolls_back
     projects ||--o{ api_tokens : scopes
+    users ||--o{ provider_keys : creates
+    users ||--o{ model_pricing : creates
     users ||--o{ audit_events : acts
 ```
 

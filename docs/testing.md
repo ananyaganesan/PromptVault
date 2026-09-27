@@ -25,7 +25,13 @@ Failure-path API tests verify that provider errors and budget rejection return a
 - `tests/concurrency/test_rollback_race.py` proves two same-target rollbacks serialize with one winner and one invalid stale request.
 - `tests/performance/test_query_plans.py` loads 2,000 deterministic ledger rows, verifies partition pruning, and asserts user/project/prompt/version histories remain index-backed.
 
-The representative ledger is idempotent and can be loaded manually with `python3 scripts/simulate-traffic.py --runs 2000`. Cross-layer API fixtures recreate and reseed only a database whose name ends in `_test`, giving every security/E2E case an isolated schema; their assertions use per-test identities and exact owned-state counts. For release verification, reset the disposable test database and execute the entire suite twice; this proves migration/seed repeatability rather than relying on accumulated local state.
+The representative ledger is idempotent and can be loaded manually with `python3 scripts/simulate-traffic.py --runs 2000`. Cross-layer API fixtures recreate and reseed only a database whose name ends in `_test`, giving every security/E2E case an isolated schema; their assertions use per-test identities and exact owned-state counts. Release verification executes the entire suite against a fresh disposable database rather than relying on accumulated local state.
+
+## Containerized release verification
+
+`python3 scripts/verify-release.py` is the clean-checkout acceptance command. It builds the production-target images, runs the `verification` Compose profile with lint, strict mypy, branch-aware coverage, dependency checks and OpenAPI drift detection, then performs stack smoke tests, concurrency demos, representative-data loading, and showcase queries. The timestamped command transcript is written below `evidence/release/`; test tooling is absent from the runtime image.
+
+`tests/delivery/` validates the Compose service/dependency contract and the executable demo clients. The web image build runs both TypeScript type checking and the Vite production build. Browser behavior remains a separate frontend acceptance boundary until the visual prototype is connected to the API.
 
 ## Deployment and Serve coverage
 

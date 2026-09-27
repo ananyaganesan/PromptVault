@@ -38,3 +38,5 @@ The `promptvault_app` role is a trusted server role, never an end-user login. It
 ## Current limitations
 
 The prototype has no refresh token, password reset, email verification, MFA, SSO, distributed token-revocation list, or edge rate limiter. Browser access tokens are intended to remain in memory. TLS termination, per-IP/request rate limiting, secret rotation, database credential provisioning, and production key management belong to the deployment environment.
+
+Compose values in `.env.example` are explicit local-development placeholders. They are not production credentials, and the application rejects placeholder secrets when `ENVIRONMENT=production`. The verification evidence redacts login tokens and never prints runtime tokens or provider secrets.
