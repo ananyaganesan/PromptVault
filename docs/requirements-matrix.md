@@ -13,8 +13,8 @@
 | F9 | Budgets and costs | Exact-limit, zero, unlimited, overlapping user/project, month-boundary, and concurrent attempts prove database enforcement | Verified (`test_runs_dashboard.py`, `tests/database/test_budget_enforcement.py`, `tests/concurrency/test_budget_race.py`) |
 | F10 | Governance | Admin-only tests cover users, encrypted keys, immutable pricing, redacted audit, analytics reconciliation, partitions, and view freshness | Verified (`api/tests/integration/test_admin_governance.py`, `tests/concurrency/test_admin_role_race.py`) |
 | F11 | Security | Security suite proves Argon2, JWT checks, parameterized/scoped SQL, encryption/hashing, safe errors/logs, CORS, DCL, and dependency review | Verified (`tests/security/`, `tests/database/test_roles.py`, `api/tests/unit/test_config.py`) |
-| F12 | Delivery evidence | Clean-machine run builds containers, migrates, seeds 2,000 runs, passes all suites, runs showcase queries, and completes the storyboard | Backend verified (`evidence/release/latest.txt`, tag `v0.1.0-backend`); frontend storyboard evidence pending |
+| F12 | Delivery evidence | Clean-machine run builds containers, migrates, seeds 2,000 runs, passes all suites, runs showcase queries, and completes the storyboard | Verified (`evidence/release/latest.txt`, `evidence/release/full-stack-2026-09-28.md`) |
 
 Deferred from v1: A/B tests, semantic search, LLM-as-judge, SSO, branch UI, and RLS multi-tenancy.
 
-Full F12 status changes to `Verified` only after the frontend storyboard and browser evidence join the cited backend clean-machine evidence.
+The backend clean-machine transcript and Docker-backed frontend browser record together provide the full F12 evidence boundary.

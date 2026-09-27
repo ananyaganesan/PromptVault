@@ -1,10 +1,10 @@
-import { runsApi } from './api'
+import { runsApi, type BackendPromptRun } from './api'
 import { projectStore, promptStore, versionStore } from '../projects/workspace-data'
 import type { CreateRunRequest, PersonalDashboard, PromptRun, RunListQuery } from '../../types/runs'
 import type { Page } from '../../types/api'
 import { budgetStore } from '../admin/budget-store'
 
-const useDemoRuns = import.meta.env.VITE_USE_MOCK_RUNS !== 'false'
+const useDemoRuns = import.meta.env.MODE === 'test' && import.meta.env.VITE_USE_MOCK_RUNS !== 'false'
 const currentMonth = new Date().toISOString().slice(0, 7)
 const daysAgo = (days: number) => new Date(Date.now() - days * 86400000).toISOString()
 const seedRuns: PromptRun[] = [
@@ -14,7 +14,7 @@ const seedRuns: PromptRun[] = [
   { id: 'demo-run-4', project_id: 'checkout', prompt_id: 'checkout-reply', prompt_key: 'checkout-reply', version_id: 'checkout-v3', version_number: 3, user_id: 'usr_demo_user', status: 'blocked', output: null, input_variables: { customer_message: 'Please check my order' }, prompt_tokens: null, completion_tokens: null, latency_ms: null, cost: '0.0000', model: 'gpt-4o-mini', created_at: daysAgo(4), error_message: 'The monthly budget has been reached. No provider call was made.' },
 ]
 
-let demoRuns = seedRuns
+let demoRuns = useDemoRuns ? seedRuns : []
 let revision = 0
 const listeners = new Set<() => void>()
 function notify() { revision += 1; listeners.forEach((listener) => listener()) }
@@ -28,9 +28,36 @@ function totalSpend(userId: string) { return demoRuns.filter((run) => run.user_i
 function money(amount: number) { return amount.toFixed(4) }
 function spendFor(target: 'user' | 'project', id: string) { return demoRuns.filter((run) => run.status === 'completed' && run.created_at.startsWith(currentMonth) && (target === 'user' ? run.user_id : run.project_id) === id).reduce((total, run) => total + Number(run.cost), 0) }
 
+export function adaptRun(run: BackendPromptRun): PromptRun {
+  return {
+    id: run.id,
+    project_id: run.project_id,
+    prompt_id: run.prompt_id,
+    prompt_key: run.prompt_key,
+    version_id: run.version_id,
+    version_number: run.version_number,
+    user_id: run.user_id,
+    status: run.status,
+    output: run.output_text,
+    input_variables: run.input_variables,
+    prompt_tokens: run.prompt_tokens,
+    completion_tokens: run.completion_tokens,
+    latency_ms: run.latency_ms,
+    cost: run.cost,
+    model: run.model,
+    created_at: run.created_at,
+    error_message: run.error_code ? run.error_code.replace(/_/g, ' ') : null,
+  }
+}
+
 export const runService = {
   async create(request: CreateRunRequest, scenario: 'normal' | 'failed' | 'blocked' = 'normal', userId = 'usr_demo_user'): Promise<PromptRun> {
-    if (!useDemoRuns) return runsApi.create(request)
+    if (!useDemoRuns) {
+      const run = adaptRun(await runsApi.create(request))
+      demoRuns = [run, ...demoRuns]
+      notify()
+      return run
+    }
     const version = Object.values(versionStore).flat().find((item) => item.id === request.version_id)
     if (!version) throw new Error('Select a valid prompt version.')
     const prompt = promptStore.find((item) => item.id === version.prompt_id)
@@ -53,18 +80,31 @@ export const runService = {
     demoRuns = [run, ...demoRuns]; notify(); return run
   },
   async list(query: RunListQuery = {}): Promise<Page<PromptRun>> {
-    if (!useDemoRuns) return runsApi.list(query)
+    if (!useDemoRuns) {
+      const page = await runsApi.list(query)
+      return { ...page, items: page.items.map(adaptRun) }
+    }
     const rows = demoRuns.filter((run) => (!query.project_id || run.project_id === query.project_id) && (!query.prompt_id || run.prompt_id === query.prompt_id) && (!query.status || run.status === query.status) && (!query.from || run.created_at >= query.from) && (!query.to || run.created_at <= query.to))
     const page = query.page ?? 1; const pageSize = query.page_size ?? 20
     return { items: rows.slice((page - 1) * pageSize, page * pageSize), total: rows.length, page, page_size: pageSize }
   },
   async get(id: string): Promise<PromptRun | undefined> {
     if (useDemoRuns) return demoRuns.find((run) => run.id === id)
-    const page = await runsApi.list({ page_size: 100 })
-    return page.items.find((run) => run.id === id)
+    return adaptRun(await runsApi.get(id))
   },
   async dashboard(userId = 'usr_demo_user'): Promise<PersonalDashboard> {
-    if (!useDemoRuns) return runsApi.personalDashboard()
+    if (!useDemoRuns) {
+      const dashboard = await runsApi.personalDashboard()
+      return {
+        project_count: dashboard.project_count,
+        prompt_count: dashboard.prompt_count,
+        monthly_spend: dashboard.monthly_spend,
+        monthly_budget: dashboard.monthly_budget,
+        pending_approval_count: dashboard.pending_approval_count,
+        run_count: dashboard.run_count,
+        cost_trend: dashboard.cost_trend,
+      }
+    }
     const buckets = new Map<string, { cost: number; run_count: number }>()
     for (let index = 13; index >= 0; index -= 1) buckets.set(daysAgo(index).slice(0, 10), { cost: 0, run_count: 0 })
     for (const run of demoRuns.filter((item) => item.user_id === userId)) { const bucket = buckets.get(run.created_at.slice(0, 10)); if (bucket) { bucket.cost += Number(run.cost); bucket.run_count += 1 } }

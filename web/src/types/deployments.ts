@@ -1,7 +1,7 @@
 import type { Id, IsoDateString, PageQuery } from './api'
 
 export type DeploymentEnvironment = 'development' | 'staging' | 'production'
-export type DeploymentStatus = 'active' | 'pending_approval' | 'approved' | 'rejected' | 'cancelled' | 'superseded'
+export type DeploymentStatus = 'active' | 'pending_approval' | 'rejected' | 'cancelled' | 'superseded' | 'rolled_back'
 
 export interface Deployment {
   id: Id

@@ -21,4 +21,19 @@ describe('api client', () => {
 
     await expect(client.request('/admin/users')).rejects.toMatchObject({ code: 'forbidden', status: 403, requestId: 'req_123' })
   })
+
+  it('invalidates the session only when an authenticated request returns 401', async () => {
+    const fetcher = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ code: 'unauthorized', message: 'Session expired' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    })))
+    const onUnauthorized = vi.fn()
+    const client = createApiClient({ getAccessToken: () => 'expired-token', fetcher, onUnauthorized })
+
+    await expect(client.request('/projects')).rejects.toMatchObject({ status: 401 })
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
+
+    await expect(client.request('/auth/login', { method: 'POST', auth: false })).rejects.toMatchObject({ status: 401 })
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
+  })
 })

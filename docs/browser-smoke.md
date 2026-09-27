@@ -1,30 +1,23 @@
 # Frontend browser smoke and accessibility record
 
-Tested 2026-09-23 against the local Vite prototype using installed Google Chrome. Playwright covers desktop, an iPhone 13-sized viewport, 320px mobile, and 768px tablet widths. This is viewport/device emulation, not a physical iPhone or Safari certification.
+Tested 2026-09-28 against the Docker-backed React, FastAPI, and PostgreSQL stack. Live Playwright tests run serially because they deliberately mutate shared seeded governance and budget data.
 
-| Check | Result |
-| --- | --- |
-| User login, refresh/session restore, navigation, sign-out | Pass, desktop and mobile |
-| Super Admin login and approval route | Pass, desktop and mobile |
-| User denied `/admin` | Pass, desktop and mobile |
-| Create project, prompt, and new version | Pass, desktop and mobile |
-| Registration, duplicate-email conflict, session restore | Pass, desktop and mobile |
-| Empty-login validation | Pass, desktop and mobile |
-| Top-level user and admin route sweep, no blank page or document overflow | Pass, desktop and mobile |
-| Invalid project, prompt, version IDs | Explicit not-found states, desktop and mobile |
-| axe-core serious/critical violations on login, dashboard, and all top-level User/Admin screens | None, desktop and mobile |
-| Dialog focus entry, focus loop, Escape, restoration | Unit test |
-| Reduced-motion handling | CSS media query present |
+| Browser/project | Coverage | Result |
+|---|---|---|
+| Desktop Chrome | Complete live workflow plus route accessibility sweep | Pass |
+| Mobile Chrome, iPhone 13 viewport | Complete live workflow plus route accessibility sweep | Pass |
+| Desktop Firefox | Complete live workflow plus route accessibility sweep | Pass |
 
-The route sweep is a smoke test, not full workflow coverage. Automated axe checks do not replace keyboard and screen-reader testing on actual devices. Safari/WebKit, Firefox, and physical small screens remain to be tested before production.
+The workflow suite verifies authentication/session restoration, registration, forbidden-route recovery, project/member/prompt/version persistence, real diff and lineage, run ledger and costs, database budget rejection, staging and production approval, one-time runtime tokens, Serve, rollback, revocation, governance, and maintenance. The route sweep reports no serious or critical axe-core violations and no page-level horizontal overflow on the checked desktop and mobile routes.
 
-The unit coverage command runs successfully, but current overall statement coverage is about 31%. Browser-level coverage above is supplemental and is not included in that percentage. More unit/integration tests are needed before a production release.
+Commands run from the repository root:
 
-Run from `web/`:
-
-```sh
-npm run test:e2e
-npm run screenshots
+```bash
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-chrome
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=mobile-chrome
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-firefox
 ```
 
-See [demo runbook](demo-runbook.md) for the walkthrough. For manual verification, tab through the login form, mobile menu, tables, modal actions, and admin forms; confirm visible focus, readable labels and errors, Escape behavior, no trapped focus outside dialogs, and no page-level horizontal scrolling.
+These checks use real Chrome/Chromium and Firefox engines, with the mobile project using viewport/device emulation rather than a physical iPhone or Safari. Automated axe checks supplement but do not replace manual keyboard, screen-reader, contrast, and physical-device testing. Safari/WebKit certification remains outside the prototype acceptance scope.
+
+For manual verification, tab through the login form, mobile navigation, scrollable tables, dialogs, and admin forms; confirm visible focus, readable labels and errors, Escape behavior, focus restoration, and no document-level horizontal scrolling.

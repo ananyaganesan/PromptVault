@@ -74,17 +74,17 @@ A task is complete only when:
 
 ### Ananya — frontend foundation
 
-- [ ] **A0.1 — Break the monolithic UI into a maintainable route structure (0.5 day).** Move page-level views out of `App.tsx`, adopt `react-router-dom`, define public/authenticated/admin route groups, and wire `/403` and `/404` fallbacks.
-- [ ] **A0.2 — Establish the web data layer (0.5 day).** Add a typed API client using `VITE_API_BASE_URL`, standard authorization headers, JSON parsing, shared error-envelope handling, and request cancellation.
-- [ ] **A0.3 — Establish frontend quality commands (0.5 day).** Add lint, unit/component test, and coverage scripts; configure the test environment; keep `build` and `typecheck` passing.
-- [ ] **A0.4 — Convert the documented API contract into frontend types (0.5 day).** Define shared TypeScript request/response, pagination, role, status, money, and error types; record any contract questions before Phase 1.
+- [x] **A0.1 — Break the monolithic UI into a maintainable route structure (0.5 day).** Move page-level views out of `App.tsx`, adopt `react-router-dom`, define public/authenticated/admin route groups, and wire `/403` and `/404` fallbacks.
+- [x] **A0.2 — Establish the web data layer (0.5 day).** Add a typed API client using `VITE_API_BASE_URL`, standard authorization headers, JSON parsing, shared error-envelope handling, and request cancellation.
+- [x] **A0.3 — Establish frontend quality commands (0.5 day).** Add lint, unit/component test, and coverage scripts; configure the test environment; keep `build` and `typecheck` passing.
+- [x] **A0.4 — Convert the documented API contract into frontend types (0.5 day).** Define shared TypeScript request/response, pagination, role, status, money, and error types; record any contract questions before Phase 1.
 
 ### Jobin — backend and database foundation
 
-- [ ] **J0.1 — Complete application configuration and lifecycle (0.5 day).** Implement environment-based settings, database pool startup/shutdown, CORS for the web origin, request IDs, structured logging, and health/readiness checks.
-- [ ] **J0.2 — Make migrations executable (0.5 day).** Implement the migration runner and migration tracking table, guarantee ordered/idempotent application, and expose documented migrate/seed/reset commands.
-- [ ] **J0.3 — Establish backend quality commands (0.5 day).** Configure pytest, async test database fixtures, formatting/linting, type checks, and coverage; ensure the empty baseline suite runs reliably.
-- [ ] **J0.4 — Freeze API conventions with Ananya (0.5 day).** Finalize error codes, pagination, date/money serialization, status enums, CORS behavior, and OpenAPI examples in `api-contracts.md`.
+- [x] **J0.1 — Complete application configuration and lifecycle (0.5 day).** Implement environment-based settings, database pool startup/shutdown, CORS for the web origin, request IDs, structured logging, and health/readiness checks.
+- [x] **J0.2 — Make migrations executable (0.5 day).** Implement the migration runner and migration tracking table, guarantee ordered/idempotent application, and expose documented migrate/seed/reset commands.
+- [x] **J0.3 — Establish backend quality commands (0.5 day).** Configure pytest, async test database fixtures, formatting/linting, type checks, and coverage; ensure the empty baseline suite runs reliably.
+- [x] **J0.4 — Freeze API conventions with Ananya (0.5 day).** Finalize error codes, pagination, date/money serialization, status enums, CORS behavior, and OpenAPI examples in `api-contracts.md`.
 
 ### Phase 0 exit criteria
 
@@ -103,17 +103,17 @@ A task is complete only when:
 
 ### Ananya — authentication experience
 
-- [ ] **A1.1 — Connect registration and login (1 day).** Build controlled forms, client validation, submit/loading states, server field errors, password visibility, and redirect to the originally requested route after login.
-- [ ] **A1.2 — Implement session lifecycle (1 day).** Connect `AuthProvider` to `/auth/me`, persist the agreed token mechanism, restore the session on refresh, handle expiration/401 globally, and implement sign-out.
-- [ ] **A1.3 — Implement route and navigation guards (1 day).** Protect authenticated and Super Admin routes, hide unauthorized navigation, send forbidden users to `/403`, and remove the hard-coded Alex Morgan identity.
-- [ ] **A1.4 — Finish responsive shell and auth tests (1 day).** Validate desktop/mobile navigation, keyboard focus, labels, and screen states; add component tests for registration, login, logout, refresh, redirects, and role guards.
+- [x] **A1.1 — Connect registration and login (1 day).** Build controlled forms, client validation, submit/loading states, server field errors, password visibility, and redirect to the originally requested route after login.
+- [x] **A1.2 — Implement session lifecycle (1 day).** Connect `AuthProvider` to `/auth/me`, persist the agreed token mechanism, restore the session on refresh, handle expiration/401 globally, and implement sign-out.
+- [x] **A1.3 — Implement route and navigation guards (1 day).** Protect authenticated and Super Admin routes, hide unauthorized navigation, send forbidden users to `/403`, and remove the hard-coded Alex Morgan identity.
+- [x] **A1.4 — Finish responsive shell and auth tests (1 day).** Validate desktop/mobile navigation, keyboard focus, labels, and screen states; add component tests for registration, login, logout, refresh, redirects, and role guards.
 
 ### Jobin — identity and authorization
 
-- [ ] **J1.1 — Create identity schema and seed identities (1 day).** Add user/role tables and constraints, active status, timestamps, normalized unique email, and deterministic demo User/Super Admin accounts.
-- [ ] **J1.2 — Implement secure credential and token helpers (1 day).** Add Argon2 password hashing, JWT issue/verify/expiry, safe authentication errors, and secret-safe configuration.
-- [ ] **J1.3 — Implement authentication endpoints (1 day).** Build register, login, and current-user schemas/services/routes; reject role selection during registration and inactive-user access.
-- [ ] **J1.4 — Implement reusable authorization dependencies and tests (1 day).** Add authenticated-user, active-user, project-member, project-owner, and Super Admin dependencies; test 401/403 behavior and role escalation attempts.
+- [x] **J1.1 — Create identity schema and seed identities (1 day).** Add user/role tables and constraints, active status, timestamps, normalized unique email, and deterministic demo User/Super Admin accounts.
+- [x] **J1.2 — Implement secure credential and token helpers (1 day).** Add Argon2 password hashing, JWT issue/verify/expiry, safe authentication errors, and secret-safe configuration.
+- [x] **J1.3 — Implement authentication endpoints (1 day).** Build register, login, and current-user schemas/services/routes; reject role selection during registration and inactive-user access.
+- [x] **J1.4 — Implement reusable authorization dependencies and tests (1 day).** Add authenticated-user, active-user, project-member, project-owner, and Super Admin dependencies; test 401/403 behavior and role escalation attempts.
 
 ### Phase 1 exit criteria
 
@@ -132,10 +132,10 @@ A task is complete only when:
 
 ### Ananya — prompt-library workflows
 
-- [ ] **A2.1 — Implement project list/create/detail/settings (1.5 days).** Replace mock project cards with paginated API data; implement search, empty/error/loading states, create/edit forms, stable-key validation, and owner-only controls.
-- [ ] **A2.2 — Implement member management (1 day).** Add member list, add/remove dialogs, duplicate/not-found handling, owner restrictions, confirmation UX, and post-mutation refresh.
-- [ ] **A2.3 — Implement prompt creation and detail editing flow (1.5 days).** Add project selection, prompt metadata, template editor, `{{variable}}` detection, variables/model configuration, commit message, and first-version creation.
-- [ ] **A2.4 — Implement version history, detail, diff, and lineage (2 days).** Wire all version routes, render immutable snapshots, compare selected versions side by side, visualize ancestors, and test that saving creates a new version rather than editing an old one.
+- [x] **A2.1 — Implement project list/create/detail/settings (1.5 days).** Replace mock project cards with paginated API data; implement search, empty/error/loading states, create/edit forms, stable-key validation, and owner-only controls.
+- [x] **A2.2 — Implement member management (1 day).** Add member list, add/remove dialogs, duplicate/not-found handling, owner restrictions, confirmation UX, and post-mutation refresh.
+- [x] **A2.3 — Implement prompt creation and detail editing flow (1.5 days).** Add project selection, prompt metadata, template editor, `{{variable}}` detection, variables/model configuration, commit message, and first-version creation.
+- [x] **A2.4 — Implement version history, detail, diff, and lineage (2 days).** Wire all version routes, render immutable snapshots, compare selected versions side by side, visualize ancestors, and test that saving creates a new version rather than editing an old one.
 
 ### Jobin — project and versioning domain
 
@@ -161,10 +161,10 @@ A task is complete only when:
 
 ### Ananya — execution and cost screens
 
-- [ ] **A3.1 — Connect the playground (1 day).** Load permitted prompts/versions, generate inputs from declared variables, validate missing values, submit a run, and render output/status/token/latency/cost data.
-- [ ] **A3.2 — Implement run history and detail (1 day).** Replace the mock table with paginated/filterable data, add a run-detail view, and clearly distinguish completed, provider-failed, and budget-blocked runs.
-- [ ] **A3.3 — Implement personal cost dashboard (1 day).** Connect spend totals, budget utilization, remaining amount, run count, trend data, and accessible chart/table fallbacks with correct money formatting.
-- [ ] **A3.4 — Test run UX and budget boundaries (1 day).** Cover dynamic variables, submission locking, retry-safe errors, empty history, filtering, failed provider calls, exact-limit allowance, and over-limit messaging.
+- [x] **A3.1 — Connect the playground (1 day).** Load permitted prompts/versions, generate inputs from declared variables, validate missing values, submit a run, and render output/status/token/latency/cost data.
+- [x] **A3.2 — Implement run history and detail (1 day).** Replace the mock table with paginated/filterable data, add a run-detail view, and clearly distinguish completed, provider-failed, and budget-blocked runs.
+- [x] **A3.3 — Implement personal cost dashboard (1 day).** Connect spend totals, budget utilization, remaining amount, run count, trend data, and accessible chart/table fallbacks with correct money formatting.
+- [x] **A3.4 — Test run UX and budget boundaries (1 day).** Cover dynamic variables, submission locking, retry-safe errors, empty history, filtering, failed provider calls, exact-limit allowance, and over-limit messaging.
 
 ### Jobin — execution ledger and budget rules
 
@@ -190,10 +190,10 @@ A task is complete only when:
 
 ### Ananya — deployment lifecycle UX
 
-- [ ] **A4.1 — Implement deployment creation and history (1 day).** Select a permitted immutable version and environment, explain production approval, validate notes, submit, cancel owned pending requests, and show environment/status filters.
-- [ ] **A4.2 — Implement deployment detail (1 day).** Display requester, version, environment, timestamps, notes, status timeline, active version, cancellation/rejection reason, and links to prompt/version evidence.
-- [ ] **A4.3 — Implement admin approval queue and review (1.5 days).** Build pending list/detail, show diff and recent run evidence, collect rejection reason, require confirmation, and handle already-reviewed 409 conflicts without stale UI.
-- [ ] **A4.4 — Implement rollback and token-management screens (1.5 days).** Add admin rollback selection/confirmation, active-version feedback, runtime-token issue/list/revoke, one-time plaintext display/copy warning, and tests for both workflows.
+- [x] **A4.1 — Implement deployment creation and history (1 day).** Select a permitted immutable version and environment, explain production approval, validate notes, submit, cancel owned pending requests, and show environment/status filters.
+- [x] **A4.2 — Implement deployment detail (1 day).** Display requester, version, environment, timestamps, notes, status timeline, active version, cancellation/rejection reason, and links to prompt/version evidence.
+- [x] **A4.3 — Implement admin approval queue and review (1.5 days).** Build pending list/detail, show diff and recent run evidence, collect rejection reason, require confirmation, and handle already-reviewed 409 conflicts without stale UI.
+- [x] **A4.4 — Implement rollback and token-management screens (1.5 days).** Add admin rollback selection/confirmation, active-version feedback, runtime-token issue/list/revoke, one-time plaintext display/copy warning, and tests for both workflows.
 
 ### Jobin — deployment control plane
 
@@ -219,10 +219,10 @@ A task is complete only when:
 
 ### Ananya — admin console
 
-- [ ] **A5.1 — Connect organization overview and admin runs (1 day).** Replace hard-coded stats with organization totals, spend-by-model, pending approvals, health, and a filterable organization-wide run explorer.
-- [ ] **A5.2 — Implement user and role administration (1 day).** Connect user search/filter, role changes, activate/deactivate controls, confirmations, self-lockout prevention messaging, and mutation error states.
-- [ ] **A5.3 — Implement provider-key, budget, and pricing administration (1 day).** Build safe create/list/deactivate provider-key flows, user/project budget forms, pricing history/add form, validation, and never redisplay secret key values.
-- [ ] **A5.4 — Implement audit and maintenance views (1 day).** Add filterable read-only audit history, health/readiness details, partition status, materialized-view refresh action/status, admin access tests, and responsive table behavior.
+- [x] **A5.1 — Connect organization overview and admin runs (1 day).** Replace hard-coded stats with organization totals, spend-by-model, pending approvals, health, and a filterable organization-wide run explorer.
+- [x] **A5.2 — Implement user and role administration (1 day).** Connect user search/filter, role changes, activate/deactivate controls, confirmations, self-lockout prevention messaging, and mutation error states.
+- [x] **A5.3 — Implement provider-key, budget, and pricing administration (1 day).** Build safe create/list/deactivate provider-key flows, user/project budget forms, pricing history/add form, validation, and never redisplay secret key values.
+- [x] **A5.4 — Implement audit and maintenance views (1 day).** Add filterable read-only audit history, health/readiness details, partition status, materialized-view refresh action/status, admin access tests, and responsive table behavior.
 
 ### Jobin — governance services
 
@@ -248,10 +248,10 @@ A task is complete only when:
 
 ### Ananya — frontend stabilization
 
-- [ ] **A6.1 — Remove demo-critical hard-coded data (1 day).** Audit every route/action, replace remaining mock responses with APIs, keep mocks only for isolated tests/development, and clearly label any accepted non-critical placeholder.
-- [ ] **A6.2 — Complete cross-cutting UX states (1 day).** Standardize toast/error behavior, loading skeletons, empty states, confirmations, pagination, date/timezone and money formatting, stale-query invalidation, and network recovery.
-- [ ] **A6.3 — Perform accessibility and responsive pass (1 day).** Verify keyboard navigation, focus restoration for dialogs, accessible names/errors/status, contrast, reduced-motion behavior, and mobile/tablet layouts for all demo routes.
-- [ ] **A6.4 — Build frontend integration/E2E coverage (1 day).** Automate the normal-user workflow, production approval, Serve-token management UI, rollback confirmation, budget-blocked state, and forbidden-route recovery.
+- [x] **A6.1 — Remove demo-critical hard-coded data (1 day).** Audit every route/action, replace remaining mock responses with APIs, keep mocks only for isolated tests/development, and clearly label any accepted non-critical placeholder.
+- [x] **A6.2 — Complete cross-cutting UX states (1 day).** Standardize toast/error behavior, loading skeletons, empty states, confirmations, pagination, date/timezone and money formatting, stale-query invalidation, and network recovery.
+- [x] **A6.3 — Perform accessibility and responsive pass (1 day).** Verify keyboard navigation, focus restoration for dialogs, accessible names/errors/status, contrast, reduced-motion behavior, and mobile/tablet layouts for all demo routes.
+- [x] **A6.4 — Build frontend integration/E2E coverage (1 day).** Automate the normal-user workflow, production approval, Serve-token management UI, rollback confirmation, budget-blocked state, and forbidden-route recovery.
 
 ### Jobin — backend stabilization
 
@@ -277,10 +277,10 @@ A task is complete only when:
 
 ### Ananya — user-facing delivery
 
-- [ ] **A7.1 — Produce the demo runbook and evidence (0.5 day).** Turn the storyboard into exact clicks, accounts, expected results, screenshots, fallback notes, and approximate timing.
-- [ ] **A7.2 — Complete frontend/readme documentation (0.5 day).** Document web environment variables, commands, route behavior, test commands, browser support, and known UX limitations.
-- [ ] **A7.3 — Run final cross-browser smoke checks (0.5 day).** Verify the critical flow at desktop and mobile widths in two supported browsers and log/fix release-blocking issues.
-- [ ] **A7.4 — Prepare presentation-ready seed narratives (0.5 day).** Verify names, copy, timestamps, charts, demo records, empty states, and reset behavior produce a coherent story.
+- [x] **A7.1 — Produce the demo runbook and evidence (0.5 day).** Turn the storyboard into exact clicks, accounts, expected results, screenshots, fallback notes, and approximate timing.
+- [x] **A7.2 — Complete frontend/readme documentation (0.5 day).** Document web environment variables, commands, route behavior, test commands, browser support, and known UX limitations.
+- [x] **A7.3 — Run final cross-browser smoke checks (0.5 day).** Verify the critical flow at desktop and mobile widths in two supported browsers and log/fix release-blocking issues.
+- [x] **A7.4 — Prepare presentation-ready seed narratives (0.5 day).** Verify names, copy, timestamps, charts, demo records, empty states, and reset behavior produce a coherent story.
 
 ### Jobin — reproducible delivery
 
@@ -302,29 +302,29 @@ A task is complete only when:
 
 ### Product workflow
 
-- [ ] Register, login, restore session, and logout work.
-- [ ] User and Super Admin authorization boundaries work in UI and API.
-- [ ] Project creation, editing, membership, and scoped access work.
-- [ ] Prompt creation and immutable v1 → v2 → v3 saves work.
-- [ ] Version detail, history, diff, and lineage show real data.
-- [ ] Mock-provider execution records output, tokens, latency, status, and cost.
-- [ ] Run history, personal costs, and budget utilization reconcile.
-- [ ] Development/staging deployment activates immediately.
-- [ ] Production deployment requires and survives an atomic admin review.
-- [ ] Runtime token creation, one-time display, scoped Serve fetch, and revocation work.
-- [ ] Rollback changes the active served version without rewriting history.
-- [ ] Budget enforcement blocks an over-limit run at the database boundary.
-- [ ] Admin users, keys, budgets, pricing, analytics, audit, and maintenance views work.
+- [x] Register, login, restore session, and logout work.
+- [x] User and Super Admin authorization boundaries work in UI and API.
+- [x] Project creation, editing, membership, and scoped access work.
+- [x] Prompt creation and immutable v1 → v2 → v3 saves work.
+- [x] Version detail, history, diff, and lineage show real data.
+- [x] Mock-provider execution records output, tokens, latency, status, and cost.
+- [x] Run history, personal costs, and budget utilization reconcile.
+- [x] Development/staging deployment activates immediately.
+- [x] Production deployment requires and survives an atomic admin review.
+- [x] Runtime token creation, one-time display, scoped Serve fetch, and revocation work.
+- [x] Rollback changes the active served version without rewriting history.
+- [x] Budget enforcement blocks an over-limit run at the database boundary.
+- [x] Admin users, keys, budgets, pricing, analytics, audit, and maintenance views work.
 
 ### Engineering quality
 
 - [x] Clean migration, seed, reset, and startup paths work.
 - [x] Standard error envelopes and request IDs are used consistently.
-- [ ] Loading, empty, validation, forbidden, conflict, and failure states are usable.
+- [x] Loading, empty, validation, forbidden, conflict, and failure states are usable.
 - [x] Passwords are hashed; provider keys are encrypted; runtime tokens are hashed.
 - [x] Secrets are absent from logs, API list responses, fixtures, screenshots, and source control.
 - [x] Database constraints and transactions protect immutability and race-sensitive workflows.
-- [ ] Critical frontend, backend, database, security, concurrency, and E2E tests pass.
+- [x] Critical frontend, backend, database, security, concurrency, and E2E tests pass.
 - [x] Documentation, OpenAPI output, examples, and actual behavior agree.
 
 ## Coordination rules

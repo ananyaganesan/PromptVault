@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
+test.skip(process.env.E2E_LIVE === '1', 'Legacy visual-prototype coverage is superseded by the live Docker-backed suites.')
+
 test('user signs in, refreshes, navigates, and signs out', async ({ page, isMobile }) => {
   await page.goto('/dashboard')
   await expect(page).toHaveURL(/\/login$/)

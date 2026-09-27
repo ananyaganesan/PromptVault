@@ -15,6 +15,7 @@ export interface AuthSession {
   user: UserSummary
   access_token: string
   token_type: 'bearer'
+  expires_in: number
 }
 
 export interface RegisterRequest {

@@ -1,33 +1,63 @@
-# PromptVault frontend
+# PromptVault web client
 
-This is a React/Vite frontend prototype. Routes cover User and Super Admin screens. Authentication, projects, prompts, runs, deployments, budgets, and administration currently have in-memory demo implementations; the typed API client and real-mode service paths are present but require a running backend.
+This React/Vite client is connected to the PromptVault FastAPI and PostgreSQL stack. Authentication, projects, prompts, immutable versions, runs, costs, deployments, runtime tokens, rollback, and administration use live API data. In-memory adapters are retained only for isolated Vitest tests.
 
-## Start
+## Development
 
-```sh
-npm ci
-cp .env.example .env.local
-npm run dev
+Start the API and database from the repository root, then run the frontend:
+
+```bash
+docker compose up -d db migrate api --wait
+npm ci --prefix web
+cp web/.env.example web/.env.local
+npm run dev --prefix web
 ```
 
-The default `.env.example` enables mock runs, deployments, and admin data. Keep those flags on for the standalone demo. See [the demo runbook](../docs/demo-runbook.md) for credentials and a walkthrough.
+`VITE_API_BASE_URL` defaults to `http://localhost:8000`; the client appends `/api/v1`. The packaged full stack is available with `docker compose up -d --build --wait` and serves the web application at `http://localhost:5173`.
 
-## Quality checks
+Development accounts:
 
-```sh
-npm run typecheck
-npm run lint
-npm test
-npm run coverage
-npm run build
-npm run test:e2e
+| Role | Email | Password |
+|---|---|---|
+| User | `user@promptvault.dev` | `UserDemo2026!` |
+| Super Admin | `admin@promptvault.dev` | `AdminDemo2026!` |
+
+These accounts are local fixtures. JWTs are stored in tab-scoped `sessionStorage`, while authorization is enforced by FastAPI.
+
+## Routes
+
+- `/dashboard`, `/projects`, `/prompts`, `/playground`, `/runs`, `/costs`, `/deployments`, and `/api-tokens` are authenticated User experiences.
+- `/admin/*` contains approval and governance experiences and requires the Super Admin role.
+- `/403` is the authenticated forbidden-state recovery route.
+- Unknown resources display explicit not-found states.
+
+Password-recovery email delivery is intentionally unavailable in this prototype. The mock provider is deterministic, but run, cost, budget, deployment, and audit records are persisted by the backend.
+
+## Verification
+
+```bash
+npm run lint --prefix web
+npm run typecheck --prefix web
+npm test --prefix web
+npm run coverage --prefix web
+npm run build --prefix web
 ```
 
-`test:e2e` launches Vite and system Chrome, covering desktop and mobile viewports. Install Google Chrome locally for browser tests. `npm run screenshots` refreshes [demo images](../docs/screenshots/README.md). Browser traces and failure images appear under `test-results/`; these are generated artifacts, not source files.
+Run the live workflows against the Docker stack:
 
-## Frontend boundaries
+```bash
+npm exec --prefix web playwright install firefox
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-chrome
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=mobile-chrome
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-firefox
+```
 
-- Demo login credentials and role routing are frontend-only. Real security requires server-issued sessions and server-enforced permissions.
-- Demo records are in memory and reset on reload. Session restoration in the current tab is for presentation only.
-- Password recovery is deliberately marked unavailable instead of claiming an email was sent.
-- Never use the demo accounts or mock token flow for production traffic.
+The live suites cover real persistence, authorization recovery, the version/run/deployment/governance workflows, responsive layout, and serious/critical axe-core accessibility checks. Generated traces and failure images are written below `web/test-results/`.
+
+Refresh the committed live-stack screenshots with:
+
+```bash
+npm run screenshots --prefix web
+```
+
+See the [demo runbook](../docs/demo-runbook.md) and [browser smoke record](../docs/browser-smoke.md).

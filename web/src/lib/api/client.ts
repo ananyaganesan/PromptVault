@@ -1,6 +1,9 @@
 import type { ApiErrorEnvelope, QueryParams } from '../../types/api'
 
-const defaultBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const defaultBaseUrl = configuredBaseUrl.endsWith('/api/v1')
+  ? configuredBaseUrl
+  : `${configuredBaseUrl.replace(/\/$/, '')}/api/v1`
 
 export class ApiClientError extends Error {
   readonly code: ApiErrorEnvelope['code']
@@ -30,6 +33,7 @@ export interface ApiClientOptions {
   baseUrl?: string
   getAccessToken?: () => string | null
   fetcher?: typeof fetch
+  onUnauthorized?: () => void
 }
 
 function toUrl(path: string, baseUrl: string, query?: QueryParams) {
@@ -50,11 +54,11 @@ function fallbackError(status: number): ApiErrorEnvelope {
   return { code: 'internal_error', message: `Request failed with status ${status}` }
 }
 
-export function createApiClient({ baseUrl = defaultBaseUrl, getAccessToken = () => accessToken, fetcher = fetch }: ApiClientOptions = {}) {
+export function createApiClient({ baseUrl = defaultBaseUrl, getAccessToken = () => accessToken, fetcher, onUnauthorized = notifyUnauthorized }: ApiClientOptions = {}) {
   return {
     async request<T>(path: string, { method = 'GET', body, query, signal, auth = true }: RequestOptions = {}): Promise<T> {
       const token = auth ? getAccessToken() : null
-      const response = await fetcher(toUrl(path, baseUrl, query), {
+      const response = await (fetcher ?? fetch)(toUrl(path, baseUrl, query), {
         method,
         signal,
         headers: {
@@ -65,6 +69,7 @@ export function createApiClient({ baseUrl = defaultBaseUrl, getAccessToken = () 
         body: body === undefined ? undefined : JSON.stringify(body),
       })
       const payload = await readJson(response)
+      if (response.status === 401 && auth) onUnauthorized()
       if (!response.ok) throw new ApiClientError(response.status, isErrorEnvelope(payload) ? payload : fallbackError(response.status))
       return payload as T
     },
@@ -76,7 +81,13 @@ function isErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
 }
 
 let accessToken: string | null = null
+const unauthorizedListeners = new Set<() => void>()
+function notifyUnauthorized() { unauthorizedListeners.forEach((listener) => listener()) }
 
 export function setAccessToken(token: string | null) { accessToken = token }
 export function clearAccessToken() { accessToken = null }
+export function subscribeUnauthorized(listener: () => void) {
+  unauthorizedListeners.add(listener)
+  return () => unauthorizedListeners.delete(listener)
+}
 export const apiClient = createApiClient()

@@ -13,6 +13,7 @@ import { DashboardPage } from '../features/dashboard/dashboard-page'
 import { DeploymentDetailPage, DeploymentListPage, NewDeploymentPage } from '../features/deployments/deployment-pages'
 import { PlaygroundPage } from '../features/playground/playground-page'
 import { NewProjectPage, ProjectDetailPage, ProjectsPage } from '../features/projects/project-pages'
+import { WorkspaceBoundary } from '../features/projects/workspace-boundary'
 import { NewPromptPage, PromptDetailPage, PromptsPage } from '../features/prompts/prompt-pages'
 import { RunDetailPage, RunsPage } from '../features/runs/runs-page'
 import { CompareVersionPage, VersionDetailPage, VersionLineagePage } from '../features/versions/version-pages'
@@ -28,7 +29,7 @@ export function App() {
       <Route path="/403" element={<ErrorPage code="403" />} />
       <Route path="/404" element={<ErrorPage code="404" />} />
     </Route>
-    <Route element={<RequireAuth />}><Route element={<AppLayout />}>
+    <Route element={<RequireAuth />}><Route element={<WorkspaceBoundary />}><Route element={<AppLayout />}>
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/projects/new" element={<NewProjectPage />} />
@@ -61,7 +62,7 @@ export function App() {
       <Route path="/admin/model-pricing" element={<PricingManagementPage />} />
       <Route path="/admin/maintenance" element={<MaintenanceHealthPage />} />
       </Route>
-    </Route></Route>
+    </Route></Route></Route>
     <Route path="*" element={<Navigate to="/404" replace />} />
   </Routes></BrowserRouter></AuthProvider>
 }

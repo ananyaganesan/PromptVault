@@ -8,14 +8,13 @@ import {
 import { PageHeader } from "../../components/layout/page-header";
 import { Button, Field, Status } from "../../components/ui/prototype";
 import { EmptyState } from "../../components/ui/empty-state";
-import { useAuth } from "../auth/auth-context";
 import type { Prompt } from "../../types/prompts";
 import {
   projectStore,
   promptFor,
   promptStore,
   versionsFor,
-  versionStore,
+  workspaceService,
 } from "../projects/workspace-data";
 import type { PromptVariable } from "../../types/prompts";
 
@@ -114,10 +113,9 @@ export function PromptsPage() {
 }
 export function NewPromptPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [params] = useSearchParams();
   const [projectId, setProjectId] = useState(
-    params.get("project") ?? projectStore[0].id,
+    params.get("project") ?? projectStore[0]?.id ?? "",
   );
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
@@ -125,51 +123,25 @@ export function NewPromptPage() {
   const [template, setTemplate] = useState("");
   const [commit, setCommit] = useState("Initial prompt version");
   const [error, setError] = useState("");
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     const promptKey = key.trim().toLowerCase().replace(/\s+/g, "-");
     if (!projectId || !promptKey || !name.trim() || !template.trim())
       return setError("Project, key, name, and template are required.");
-    if (promptStore.some((prompt) => prompt.key === promptKey))
-      return setError("That prompt key is already in use.");
-    const id = `${promptKey}-${Date.now()}`;
-    const variables = [
-      ...template.matchAll(/{{\s*([a-zA-Z_][\w-]*)\s*}}/g),
-    ].map((match) => ({ name: match[1], required: true }));
-    promptStore.unshift({
-      id,
-      project_id: projectId,
-      key: promptKey,
-      name: name.trim(),
-      description: description.trim() || null,
-      latest_version_number: 1,
-      active_environment: "draft",
-      updated_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-    });
-    versionStore[id] = [
-      {
-        id: `${id}-v1`,
-        prompt_id: id,
-        version_number: 1,
-        parent_version_id: null,
+    try {
+      const prompt = await workspaceService.createPrompt(projectId, {
+        key: promptKey,
+        name: name.trim(),
+        description: description.trim() || undefined,
         template,
-        variables,
-        model_config: {
-          provider: "openai",
-          model: "gpt-4o-mini",
-          temperature: 0.3,
-          max_output_tokens: 300,
-        },
+        variables: [],
+        model_config: { provider: "mock", model: "deterministic-v1", temperature: 0, max_output_tokens: 500 },
         commit_message: commit || "Initial prompt version",
-        created_by: user?.id ?? "",
-        created_by_name: user?.display_name ?? "Unknown user",
-        created_at: new Date().toISOString(),
-      },
-    ];
-    const project = projectStore.find((item) => item.id === projectId);
-    if (project) project.prompt_count += 1;
-    navigate(`/prompts/${id}`);
+      });
+      navigate(`/prompts/${prompt.id}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not create the prompt.");
+    }
   }
   return (
     <>
@@ -244,7 +216,6 @@ export function PromptDetailPage() {
   return <PromptDetailContent prompt={prompt} />;
 }
 function PromptDetailContent({ prompt }: { prompt: Prompt }) {
-  const { user } = useAuth();
   const versions = versionsFor(prompt.id);
   const latest = versions[0];
   const [template, setTemplate] = useState(latest?.template ?? "");
@@ -253,30 +224,31 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
   );
   const [commit, setCommit] = useState("");
   const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
   function addVariable() {
     setVariables([...variables, { name: "", description: "", required: true }]);
   }
-  function saveVersion() {
+  async function saveVersion() {
     if (!template.trim() || !commit.trim())
       return setNotice("Add a template and a commit message before saving.");
-    const versionNumber = (versions[0]?.version_number ?? 0) + 1;
-    const version = {
-      ...latest,
-      id: `${prompt.id}-v${versionNumber}-${Date.now()}`,
-      version_number: versionNumber,
-      parent_version_id: latest?.id ?? null,
-      template,
-      variables: variables.filter((variable) => variable.name.trim()),
-      commit_message: commit.trim(),
-      created_at: new Date().toISOString(),
-      created_by: user?.id ?? "",
-      created_by_name: user?.display_name ?? "Unknown user",
-    };
-    versionStore[prompt.id] = [version, ...versions];
-    prompt.latest_version_number = versionNumber;
-    prompt.updated_at = version.created_at;
-    setCommit("");
-    setNotice(`Version ${versionNumber} was saved as an immutable snapshot.`);
+    if (!latest) return setNotice("The current version could not be loaded.");
+    if (saving) return;
+    setSaving(true);
+    try {
+      const version = await workspaceService.createVersion(prompt.id, {
+        parent_version_id: latest.id,
+        template,
+        variables: variables.filter((variable) => variable.name.trim()),
+        model_config: latest.model_config,
+        commit_message: commit.trim(),
+      });
+      setCommit("");
+      setNotice(`Version ${version.version_number} was saved as an immutable snapshot.`);
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Could not save the new version.");
+    } finally {
+      setSaving(false);
+    }
   }
   return (
     <>
@@ -284,7 +256,7 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
         title={prompt.name}
         eyebrow={`PROMPTS / ${prompt.key.toUpperCase()}`}
         description={prompt.description ?? "Reusable prompt template."}
-        action={<Button onClick={saveVersion}>Save new version</Button>}
+        action={<Button onClick={saveVersion} disabled={saving}>{saving ? "Saving…" : "Save new version"}</Button>}
       />
       {notice && (
         <p className={/before saving|required/i.test(notice) ? "inline-feedback error" : "inline-feedback"} role={/before saving|required/i.test(notice) ? "alert" : "status"}>

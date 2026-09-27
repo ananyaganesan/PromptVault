@@ -1,53 +1,94 @@
 # PromptVault
 
-PromptVault is a prompt versioning, evaluation, deployment, and serving platform in development. The runnable application today is a React/Vite **frontend prototype** with User and Super Admin workflows. It uses in-memory demo data for authentication, projects, prompts, runs, deployments, budgets, and administration. The FastAPI service currently exposes a health endpoint; the database schema and full backend workflows are still planned.
+PromptVault is a full-stack prompt versioning, execution, deployment, and governance prototype. The React/Vite client is connected to a FastAPI service and PostgreSQL database; demo-critical workflows persist through the API rather than browser-local stores.
 
-## Repository
+## What is implemented
 
-- `api/` contains the Python API service.
-- `web/` contains the Vite/React client.
-- `db/` contains PostgreSQL migrations, seeds, and showcase queries.
-- `tests/` contains database, concurrency, security, end-to-end, and performance test areas.
-- `scripts/` contains migration, seed, reset, maintenance, and demo commands.
+- Email/password registration and login, Argon2id password hashes, JWT sessions, active-user checks, User/Super Admin route guards, and `/auth/me` session restoration.
+- Project ownership/membership, prompt metadata, immutable version snapshots, concurrent version numbering, history, diff, and lineage.
+- Deterministic provider execution with variable rendering, token/latency/cost ledger records, effective-dated pricing, personal analytics, and atomic user/project budgets.
+- Development/staging activation, pending production approval, atomic admin review, cancellation, project-scoped runtime tokens, authenticated Serve API, and auditable rollback.
+- Admin users, organization analytics/runs, encrypted provider keys, budgets, pricing history, audit search, partition status, and materialized-view refresh.
+- Docker startup/migrations/seeds, Swagger/OpenAPI, database/security/concurrency/performance suites, and live Playwright workflows.
 
-## Implementation status
+The implementation sequence and acceptance criteria are tracked in [docs/working-prototype-plan.md](docs/working-prototype-plan.md).
 
-| Batch | Scope | Status |
-|---|---|---|
-| 0 | Architecture, API contracts, authorization matrix, and route contract | Complete |
-| 1 | FastAPI settings, database pool, request IDs, structured errors/logging, CORS, health/readiness, and test tooling | Complete |
-| 2 | PostgreSQL migrations, constraints, indexes, triggers, concurrency functions, views, roles, and development seeds | Complete |
-| 3 | Argon2id/JWT authentication, register/login/me endpoints, active-user checks, and reusable admin/project authorization dependencies | Complete |
-| 4 | Scoped project/member CRUD, prompt metadata, immutable versions, history, diff, lineage, and concurrency-safe version saves | Complete |
-| 5 | Deterministic providers, run ledger, effective pricing, atomic budgets, scoped run APIs, and personal dashboard | Complete |
-| 6 | Deployment requests/history/cancellation, atomic production review, runtime tokens, Serve API, and auditable rollback | Complete |
-| 7 | Super Admin users, organization analytics/runs, budgets, encrypted provider keys, pricing history, audit queries, and maintenance operations | Complete |
-| 8 | End-to-end integration, security hardening, performance, containers, and delivery evidence | Jobin/backend delivery verified; frontend API integration remains with Ananya |
+## Quick start
 
-The database schema covers the complete v1 data model. The runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, immutable prompt versions, deterministic execution, scoped run history, dashboards, deployment control plane, runtime-token lifecycle, Serve API, and the Super Admin governance surface. Jobin's backend delivery was verified from clean commit `51b8cadd` and tagged `v0.1.0-backend`; its redacted transcript is in `evidence/release/latest.txt`. The current React container still renders Ananya's visual prototype and is not yet wired to these APIs; do not treat its hard-coded screens as end-to-end acceptance evidence.
-
-## Quick start with Docker
-
-Docker Engine with the Compose plugin is the only runtime prerequisite for the complete local stack:
+Docker Engine with the Compose plugin is the only prerequisite for the packaged stack:
 
 ```bash
 cp .env.example .env
 docker compose up -d --build --wait
 ```
 
-Open the web prototype at `http://localhost:5173`, Swagger UI at `http://localhost:8000/docs`, and API readiness at `http://localhost:8000/ready`. Startup waits for PostgreSQL, then applies all checksum-tracked migrations and idempotent development seeds before starting the API and web services.
+Open:
 
-`docker compose down` stops containers but preserves the named `promptvault-data` volume. To restore deterministic demo data without removing the volume:
+- Web application: `http://localhost:5173`
+- Swagger UI: `http://localhost:8000/docs`
+- API readiness: `http://localhost:8000/ready`
+
+Startup waits for PostgreSQL, applies all checksum-tracked migrations, runs idempotent development seeds, and then starts the API and Nginx-served web build.
+
+Development accounts:
+
+| Role | Email | Password |
+|---|---|---|
+| User | `user@promptvault.dev` | `UserDemo2026!` |
+| Super Admin | `admin@promptvault.dev` | `AdminDemo2026!` |
+
+These credentials are local-development fixtures only. Their Argon2id hashes, not plaintext passwords, are stored in seed SQL.
+
+Stop the stack without deleting data:
 
 ```bash
-docker compose run --rm migrate python scripts/reset-development.py --confirm-reset
+docker compose down
 ```
 
-`docker compose down -v` also deletes the local database volume and is intentionally destructive. Use it only when the local development data can be discarded.
+Reset a running development stack to deterministic seed data and refresh the API connection pool:
+
+```bash
+docker compose run --rm migrate python scripts/reset-development.py --confirm-reset \
+  && docker compose restart api \
+  && docker compose up -d --wait
+```
+
+`docker compose down -v` also removes the database volume and is intentionally destructive.
+
+## Frontend development
+
+```bash
+npm ci --prefix web
+cp web/.env.example web/.env.local
+npm run dev --prefix web
+```
+
+The client reads `VITE_API_BASE_URL` (or `VITE_API_URL`) and appends `/api/v1`. The default is `http://localhost:8000`. Browser sessions are tab-scoped through `sessionStorage`; authorization is always rechecked by FastAPI.
+
+Frontend verification:
+
+```bash
+npm run lint --prefix web
+npm run typecheck --prefix web
+npm test --prefix web
+npm run coverage --prefix web
+npm run build --prefix web
+```
+
+Live browser workflows require the Docker stack:
+
+```bash
+npm exec --prefix web playwright install firefox
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-chrome
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=mobile-chrome
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-firefox
+```
+
+The live suites cover authentication/session recovery, forbidden routes, project/member/prompt/version persistence, real diff/lineage, runs/costs, database budget rejection, deployments/approval, one-time runtime tokens, Serve, rollback, governance, responsive layouts, and axe-core serious/critical accessibility checks. Mocks remain only in isolated Vitest service/component tests.
 
 ## API development
 
-PromptVault requires Python 3.11 or newer. From the repository root:
+PromptVault requires Python 3.11 or newer:
 
 ```bash
 python3 -m venv .venv
@@ -60,29 +101,20 @@ python3 scripts/seed-database.py
 uvicorn api.app.main:app --reload --port 8000
 ```
 
-The required settings are `DATABASE_URL` and `SECRET_KEY`. `.env.example` also documents `PROVIDER_ENCRYPTION_KEY`, token lifetime/issuer/audience, environment name, allowed CORS origins, database-pool bounds, database-health timeout, provider timeout, and the global request-body limit. Production refuses placeholder secrets, requires HTTPS CORS origins, and requires separate signing and provider-encryption secrets of at least 32 characters.
+Important endpoints:
 
-Operational endpoints:
+- `GET /health` — process liveness.
+- `GET /ready` — bounded PostgreSQL readiness check.
+- `/api/v1/auth/*` — registration, login, current user.
+- `/api/v1/projects`, `/prompts`, `/versions` — versioned prompt library.
+- `/api/v1/runs`, `/dashboard/me` — execution ledger and personal analytics.
+- `/api/v1/deployments`, `/api-tokens` — control plane and runtime credentials.
+- `GET /serve/v1/prompts/{key}?env=prod` — project-scoped active prompt retrieval.
+- `/api/v1/admin/*` — approvals and governance.
 
-- `GET /health` is process liveness and never queries PostgreSQL.
-- `GET /ready` runs a bounded `SELECT 1` and returns 503 when PostgreSQL is unavailable.
-- `/docs`, `/redoc`, and `/openapi.json` are available outside production.
+The human-readable contract is [docs/api-contracts.md](docs/api-contracts.md); [docs/openapi.json](docs/openapi.json) is generated and checked for drift.
 
-Authentication endpoints are rooted at `/api/v1/auth`: `POST /register`, `POST /login`, and bearer-protected `GET /me`. Access tokens are short-lived HS256 JWTs; the database user is reloaded on every protected request so role changes and deactivation take effect immediately.
-
-Run endpoints are rooted at `/api/v1/runs`. `POST /runs` renders an immutable version using exact variable keys, executes the deterministic mock provider through a bounded provider interface, snapshots tokens/latency/model/cost, and records completed, failed, or budget-blocked ledger rows. `GET /runs` and `GET /runs/{id}` enforce owner/project-member scope; `GET /api/v1/dashboard/me` returns live personal monthly aggregates and recent runs.
-
-Deployment endpoints are rooted at `/api/v1/deployments`. Development and staging activate immediately; production requests remain pending until a Super Admin uses `/api/v1/admin/deployments`. Approval/rejection and rollback execute through locking PostgreSQL functions, so competing reviews have one winner. Project owners manage hash-only runtime credentials at `/api/v1/api-tokens`; consumers present the one-time plaintext token to `GET /serve/v1/prompts/{key}?env=prod`, which returns the project-scoped active version with `ETag` and private cache headers.
-
-Super Admin governance endpoints are rooted at `/api/v1/admin`. They provide safe user role/status transitions with self-lockout and last-admin protection, live organization analytics and run filters, budget management, encrypted provider-key metadata, append-only pricing history, redacted audit search, maintenance/job status, audited materialized-view refresh, and idempotent next-month partition creation. Provider-key plaintext is accepted only on creation and is never returned.
-
-API startup expects the configured PostgreSQL server to be reachable because the connection pool opens during application lifespan. Requests are logged as redacted JSON with their method, path, status, duration, and request ID; query strings and request bodies are not logged.
-
-`docker compose up -d db` starts only PostgreSQL when developing the API on the host. The packaged API runs as an unprivileged user and the packaged web build is served by Nginx.
-
-## Database commands
-
-The database tools load `.env` and also accept an explicit database URL:
+## Database and demo commands
 
 ```bash
 python3 scripts/run-migrations.py
@@ -96,34 +128,11 @@ python3 scripts/version-race-demo.py --workers 20
 python3 scripts/approval-race-demo.py
 ```
 
-Migration history is stored in `schema_migrations`. Applied files are protected by SHA-256 checksums, migration execution is serialized with a PostgreSQL advisory lock, and each migration is atomic. The reset command refuses non-development environments and requires `--confirm-reset`.
+Migration history is stored in `schema_migrations`; checksums prevent already-applied files from changing. Migrations are ordered, advisory-lock serialized, and transactional. Reset refuses non-development environments and requires explicit confirmation.
 
-The fourteen migrations create the complete v1 relational schema, constraints, partitions, concurrency functions, audit triggers, reporting views, and database roles. The boundary migrations make budget enforcement DST-safe, remove direct application-role ledger insertion, require rollback targets to be earlier than the active version, serialize user-role transitions so the final active Super Admin cannot be removed, and add final cross-entity/lifecycle integrity checks plus query-driven indexes. Seed files use numeric prefixes so identities are always loaded before dependent demo data.
+## Backend verification
 
-Development seed accounts:
-
-| Role | Email | Password |
-|---|---|---|
-| User | `user@promptvault.dev` | `UserDemo2026!` |
-| Super Admin | `admin@promptvault.dev` | `AdminDemo2026!` |
-
-These credentials are development-only. Their Argon2id hashes—not plaintext passwords—are stored in the seed SQL.
-
-The seed also creates the stable `Checkout Assistant` project, the `support-reply` prompt and version `55555555-5555-4555-8555-555555555555`, plus a User budget. The demo CLIs create uniquely named temporary race records, so they can be rerun safely.
-
-## API contract
-
-`docs/api-contracts.md` is the human-readable contract. `docs/openapi.json` is its generated machine-readable companion and can be refreshed with:
-
-```bash
-python3 scripts/export-openapi.py
-```
-
-The generated file lets the frontend create TypeScript clients/models without waiting for a live API. CI verifies that it matches the FastAPI application.
-
-## API verification
-
-The full suite needs a separate PostgreSQL database. Create `promptvault_test` once in your local PostgreSQL instance, set `TEST_DATABASE_URL`, and then run:
+Use an isolated database whose name ends in `_test`:
 
 ```bash
 export TEST_DATABASE_URL=postgresql://promptvault:promptvault@localhost:5432/promptvault_test
@@ -132,140 +141,39 @@ mypy --config-file api/pyproject.toml api/app
 pytest -q --cov=api.app --cov-config=api/pyproject.toml --cov-report=term-missing
 python3 -m compileall -q api/app scripts tests
 python3 -m pip check
-
-DATABASE_URL="$TEST_DATABASE_URL" \
-SECRET_KEY=test-secret-that-is-at-least-32-characters \
 python3 scripts/export-openapi.py --output /tmp/promptvault-openapi.json
 diff -u docs/openapi.json /tmp/promptvault-openapi.json
 ```
 
-The unit suite injects a fake pool and does not require PostgreSQL. Database and authentication integration tests use `TEST_DATABASE_URL` and skip when it is not configured; CI runs them against PostgreSQL 16. Test fixtures apply migrations and idempotent seeds automatically. Coverage is branch-aware and must remain at or above 85%.
-
-For reproducible release verification, run:
+Containerized verification is also available:
 
 ```bash
-python3 scripts/verify-release.py
+docker compose --profile verification run --rm verify
 ```
 
-The command refuses a dirty tree, creates a detached checkout and uniquely named Compose project, builds the web/API images, starts a health-gated stack on unused host ports, creates a disposable `promptvault_test` database, runs lint, type checking, the full backend suite with coverage, OpenAPI drift detection, HTTP/login smoke checks, both race demonstrations, a 2,000-run representative ledger, and every showcase query. It redacts sensitive output, archives the transcript to `evidence/release/latest.txt`, and removes the isolated containers and volume.
+`python3 scripts/verify-release.py` performs the backend clean-checkout release workflow in an isolated Compose project and writes a redacted transcript below `evidence/release/`.
 
-## Frontend development
+## Security and prototype boundaries
 
-```bash
-npm ci --prefix web
-npm run dev --prefix web
-```
+- FastAPI enforces all authorization; hidden UI controls are not security boundaries.
+- Provider secrets are encrypted at rest and never returned by list endpoints.
+- Runtime tokens are displayed once, stored only as hashes, project-scoped, and revocable.
+- Structured logs exclude query strings, request bodies, passwords, tokens, and provider keys.
+- Password recovery/email delivery is intentionally unavailable in this prototype.
+- The included provider is deterministic for reproducible evaluation; external production LLM reliability is outside prototype scope.
+- JWT storage is tab-scoped for the prototype. A production deployment should evaluate an HTTPS-only cookie/BFF session model and rotate all example secrets.
 
-The frontend reads its API location from `VITE_API_URL`. Never put signing secrets or provider keys in Vite environment variables.
-
-The current frontend is a visual/mock implementation: it does not yet call `VITE_API_URL`. API-backed routes, session behavior, and browser E2E checks remain frontend-owned release work.
-
-Frontend checks available on this branch are:
-
-```bash
-npm run typecheck --prefix web
-npm run build --prefix web
-```
-## Project structure
+## Repository layout
 
 ```text
-PromptVault/
-├── api/                 FastAPI entry point and backend package skeleton
-│   ├── app/             Routers, services, repositories, schemas, and providers
-│   └── tests/           Backend test locations (currently placeholders)
-├── db/                  PostgreSQL migration, seed, maintenance, and query locations
-├── docs/                Architecture, contracts, demo guide, and verification notes
-│   └── screenshots/     Captured desktop and mobile prototype screens
-├── evidence/            Locations for database and performance evidence
-├── examples/            Example prompt templates and deployment requests
-├── scripts/             Planned database and traffic helper scripts
-├── tests/               Planned API, database, security, and end-to-end tests
-├── web/                 React, TypeScript, and Vite frontend
-│   ├── e2e/             Playwright browser tests and screenshot capture
-│   ├── public/          Static assets
-│   └── src/
-│       ├── app/         Route setup and application providers
-│       ├── components/  Shared UI and layouts
-│       ├── features/    Auth, projects, prompts, runs, deployments, and admin views
-│       ├── lib/api/     Typed HTTP client
-│       ├── mocks/       Demo accounts and in-memory data
-│       ├── styles/      Global styles and tokens
-│       └── types/       API and domain types
-├── .env.example         Planned root-level API/database settings
-└── docker-compose.yml   Draft PostgreSQL and API configuration
+api/        FastAPI routers, schemas, services, repositories, providers, tests
+db/         PostgreSQL migrations, seeds, maintenance, and showcase queries
+web/        React/Vite client, unit tests, and Playwright live workflows
+scripts/    Migration, reset, traffic, partition, showcase, and race tools
+tests/      Database, security, concurrency, E2E, delivery, and performance tests
+docs/       Architecture, contract, security, testing, deployment, and demo docs
+evidence/   Release transcripts, query plans, concurrency output, screenshots
+examples/   Prompt versioning and deployment examples
 ```
 
-Several backend, database, script, and test files are empty placeholders. `docker-compose.yml` cannot build the API service yet because `api/Dockerfile` is empty; it is not the recommended way to run the demo.
-
-## Prerequisites
-
-- Node.js and npm compatible with the dependencies in `web/package-lock.json` (use a current Node.js LTS release).
-- Google Chrome if you want to run Playwright browser tests or regenerate screenshots.
-- Python 3.11 or later only if you want to run the API health endpoint locally.
-- Docker only if you want to start the PostgreSQL container; the frontend demo does not need it.
-
-## Run the frontend demo
-
-From the repository root:
-
-```sh
-cd web
-npm ci
-cp .env.example .env.local
-npm run dev
-```
-
-Open the local URL printed by Vite (normally `http://localhost:5173`). The `VITE_USE_MOCK_*` settings in `web/.env.example` are enabled for the standalone demo. Leave them enabled: switching to real API mode requires backend endpoints that are not implemented yet. `VITE_API_BASE_URL` points to `http://localhost:8000` for future API integration. The root `.env.example` is separate and is not needed for the frontend demo.
-
-| Demo role | Email | Password |
-| --- | --- | --- |
-| User | `user@promptvault.dev` | `User@123` |
-| Super Admin | `admin@promptvault.dev` | `Admin@123` |
-
-These are public demo credentials. Demo records reset on reload; the signed-in account is restored within the same browser tab. Do not enter real secrets or use this prototype as a production authentication system. See the [demo runbook](docs/demo-runbook.md) for a walkthrough and feature limitations.
-
-## Build and check the frontend
-
-Run these from `web/` after `npm ci`:
-
-```sh
-npm run typecheck      # TypeScript checks
-npm run lint           # ESLint
-npm test               # Vitest unit tests
-npm run coverage       # Unit-test coverage report
-npm run build          # Production bundle in web/dist/
-npx vite preview       # Serve that bundle locally for inspection
-```
-
-For browser tests, install Google Chrome, then run:
-
-```sh
-npm run test:e2e       # Playwright smoke and accessibility checks
-npm run screenshots    # Refresh docs/screenshots/
-```
-
-Playwright starts its own Vite server on port `4173`. It covers desktop Chrome and emulated mobile/tablet viewports, not physical devices or Safari. Browser test results are in `web/test-results/`. See the [browser smoke record](docs/browser-smoke.md) and [frontend README](web/README.md) for details.
-
-## Run the API health endpoint (optional)
-
-The API currently serves `GET /health`; it does not yet provide the application endpoints used by the typed frontend client. From the repository root:
-
-```sh
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install -r api/requirements.txt
-cd api
-python3 -m uvicorn app.main:app --reload --port 8000
-```
-
-Visit `http://localhost:8000/health` to check it. The frontend demo runs independently of this service. The root `.env.example` lists intended database and API settings, but the current health-only API does not use them.
-
-If you need an empty local PostgreSQL instance for future backend work, run `docker compose up db` from the repository root. The SQL migration and seed files are placeholders, so this does not initialize a PromptVault schema.
-
-## Further documentation
-
-- [Demo walkthrough](docs/demo-runbook.md)
-- [Frontend setup and boundaries](web/README.md)
-- [API contract](docs/api-contracts.md) and [route map](docs/route-map.md) (design targets, not implemented backend endpoints)
-- [Browser verification](docs/browser-smoke.md) and [screenshots](docs/screenshots/README.md)
-- [Working prototype plan](docs/working-prototype-plan.md)
+See [docs/demo-runbook.md](docs/demo-runbook.md) for the presentation flow and [docs/testing.md](docs/testing.md) for the complete test strategy.

@@ -22,7 +22,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     if (!email) next.email = 'Email address is required.'
     else if (!/^\S+@\S+\.\S+$/.test(email)) next.email = 'Enter a valid email address.'
     if (!password) next.password = 'Password is required.'
-    else if (mode === 'register' && password.length < 8) next.password = 'Use at least 8 characters.'
+    else if (mode === 'register' && password.length < 12) next.password = 'Use at least 12 characters.'
     setErrors(next)
     setFormError('')
     if (Object.keys(next).length) return
@@ -42,7 +42,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     <Field label="Email address" placeholder="you@company.com" type="email" value={email} onChange={update(setEmail)} error={errors.email} />
     <Field label="Password" placeholder={mode === 'login' ? 'Enter your password' : 'Create a strong password'} type="password" value={password} onChange={update(setPassword)} error={errors.password} />
     {formError && <p className="form-error" role="alert">{formError}</p>}
-    {mode === 'login' && <div className="form-row"><span>Demo session lasts for this tab.</span><Link to="/forgot-password">Forgot password?</Link></div>}
+    {mode === 'login' && <div className="form-row"><span>Your session lasts for this tab.</span><Link to="/forgot-password">Forgot password?</Link></div>}
     <Button type="submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</Button>
     <p className="switch">{mode === 'login' ? "Don't have an account?" : 'Already have an account?'} <Link to={mode === 'login' ? '/register' : '/login'}>{mode === 'login' ? 'Register' : 'Sign in'}</Link></p>
   </form></main>
