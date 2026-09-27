@@ -287,7 +287,7 @@ A task is complete only when:
 - [x] **J7.1 — Complete the local container stack (0.5 day).** Add the web service, migration/seed startup path, health checks, dependency ordering, persistent volume behavior, and `.env.example` values without real secrets.
 - [x] **J7.2 — Complete technical documentation (0.5 day).** Finish architecture, ERD, normalization, security, testing, performance, deployment, API examples, and known prototype limitations.
 - [x] **J7.3 — Make reset/seed/showcase scripts reliable (0.5 day).** Provide one-command clean reset, deterministic demo data, Serve API example, approval/version race demonstrations, and analytics/lineage/deployment queries.
-- [ ] **J7.4 — Run clean-machine release verification (0.5 day).** Clone/start/migrate/seed/test the documented workflow, tag the tested revision, and archive command output needed as delivery evidence.
+- [x] **J7.4 — Run clean-machine release verification (0.5 day).** Clone/start/migrate/seed/test the documented workflow, tag the tested revision, and archive command output needed as delivery evidence.
 
 ### Phase 7 exit criteria
 
@@ -318,14 +318,14 @@ A task is complete only when:
 
 ### Engineering quality
 
-- [ ] Clean migration, seed, reset, and startup paths work.
-- [ ] Standard error envelopes and request IDs are used consistently.
+- [x] Clean migration, seed, reset, and startup paths work.
+- [x] Standard error envelopes and request IDs are used consistently.
 - [ ] Loading, empty, validation, forbidden, conflict, and failure states are usable.
-- [ ] Passwords are hashed; provider keys are encrypted; runtime tokens are hashed.
-- [ ] Secrets are absent from logs, API list responses, fixtures, screenshots, and source control.
-- [ ] Database constraints and transactions protect immutability and race-sensitive workflows.
+- [x] Passwords are hashed; provider keys are encrypted; runtime tokens are hashed.
+- [x] Secrets are absent from logs, API list responses, fixtures, screenshots, and source control.
+- [x] Database constraints and transactions protect immutability and race-sensitive workflows.
 - [ ] Critical frontend, backend, database, security, concurrency, and E2E tests pass.
-- [ ] Documentation, OpenAPI output, examples, and actual behavior agree.
+- [x] Documentation, OpenAPI output, examples, and actual behavior agree.
 
 ## Coordination rules
 

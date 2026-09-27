@@ -22,9 +22,9 @@ Prompt versioning, evaluation, deployment, and serving platform.
 | 5 | Deterministic providers, run ledger, effective pricing, atomic budgets, scoped run APIs, and personal dashboard | Complete |
 | 6 | Deployment requests/history/cancellation, atomic production review, runtime tokens, Serve API, and auditable rollback | Complete |
 | 7 | Super Admin users, organization analytics/runs, budgets, encrypted provider keys, pricing history, audit queries, and maintenance operations | Complete |
-| 8 | End-to-end integration, security hardening, performance, containers, and delivery evidence | Delivery candidate implemented; clean tagged verification pending |
+| 8 | End-to-end integration, security hardening, performance, containers, and delivery evidence | Jobin/backend delivery verified; frontend API integration remains with Ananya |
 
-The database schema covers the complete v1 data model. The runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, immutable prompt versions, deterministic execution, scoped run history, dashboards, deployment control plane, runtime-token lifecycle, Serve API, and the Super Admin governance surface. The local container stack and automated release verifier are implemented; clean tagged evidence is the remaining Jobin release gate. The current React container still renders Ananya's visual prototype and is not yet wired to these APIs; do not treat its hard-coded screens as end-to-end acceptance evidence.
+The database schema covers the complete v1 data model. The runnable backend surface includes `/health`, `/ready`, authentication, projects/members, prompts, immutable prompt versions, deterministic execution, scoped run history, dashboards, deployment control plane, runtime-token lifecycle, Serve API, and the Super Admin governance surface. Jobin's backend delivery was verified from clean commit `51b8cadd` and tagged `v0.1.0-backend`; its redacted transcript is in `evidence/release/latest.txt`. The current React container still renders Ananya's visual prototype and is not yet wired to these APIs; do not treat its hard-coded screens as end-to-end acceptance evidence.
 
 ## Quick start with Docker
 
