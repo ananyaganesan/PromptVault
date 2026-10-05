@@ -6,6 +6,7 @@ from typing import Any, Protocol, cast
 
 from api.app.config import Settings
 from fastapi import Request
+from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
@@ -21,6 +22,11 @@ class PoolProtocol(Protocol):
 PoolFactory = Callable[[Settings], PoolProtocol]
 
 
+async def _configure_restricted_role(connection: AsyncConnection[Any]) -> None:
+    await connection.execute("SET ROLE promptvault_app")
+    await connection.commit()
+
+
 def create_pool(settings: Settings) -> AsyncConnectionPool:
     return AsyncConnectionPool(
         conninfo=settings.database_url,
@@ -29,6 +35,7 @@ def create_pool(settings: Settings) -> AsyncConnectionPool:
         timeout=settings.db_pool_timeout_seconds,
         open=False,
         kwargs={"autocommit": False, "row_factory": dict_row},
+        configure=_configure_restricted_role if settings.database_role else None,
     )
 
 

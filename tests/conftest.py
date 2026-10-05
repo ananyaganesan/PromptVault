@@ -59,6 +59,8 @@ def api_client(isolated_database_url: str) -> Iterator[TestClient]:
         environment="test",
         database_url=isolated_database_url,
         secret_key="test-secret-that-is-at-least-32-characters",
+        auth_rate_limit_requests=10_000,
+        password_reset_rate_limit_requests=10_000,
         _env_file=None,
     )
     with TestClient(create_app(settings)) as client:

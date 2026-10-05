@@ -22,6 +22,8 @@ def test_settings() -> Settings:
         environment="test",
         database_url="postgresql://promptvault:promptvault@localhost:5432/promptvault_test",
         secret_key="test-secret-that-is-at-least-32-characters",
+        auth_rate_limit_requests=10_000,
+        password_reset_rate_limit_requests=10_000,
         _env_file=None,
     )
 

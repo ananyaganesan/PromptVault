@@ -112,3 +112,17 @@ def test_database_script_exposes_help(script: str) -> None:
 
     assert result.returncode == 0, result.stderr
     assert "usage:" in result.stdout.lower()
+
+
+def test_seed_command_refuses_production_even_without_optional_flag() -> None:
+    result = subprocess.run(
+        [sys.executable, str(REPOSITORY_ROOT / "scripts" / "seed-database.py")],
+        cwd=REPOSITORY_ROOT,
+        env={"ENVIRONMENT": "production", "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "refusing to seed a production database" in result.stderr.lower()

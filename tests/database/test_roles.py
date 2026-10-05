@@ -156,6 +156,52 @@ def test_application_role_has_only_required_governance_write_boundaries(
 
 
 @pytest.mark.database
+def test_application_role_can_reset_password_only_through_fixed_function(
+    db_connection: psycopg.Connection,
+) -> None:
+    privileges = db_connection.execute(
+        """
+        SELECT has_table_privilege(
+                   'promptvault_app', 'users', 'UPDATE'
+               ) AS direct_user_update,
+               has_function_privilege(
+                   'promptvault_app',
+                   'consume_password_reset_token(text,text)',
+                   'EXECUTE'
+               ) AS reset_function
+        """
+    ).fetchone()
+
+    assert privileges is not None
+    assert privileges["direct_user_update"] is False
+    assert privileges["reset_function"] is True
+
+    db_connection.execute(
+        """
+        INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+        VALUES (
+            '11111111-1111-4111-8111-111111111111',
+            repeat('a', 64),
+            CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+        )
+        """
+    )
+    db_connection.execute("SET LOCAL ROLE promptvault_app")
+    consumed = db_connection.execute(
+        """SELECT consume_password_reset_token(
+               repeat('a', 64), 'replacement-hash'
+           ) AS consumed"""
+    ).fetchone()
+    changed = db_connection.execute(
+        """SELECT password_hash FROM users
+           WHERE id = '11111111-1111-4111-8111-111111111111'"""
+    ).fetchone()
+
+    assert consumed is not None and consumed["consumed"] is True
+    assert changed is not None and changed["password_hash"] == "replacement-hash"
+
+
+@pytest.mark.database
 def test_application_role_executes_audited_maintenance_wrappers(
     db_connection: psycopg.Connection,
 ) -> None:

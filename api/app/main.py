@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.app.auth_rate_limits import AuthRateLimitMiddleware
 from api.app.config import Settings, get_settings
 from api.app.db.pool import PoolFactory, create_pool
 from api.app.dependencies.request_context import RequestIdMiddleware
@@ -59,6 +60,13 @@ def create_app(
     application.add_middleware(
         RequestBodyLimitMiddleware,
         max_bytes=resolved_settings.max_request_body_bytes,
+    )
+    application.add_middleware(
+        AuthRateLimitMiddleware,
+        auth_requests=resolved_settings.auth_rate_limit_requests,
+        auth_window_seconds=resolved_settings.auth_rate_limit_window_seconds,
+        reset_requests=resolved_settings.password_reset_rate_limit_requests,
+        reset_window_seconds=resolved_settings.password_reset_rate_limit_window_seconds,
     )
     application.add_middleware(
         CORSMiddleware,

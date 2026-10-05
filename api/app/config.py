@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     environment: Literal["development", "test", "production"] = "development"
     database_url: str
+    database_role: Literal["promptvault_app"] | None = None
     secret_key: str = Field(repr=False)
     provider_encryption_key: str | None = Field(default=None, repr=False)
     access_token_ttl_minutes: int = 30
@@ -28,6 +29,10 @@ class Settings(BaseSettings):
     database_health_timeout_seconds: float = 2.0
     provider_timeout_seconds: float = 30.0
     max_request_body_bytes: int = 1_048_576
+    auth_rate_limit_requests: int = 10
+    auth_rate_limit_window_seconds: int = 60
+    password_reset_rate_limit_requests: int = 5
+    password_reset_rate_limit_window_seconds: int = 300
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     password_reset_ttl_minutes: int = 30
     password_reset_url: str = "http://localhost:5173/reset-password"
@@ -39,6 +44,11 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
     smtp_ssl: bool = False
     smtp_timeout_seconds: float = 10.0
+
+    @field_validator("database_role", mode="before")
+    @classmethod
+    def empty_database_role_is_unset(cls, value: object) -> object:
+        return None if value == "" else value
 
     @field_validator("smtp_host", "smtp_username", "smtp_from_email", mode="before")
     @classmethod
@@ -77,6 +87,13 @@ class Settings(BaseSettings):
             raise ValueError("access token lifetime must be positive")
         if self.max_request_body_bytes <= 0:
             raise ValueError("MAX_REQUEST_BODY_BYTES must be positive")
+        if min(
+            self.auth_rate_limit_requests,
+            self.auth_rate_limit_window_seconds,
+            self.password_reset_rate_limit_requests,
+            self.password_reset_rate_limit_window_seconds,
+        ) <= 0:
+            raise ValueError("authentication rate limits must be positive")
         if self.password_reset_ttl_minutes <= 0:
             raise ValueError("PASSWORD_RESET_TTL_MINUTES must be positive")
         reset_url = urlsplit(self.password_reset_url)
@@ -128,6 +145,8 @@ class Settings(BaseSettings):
             self.secret_key == "change-me" or len(self.secret_key) < 32
         ):
             raise ValueError("production SECRET_KEY must be at least 32 characters")
+        if self.environment == "production" and self.database_role != "promptvault_app":
+            raise ValueError("production DATABASE_ROLE must be promptvault_app")
         if self.environment == "production" and (
             self.provider_encryption_key is None
             or self.provider_encryption_key == "change-me-provider-encryption-key"

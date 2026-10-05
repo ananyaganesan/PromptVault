@@ -113,8 +113,26 @@ def test_production_accepts_independent_provider_encryption_key() -> None:
         "secret_key": "production-secret-that-is-at-least-32-characters",
         "provider_encryption_key": "independent-provider-key-that-is-at-least-32-characters",
         "cors_origins": "https://app.example.com",
+        "database_role": "promptvault_app",
     }
 
     settings = Settings(**values)
 
     assert settings.environment == "production"
+
+
+@pytest.mark.parametrize("database_role", [None, "postgres"])
+def test_production_requires_restricted_application_database_role(
+    database_role: str | None,
+) -> None:
+    values = {
+        **BASE,
+        "environment": "production",
+        "secret_key": "production-secret-that-is-at-least-32-characters",
+        "provider_encryption_key": "independent-provider-key-that-is-at-least-32-characters",
+        "cors_origins": "https://app.example.com",
+        "database_role": database_role,
+    }
+
+    with pytest.raises(ValidationError):
+        Settings(**values)

@@ -184,6 +184,8 @@ docker compose --profile verification run --rm verify
 - Provider secrets are encrypted at rest and never returned by list endpoints.
 - Runtime tokens are displayed once, stored only as hashes, project-scoped, and revocable.
 - Structured logs exclude query strings, request bodies, passwords, tokens, and provider keys.
+- Login/registration and password recovery have configurable per-client throttles; production still requires a distributed edge limiter.
+- Production rejects placeholder secrets and unrestricted database-role configuration; pooled API connections run as `promptvault_app`.
 - Password reset uses one-use database tokens and a configurable SMTP provider; provider setup and live delivery are deployment responsibilities.
 - The included provider is deterministic for reproducible evaluation; external production LLM reliability is outside prototype scope.
 - JWT storage is tab-scoped for the prototype. A production deployment should evaluate an HTTPS-only cookie/BFF session model and rotate all example secrets.

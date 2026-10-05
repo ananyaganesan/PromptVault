@@ -17,7 +17,7 @@ def migration_sql(version: int) -> str:
 def test_complete_migration_chain_is_discoverable() -> None:
     migrations = discover_migrations(MIGRATIONS_DIRECTORY)
 
-    assert [migration.version for migration in migrations] == list(range(1, 16))
+    assert [migration.version for migration in migrations] == list(range(1, 17))
 
 
 @pytest.mark.parametrize("path", sorted(MIGRATIONS_DIRECTORY.glob("*.sql")), ids=lambda p: p.name)
@@ -95,6 +95,14 @@ def test_database_roles_follow_least_privilege_shape() -> None:
     assert "promptvault_readonly" in grants
     assert "revoke all on" in grants
     assert "grant execute on function" in grants
+
+
+def test_password_reset_uses_a_restricted_database_function() -> None:
+    boundary = migration_sql(16)
+
+    assert "security definer" in boundary
+    assert "consume_password_reset_token" in boundary
+    assert "grant execute on function" in boundary
 
 
 def test_seed_files_define_deterministic_demo_identities() -> None:

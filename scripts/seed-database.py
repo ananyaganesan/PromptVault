@@ -39,6 +39,9 @@ def main() -> int:
     load_dotenv(REPOSITORY_ROOT / ".env")
     args = build_parser().parse_args()
     environment = os.getenv("ENVIRONMENT", "development")
+    if environment == "production":
+        print("Refusing to seed a production database.", file=sys.stderr)
+        return 1
     if args.only_development and environment != "development":
         print(f"Skipping development seeds for {environment}.")
         return 0

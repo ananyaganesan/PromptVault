@@ -12,6 +12,8 @@ The packaged stack is intended for local development and evaluation. `docker com
 
 The Compose defaults are development placeholders. Copy `.env.example`, change passwords and application secrets before any shared deployment, and never use the Compose defaults in production. `VITE_API_URL` is compiled into the browser bundle and therefore must contain only a public API address, never a secret.
 
+Production startup additionally requires `DATABASE_ROLE=promptvault_app`. Provision a dedicated non-owner login for `DATABASE_URL`, grant it membership in `promptvault_app`, and do not grant superuser, role-creation, database-creation, or schema-ownership privileges. The API sets that role on every pooled connection. Migration credentials are a separate deployment concern and should be available only to the one-shot migration job.
+
 Password reset requires a public HTTPS `PASSWORD_RESET_URL` in production and backend SMTP settings (`SMTP_HOST`, `SMTP_FROM_EMAIL`, and, for Gmail, `SMTP_USERNAME` and a Google App Password in `SMTP_PASSWORD`). Port 587 uses STARTTLS by default; port 465 uses `SMTP_SSL=true` and `SMTP_STARTTLS=false`. These settings are passed only to the API and migration containers, never to the browser build. Verify Gmail delivery before advertising password recovery.
 
 Container and CI installs use the fully pinned `api/requirements.lock` and `api/requirements-dev.lock`; the adjacent `.txt` files remain the human-maintained compatible dependency ranges. Regenerate and verify lock files deliberately when upgrading dependencies.
@@ -23,6 +25,15 @@ PostgreSQL is the system of record. API restarts are stateless: the connection p
 The named `promptvault-data` volume survives `docker compose down`. `docker compose down -v` destroys that local database and is not recoverable unless it was backed up. The migration/seed job is idempotent on an existing development volume; a changed checksum for an already-applied migration fails closed. The sole recorded-history exception reconciles an exact, previously misnumbered password-reset migration from 011 to 015 when its table is present.
 
 For any environment whose data matters, take a logical or managed PostgreSQL backup before migrations or reset operations. Restore into a separate database first, run migrations, and verify row counts plus the critical Serve/deployment flow before switching traffic. A production deployment should add scheduled backups, retention, encryption, restore drills, and point-in-time recovery according to its PostgreSQL provider.
+
+## Production operations
+
+- Terminate TLS at a trusted ingress, redirect HTTP to HTTPS, use HSTS after validation, and permit only the documented public web/API origins. PostgreSQL and SMTP connections must use transport encryption supplied by their providers.
+- Keep JWT access tokens short-lived. Rotate `SECRET_KEY` through the secret manager during a planned session invalidation, never log it, and keep `JWT_ISSUER`/`JWT_AUDIENCE` environment-specific. PromptVault intentionally has no refresh-token session.
+- The process-local login/reset limits are a safety floor. Enforce a shared per-IP/account limit at the ingress for multiple replicas and alert on sustained `429`, `401`, password-reset `503`, and provider-error rates.
+- Monitor `/health` for process liveness and `/ready` for database readiness; ingest structured request logs by request ID without bodies or query strings. Alert on readiness failures, elevated 5xx latency, pool exhaustion, failed migration jobs, missing run partitions, stale materialized views, and backup failures.
+- Create the next run partition before each month boundary and refresh reporting views on the analytics freshness schedule. Both operations are exposed through audited Super Admin maintenance endpoints/scripts. Verify the result rather than treating command exit alone as evidence.
+- Take encrypted scheduled backups with retention and point-in-time recovery where available. Run recurring restore drills into an isolated database and validate migrations, row counts, login, run recording, deployment approval, and Serve retrieval.
 
 ## Reset boundaries
 
@@ -38,4 +49,4 @@ The `verify` profile is not part of normal startup. It contains development tool
 
 ## Prototype limitations
 
-TLS termination, edge rate limiting, managed secrets, a dedicated login inheriting `promptvault_app`, automated backups, multi-instance orchestration, and zero-downtime migration strategy are infrastructure responsibilities deferred to production packaging. Race-sensitive version/run/deployment writes have tested function-only grants, while ordinary trusted-server repository CRUD retains direct grants; local Compose currently connects with the development database owner. The packaged web build now uses live API data by default, but its current end-to-end workflows still need a fresh browser verification run.
+TLS termination, distributed edge rate limiting, managed secret delivery, restricted-login provisioning, automated backup scheduling, multi-instance orchestration, and zero-downtime migration strategy remain infrastructure responsibilities. The application enforces production configuration, sets the restricted database role, and supplies audited maintenance operations, but local Compose intentionally connects with the development database owner.
