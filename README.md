@@ -13,6 +13,12 @@ PromptVault is a full-stack prompt versioning, execution, deployment, and govern
 
 The implementation sequence and acceptance criteria are tracked in [docs/working-prototype-plan.md](docs/working-prototype-plan.md).
 
+## Current status and next changes
+
+Database-backed login, JWT session restoration, the FastAPI domain routes, and the PostgreSQL schema are implemented. Normal web builds now use the API for workspace data; bundled example data is an explicit local/test mode. Project creation, settings, and member loading no longer switch to browser-only behavior based on demo-shaped IDs. Project creation, settings updates, and member addition were verified across browser reloads against the local FastAPI/PostgreSQL stack; focused frontend and backend tests also pass. The migration runner includes a narrowly scoped recovery for an older password-reset migration recorded as version 011, and development seed commands are restricted to development/test environments. Migration reconciliation and seed restrictions still need clean-stack and existing-database verification.
+
+The next implementation work is to align prompt-variable editing with the backend version contract and complete live run, deployment, and admin browser workflows. Password recovery remains incomplete: its backend settings and the frontend reset route still need work. Full backend type checking, database integration tests, and live browser regression must pass before claiming release readiness.
+
 ## Quick start
 
 Docker Engine with the Compose plugin is the only prerequisite for the packaged stack:
@@ -28,7 +34,7 @@ Open:
 - Swagger UI: `http://localhost:8000/docs`
 - API readiness: `http://localhost:8000/ready`
 
-Startup waits for PostgreSQL, applies all checksum-tracked migrations, runs idempotent development seeds, and then starts the API and Nginx-served web build.
+Startup waits for PostgreSQL, applies all checksum-tracked migrations, runs idempotent development seeds only when `ENVIRONMENT=development`, and then starts the API and Nginx-served web build. The seed command also refuses production mode when invoked directly.
 
 Development accounts:
 
@@ -129,7 +135,7 @@ python3 scripts/version-race-demo.py --workers 20
 python3 scripts/approval-race-demo.py
 ```
 
-Migration history is stored in `schema_migrations`; checksums prevent already-applied files from changing. Migrations are ordered, advisory-lock serialized, and transactional. Reset refuses non-development environments and requires explicit confirmation.
+Migration history is stored in `schema_migrations`; checksums prevent already-applied files from changing. Migrations are ordered, advisory-lock serialized, and transactional. The only history reconciliation recognizes a version-011 password-reset record with exactly the current SQL checksum and an existing reset table, then records it as version 015 so the missing run-budget migration can apply. All other history mismatches fail closed. Development seed commands refuse production mode; reset refuses non-development environments and requires explicit confirmation.
 
 ## Backend verification
 

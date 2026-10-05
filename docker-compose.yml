@@ -44,7 +44,7 @@ services:
     command:
       - sh
       - -c
-      - python scripts/run-migrations.py && python scripts/seed-database.py
+      - python scripts/run-migrations.py && python scripts/seed-database.py --only-development
     depends_on:
       db:
         condition: service_healthy

@@ -1,11 +1,11 @@
 # Deployment and recovery expectations
 
-The packaged stack is intended for local development and evaluation. `docker compose up -d --build --wait` starts PostgreSQL, runs migrations and development seeds once, starts the API after that job succeeds, and starts the web container only after API readiness succeeds.
+The packaged stack is intended for local development and evaluation. `docker compose up -d --build --wait` starts PostgreSQL, runs migrations and, only when `ENVIRONMENT=development`, development seeds once, starts the API after that job succeeds, and starts the web container only after API readiness succeeds. The direct seed command also refuses non-development/non-test environments.
 
 | Service | Role | Startup gate |
 |---|---|---|
 | `db` | PostgreSQL 16 system of record | `pg_isready` |
-| `migrate` | One-shot migration and seed job | Healthy database |
+| `migrate` | One-shot migration job; seeds only in development | Healthy database |
 | `api` | Unprivileged Uvicorn/FastAPI process | Successful migration job; `/ready` health check |
 | `web` | Nginx serving the Vite build with SPA fallback | Healthy API; HTTP health check |
 | `verify` | Optional containerized backend quality suite | `verification` profile only; healthy database |
@@ -18,7 +18,7 @@ Container and CI installs use the fully pinned `api/requirements.lock` and `api/
 
 PostgreSQL is the system of record. API restarts are stateless: the connection pool closes during shutdown and a new pool restores access to committed projects, prompt snapshots, deployments, tokens, runs, and audit events. `tests/e2e/test_user_prompt_workflow.py` exercises that restart boundary.
 
-The named `promptvault-data` volume survives `docker compose down`. `docker compose down -v` destroys that local database and is not recoverable unless it was backed up. The migration/seed job is idempotent on an existing volume; a changed checksum for an already-applied migration fails closed.
+The named `promptvault-data` volume survives `docker compose down`. `docker compose down -v` destroys that local database and is not recoverable unless it was backed up. The migration/seed job is idempotent on an existing development volume; a changed checksum for an already-applied migration fails closed. The sole recorded-history exception reconciles an exact, previously misnumbered password-reset migration from 011 to 015 when its table is present.
 
 For any environment whose data matters, take a logical or managed PostgreSQL backup before migrations or reset operations. Restore into a separate database first, run migrations, and verify row counts plus the critical Serve/deployment flow before switching traffic. A production deployment should add scheduled backups, retention, encryption, restore drills, and point-in-time recovery according to its PostgreSQL provider.
 
@@ -36,4 +36,4 @@ The `verify` profile is not part of normal startup. It contains development tool
 
 ## Prototype limitations
 
-TLS termination, edge rate limiting, managed secrets, a dedicated login inheriting `promptvault_app`, automated backups, multi-instance orchestration, and zero-downtime migration strategy are infrastructure responsibilities deferred to production packaging. Race-sensitive version/run/deployment writes have tested function-only grants, while ordinary trusted-server repository CRUD retains direct grants; local Compose currently connects with the development database owner. The packaged web service currently demonstrates the visual frontend only and does not yet provide API-backed end-to-end behavior.
+TLS termination, edge rate limiting, managed secrets, a dedicated login inheriting `promptvault_app`, automated backups, multi-instance orchestration, and zero-downtime migration strategy are infrastructure responsibilities deferred to production packaging. Race-sensitive version/run/deployment writes have tested function-only grants, while ordinary trusted-server repository CRUD retains direct grants; local Compose currently connects with the development database owner. The packaged web build now uses live API data by default, but its current end-to-end workflows still need a fresh browser verification run.

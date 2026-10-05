@@ -39,6 +39,9 @@ test('project, member, prompt, and immutable versions survive reloads through Fa
   await page.getByLabel('Member email').fill('admin@promptvault.dev')
   await page.getByRole('button', { name: 'Add member' }).click()
   await expect(page.getByText('admin@promptvault.dev was added to the project.')).toBeVisible()
+  await page.reload()
+  await page.getByRole('button', { name: /Members/ }).click()
+  await expect(page.locator('.member-row').filter({ hasText: 'admin@promptvault.dev' })).toBeVisible()
 
   await page.getByRole('link', { name: 'New prompt' }).first().click()
   await page.getByLabel('Prompt key').fill(promptKey)

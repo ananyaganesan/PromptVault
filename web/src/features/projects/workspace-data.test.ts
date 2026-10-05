@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { projectStore, promptStore, versionStore } from './workspace-data'
+import { memberStore, projectStore, promptStore, versionStore, workspaceService } from './workspace-data'
 
 vi.mock('../../lib/runtime', () => ({ useDemoData: false }))
 
@@ -12,6 +12,7 @@ describe('workspaceService', () => {
     projectStore.splice(0)
     promptStore.splice(0)
     for (const key of Object.keys(versionStore)) delete versionStore[key]
+    for (const key of Object.keys(memberStore)) delete memberStore[key]
     vi.unstubAllGlobals()
   })
 
@@ -35,6 +36,49 @@ describe('workspaceService', () => {
       'http://localhost:8000/api/v1/projects?page=1&page_size=100',
       'http://localhost:8000/api/v1/projects/project-1/prompts?page=1&page_size=100',
       'http://localhost:8000/api/v1/prompts/prompt-1/versions?page=1&page_size=100',
+    ])
+  })
+
+  it('creates and updates a project through the API even with demo-shaped IDs', async () => {
+    const owner = { id: 'usr_demo_owner', display_name: 'Owner' }
+    const base = { id: 'project-123', key: 'live-project', description: null, owner, member_count: 1, prompt_count: 0, created_at: '2026-09-27T00:00:00Z', updated_at: '2026-09-27T00:00:00Z' }
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(json({ ...base, name: 'Live Project' }))
+      .mockResolvedValueOnce(json({ ...base, name: 'Renamed Project', description: 'Saved in PostgreSQL' }))
+    vi.stubGlobal('fetch', fetcher)
+
+    const created = await workspaceService.createProject({ name: 'Live Project', key: 'live-project' }, owner.id)
+    const updated = await workspaceService.updateProject(created.id, { name: 'Renamed Project', description: 'Saved in PostgreSQL' }, owner.id)
+
+    expect(updated.name).toBe('Renamed Project')
+    expect(projectStore).toEqual([expect.objectContaining({ id: 'project-123', name: 'Renamed Project', description: 'Saved in PostgreSQL' })])
+    expect(fetcher.mock.calls.map(([url, options]) => [url, options.method])).toEqual([
+      ['http://localhost:8000/api/v1/projects', 'POST'],
+      ['http://localhost:8000/api/v1/projects/project-123', 'PATCH'],
+    ])
+  })
+
+  it('reloads members from the API even when a demo-shaped project has cached members', async () => {
+    const projectId = 'project-123'
+    memberStore[projectId] = [{ user_id: 'stale-user', display_name: 'Stale User', email: 'stale@example.com', role: 'member', joined_at: '2026-09-27T00:00:00Z' }]
+    const owner = { id: 'usr_demo_owner', email: 'owner@example.com', display_name: 'Owner', role: 'user', is_active: true, created_at: '2026-09-27T00:00:00Z', is_owner: true }
+    const added = { ...owner, id: 'usr_demo_member', email: 'member@example.com', display_name: 'Member', is_owner: false }
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(json({ items: [owner], page: 1, page_size: 100, total: 1 }))
+      .mockResolvedValueOnce(json(added))
+      .mockResolvedValueOnce(json({ items: [owner, added], page: 1, page_size: 100, total: 2 }))
+    vi.stubGlobal('fetch', fetcher)
+
+    expect(await workspaceService.loadMembers(projectId)).toEqual([expect.objectContaining({ user_id: owner.id, role: 'owner' })])
+    await workspaceService.addMember(projectId, { email: added.email })
+    expect(await workspaceService.loadMembers(projectId)).toEqual([
+      expect.objectContaining({ user_id: owner.id }),
+      expect.objectContaining({ user_id: added.id, role: 'member' }),
+    ])
+    expect(fetcher.mock.calls.map(([url, options]) => [url, options.method])).toEqual([
+      ['http://localhost:8000/api/v1/projects/project-123/members?page=1&page_size=100', 'GET'],
+      ['http://localhost:8000/api/v1/projects/project-123/members', 'POST'],
+      ['http://localhost:8000/api/v1/projects/project-123/members?page=1&page_size=100', 'GET'],
     ])
   })
 })

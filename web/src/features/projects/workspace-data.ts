@@ -209,7 +209,7 @@ export const workspaceService = {
     notify()
   },
   async createProject(request: CreateProjectRequest, userId: string) {
-    if (useDemoData || userId.startsWith('usr_demo_')) {
+    if (useDemoData) {
       const createdAt = new Date().toISOString()
       const project: Project = { id: `project-${Date.now()}`, key: request.key, name: request.name, description: request.description ?? null, prompt_count: 2, member_count: 1, monthly_spend: '$0.0000', updated_at: createdAt, is_owner: true, created_at: createdAt, owner_id: userId }
       projectStore.unshift(project)
@@ -234,7 +234,7 @@ export const workspaceService = {
     return project
   },
   async updateProject(projectId: string, request: UpdateProjectRequest, userId: string) {
-    if (useDemoData || projectId.startsWith('project-')) {
+    if (useDemoData) {
       const current = projectFor(projectId)
       if (!current) throw new Error('Project not found.')
       const project = { ...current, ...request, updated_at: new Date().toISOString() }
@@ -249,7 +249,7 @@ export const workspaceService = {
     return project
   },
   async loadMembers(projectId: string) {
-    if (useDemoData || projectId.startsWith('project-')) return memberStore[projectId] ?? []
+    if (useDemoData) return memberStore[projectId] ?? []
     const page = await apiClient.request<Page<BackendMember>>(`/projects/${projectId}/members`, { query: { page: 1, page_size: 100 } })
     const members = page.items.map(adaptMember)
     memberStore[projectId] = members
