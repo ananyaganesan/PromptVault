@@ -64,6 +64,7 @@ npm run dev --prefix web
 ```
 
 The client reads `VITE_API_BASE_URL` (or `VITE_API_URL`) and appends `/api/v1`. The default is `http://localhost:8000`. Browser sessions are tab-scoped through `sessionStorage`; authorization is always rechecked by FastAPI.
+Workspace data also uses the API by default. `VITE_USE_DEMO_DATA=true` is an explicit local example-data mode; the Docker web build keeps it disabled.
 
 Frontend verification:
 

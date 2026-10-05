@@ -161,19 +161,19 @@ def test_password_reset_delivers_a_one_time_link_and_updates_the_password(
         (
             "user@promptvault.dev",
             "WrongPassword2026!",
-            "invalid_password",
-            "Incorrect password.",
+            "invalid_credentials",
+            "Invalid email or password.",
         ),
-        ("user@promptvault.dev", "User@123", "invalid_password", "Incorrect password."),
+        ("user@promptvault.dev", "User@123", "invalid_credentials", "Invalid email or password."),
         (
             "missing-user@example.com",
             "WrongPassword2026!",
-            "email_not_found",
-            "Email address not found.",
+            "invalid_credentials",
+            "Invalid email or password.",
         ),
     ],
 )
-def test_login_identifies_invalid_credential_and_challenges_bearer(
+def test_login_rejects_invalid_credentials_without_disclosing_which_field(
     auth_client: TestClient,
     email: str,
     password: str,

@@ -46,7 +46,11 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           password: fields['body.password']?.join(' '),
         })
       }
-      setFormError(error instanceof Error ? error.message : 'Unable to sign in.')
+      setFormError(mode === 'login' && error instanceof ApiClientError && error.status === 401
+        ? 'Invalid email or password.'
+        : error instanceof Error && error.message === 'Failed to fetch'
+          ? 'Unable to connect to the server. Please try again.'
+          : error instanceof Error ? error.message : 'Unable to sign in.')
     }
     finally { setBusy(false) }
   }
@@ -56,7 +60,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     <p>{mode === 'login' ? 'Sign in to access your prompts, versions, and deployments.' : 'Join PromptVault to version, collaborate, and ship better prompts.'}</p>
     {mode === 'register' && <Field label="Display name" placeholder="Your name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} error={errors.displayName} />}
     <Field label="Email address" placeholder="you@company.com" type="email" value={email} onChange={update(setEmail)} error={errors.email} />
-    <Field label="Password" placeholder={mode === 'login' ? 'Enter your password' : 'Create a strong password (12+ characters, no spaces)'} type="password" value={password} onChange={update(setPassword)} error={errors.password} />
+    <Field label="Password" placeholder={mode === 'login' ? 'Enter your password' : 'Create a strong password (12+ characters, no spaces)'} type="password" value={password} onChange={mode === 'login' ? (event) => setPassword(event.target.value) : update(setPassword)} error={errors.password} />
     {formError && <p className="form-error" role="alert">{formError}</p>}
     {mode === 'login' && <div className="form-row"><span /><Link to="/forgot-password">Forgot password?</Link></div>}
     <Button type="submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</Button>

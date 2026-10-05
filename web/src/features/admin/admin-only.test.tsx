@@ -6,7 +6,7 @@ import { AuthProvider } from '../auth/auth-context'
 import { LoginPage } from '../auth/pages'
 import { AdminOnly } from './admin-only'
 
-function setup() { render(<AuthProvider mode="demo"><MemoryRouter initialEntries={['/login']}><Routes><Route path="/login" element={<LoginPage />} /><Route path="/403" element={<p>Access denied</p>} /><Route element={<AdminOnly />}><Route path="/dashboard" element={<p>Admin console</p>} /><Route path="/admin" element={<p>Admin console</p>} /></Route></Routes></MemoryRouter></AuthProvider>) }
+function setup() { render(<AuthProvider><MemoryRouter initialEntries={['/login']}><Routes><Route path="/login" element={<LoginPage />} /><Route path="/403" element={<p>Access denied</p>} /><Route element={<AdminOnly />}><Route path="/dashboard" element={<p>Admin console</p>} /><Route path="/admin" element={<p>Admin console</p>} /></Route></Routes></MemoryRouter></AuthProvider>) }
 
 function mockSession(role: 'user' | 'admin') {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({

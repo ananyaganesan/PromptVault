@@ -4,7 +4,7 @@ import { budgetStore } from './budget-store'
 import { deploymentService } from '../deployments/deployment-service'
 import { adaptRun, runStore } from '../runs/run-service'
 import type { BackendPromptRun } from '../runs/api'
-import { demoUsers } from '../../mocks/users'
+import { sampleUserProfiles } from '../../mocks/users'
 import { projectStore } from '../projects/workspace-data'
 import type { Page } from '../../types/api'
 import type { AdminRunListQuery, AdminUser, AuditEvent, AuditListQuery, Budget, CreateModelPriceRequest, CreateProviderKeyRequest, MaintenanceStatus, ModelPrice, OrganizationDashboard, ProviderKeyMetadata, UpdateUserRequest, UpsertBudgetRequest } from '../../types/admin'
@@ -22,7 +22,7 @@ export const adminStore = { subscribe(listener: () => void) { listeners.add(list
 export const isDemoAdmin = demo
 
 let users: AdminUser[] = [
-  ...demoUsers.map((user) => ({ id: user.id, email: user.email, display_name: user.display_name, role: user.role, is_active: user.is_active, created_at: user.created_at, project_count: user.role === 'super_admin' ? 3 : 1, last_active_at: now() })),
+  ...sampleUserProfiles.map((user) => ({ id: user.id, email: user.email, display_name: user.display_name, role: user.role, is_active: user.is_active, created_at: user.created_at, project_count: user.role === 'super_admin' ? 3 : 1, last_active_at: now() })),
   { id: 'usr_riley', email: 'riley@promptvault.dev', display_name: 'Riley Park', role: 'user', is_active: true, created_at: '2025-02-10T09:00:00Z', project_count: 2, last_active_at: '2025-08-27T10:00:00Z' },
   { id: 'usr_taylor', email: 'taylor@promptvault.dev', display_name: 'Taylor Reed', role: 'user', is_active: false, created_at: '2025-03-10T09:00:00Z', project_count: 1, last_active_at: '2025-08-20T10:00:00Z' },
 ]
@@ -170,8 +170,6 @@ export const adminService = {
     if (!current) throw new Error('User not found.')
     const updated = { ...current, ...request }
     users = users.map((user) => user.id === userId ? updated : user)
-    const loginUser = demoUsers.find((user) => user.id === userId)
-    if (loginUser) { loginUser.role = updated.role; loginUser.is_active = updated.is_active }
     record('user.updated', 'user', userId, admin)
     return updated
   },

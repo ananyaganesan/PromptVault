@@ -56,8 +56,8 @@ class AuthService:
         if not user:
             raise AppError(
                 401,
-                "email_not_found",
-                "Email address not found.",
+                "invalid_credentials",
+                "Invalid email or password.",
                 headers=_BEARER_HEADERS,
             )
         password_matches = await run_in_threadpool(
@@ -68,8 +68,8 @@ class AuthService:
         if not password_matches:
             raise AppError(
                 401,
-                "invalid_password",
-                "Incorrect password.",
+                "invalid_credentials",
+                "Invalid email or password.",
                 headers=_BEARER_HEADERS,
             )
         if not user.is_active:

@@ -27,7 +27,7 @@ describe('API token one-time reveal', () => {
 
   it('shows the secret on issue and hides it after closing the dialog', async () => {
     const user = userEvent.setup()
-    render(<AuthProvider mode="demo"><MemoryRouter initialEntries={['/login']}><Routes><Route path="/login" element={<LoginPage />} /><Route path="/dashboard" element={<ApiTokensPage />} /></Routes></MemoryRouter></AuthProvider>)
+    render(<AuthProvider><MemoryRouter initialEntries={['/login']}><Routes><Route path="/login" element={<LoginPage />} /><Route path="/dashboard" element={<ApiTokensPage />} /></Routes></MemoryRouter></AuthProvider>)
     await user.type(screen.getByLabelText('Email address'), 'user@promptvault.dev')
     await user.type(screen.getByLabelText('Password'), 'UserDemo2026!')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { projectStore, promptStore, versionStore } from './workspace-data'
 
+vi.mock('../../lib/runtime', () => ({ useDemoData: false }))
+
 function json(payload: unknown) {
   return new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } })
 }

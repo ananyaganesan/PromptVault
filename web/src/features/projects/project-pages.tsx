@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/page-header";
 import { Button, Field, Stat, Status } from "../../components/ui/prototype";
@@ -60,16 +60,12 @@ export function PromptRows({
 }
 export function ProjectsPage() {
   const { user } = useAuth();
-  const revision = useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const projects = useMemo(
-    () =>
-      projectStore.filter((project) =>
-        `${project.name} ${project.key}`.toLowerCase().includes(search.toLowerCase()) &&
-        (filter === "all" || (filter === "owned" ? project.owner_id === user?.id : project.owner_id !== user?.id)),
-      ),
-    [search, filter, user?.id, revision],
+  const projects = projectStore.filter((project) =>
+    `${project.name} ${project.key}`.toLowerCase().includes(search.toLowerCase()) &&
+    (filter === "all" || (filter === "owned" ? project.owner_id === user?.id : project.owner_id !== user?.id)),
   );
   return (
     <>

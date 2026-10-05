@@ -8,7 +8,7 @@ import { AuthProvider } from './auth-context'
 function Location() { return <output data-testid="location">{useLocation().pathname}</output> }
 
 function renderLogin() {
-  return render(<AuthProvider mode="demo"><MemoryRouter initialEntries={['/login']}><Routes><Route path="/login" element={<LoginPage />} /><Route path="/dashboard" element={<Location />} /><Route path="/admin" element={<Location />} /></Routes></MemoryRouter></AuthProvider>)
+  return render(<AuthProvider><MemoryRouter initialEntries={['/login']}><Routes><Route path="/login" element={<LoginPage />} /><Route path="/dashboard" element={<Location />} /><Route path="/admin" element={<Location />} /></Routes></MemoryRouter></AuthProvider>)
 }
 
 function session(role: 'user' | 'admin') {
@@ -62,7 +62,7 @@ describe('LoginPage', () => {
       'http://localhost:8000/api/v1/auth/login',
       expect.objectContaining({ method: 'POST' }),
     )
-    expect(sessionStorage.getItem('promptvault.session.token')).toBe('live-user-token')
+    expect(sessionStorage.getItem('promptvault.api.session')).toBe('live-user-token')
   })
 
   it('sends an admin to the dashboard after sign-in', async () => {
@@ -77,17 +77,30 @@ describe('LoginPage', () => {
     expect(await screen.findByTestId('location')).toHaveTextContent('/dashboard')
   })
 
-  it('shows the relevant login error for a missing email or wrong password', async () => {
+  it('shows the same login error for a missing email or wrong password', async () => {
     const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ code: 'invalid_credentials', message: 'Invalid email or password.' }), { status: 401, headers: { 'Content-Type': 'application/json' } }))))
     renderLogin()
     await user.type(screen.getByLabelText('Email address'), 'missing@promptvault.dev')
     await user.type(screen.getByLabelText('Password'), 'WrongPassword2026!')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Email address not found.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid email or password.')
 
     await user.clear(screen.getByLabelText('Email address'))
     await user.type(screen.getByLabelText('Email address'), 'user@promptvault.dev')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect password.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid email or password.')
+  })
+
+  it('stays signed out when the backend cannot be reached', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    renderLogin()
+    await user.type(screen.getByLabelText('Email address'), 'user@promptvault.dev')
+    await user.type(screen.getByLabelText('Password'), 'AnyPassword2026!')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to connect to the server.')
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument()
+    expect(sessionStorage.getItem('promptvault.api.session')).toBeNull()
   })
 })

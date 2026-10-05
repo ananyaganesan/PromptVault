@@ -61,7 +61,7 @@ test('production approval, Serve token, rollback, and revocation use the live co
   const suffix = Date.now().toString(36)
   const tokenName = `Release consumer ${suffix}`
   await signIn(page, 'user')
-  const jwt = await page.evaluate(() => sessionStorage.getItem('promptvault.session.token'))
+  const jwt = await page.evaluate(() => sessionStorage.getItem('promptvault.api.session'))
   expect(jwt).toBeTruthy()
   const fixture = await createVersionedPrompt(request, jwt!, suffix)
   await switchAccount(page, 'user')

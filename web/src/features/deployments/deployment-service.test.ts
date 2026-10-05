@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { demoUsers } from '../../mocks/users'
+import { sampleUserProfiles } from '../../mocks/users'
 import { deploymentService, tokenService } from './deployment-service'
 
-const member = demoUsers[0]
-const admin = demoUsers[1]
+const member = sampleUserProfiles[0]
+const admin = sampleUserProfiles[1]
 
 describe('deployment workflow', () => {
   it('queues production requests and limits review to Super Admins', async () => {

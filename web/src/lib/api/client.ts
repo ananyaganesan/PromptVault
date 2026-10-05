@@ -88,6 +88,6 @@ export function setAccessToken(token: string | null) { accessToken = token }
 export function clearAccessToken() { accessToken = null }
 export function subscribeUnauthorized(listener: () => void) {
   unauthorizedListeners.add(listener)
-  return () => unauthorizedListeners.delete(listener)
+  return () => { unauthorizedListeners.delete(listener) }
 }
 export const apiClient = createApiClient()

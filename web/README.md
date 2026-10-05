@@ -1,6 +1,6 @@
 # PromptVault web client
 
-This React/Vite client is connected to the PromptVault FastAPI and PostgreSQL stack. Authentication, projects, prompts, immutable versions, runs, costs, deployments, runtime tokens, rollback, and administration use live API data. In-memory adapters are retained only for isolated Vitest tests.
+This React/Vite client authenticates through FastAPI and loads workspace data from PostgreSQL through the API by default. Example workspace data is used in isolated tests or when `VITE_USE_DEMO_DATA=true` is explicitly set for local development; it never accepts credentials or creates sessions. The Docker web build always uses the live API data path.
 
 ## Development
 
@@ -13,7 +13,7 @@ cp web/.env.example web/.env.local
 npm run dev --prefix web
 ```
 
-`VITE_API_BASE_URL` defaults to `http://localhost:8000`; the client appends `/api/v1`. The packaged full stack is available with `docker compose up -d --build --wait` and serves the web application at `http://localhost:5173`.
+`VITE_API_BASE_URL` defaults to `http://localhost:8000`; the client appends `/api/v1`. Keep `VITE_USE_DEMO_DATA=false` to use persisted workspace data. Login always calls `/api/v1/auth/login`, and saved tokens are checked with `/api/v1/auth/me` before a user is restored. The packaged full stack is available with `docker compose up -d --build --wait` and serves the web application at `http://localhost:5173`.
 
 Development accounts:
 
