@@ -108,9 +108,12 @@ export function ResetPasswordPage() {
   const [complete, setComplete] = useState(false)
   const [busy, setBusy] = useState(false)
 
+  if (!token) {
+    return <main className="auth-main"><section className="auth-card"><h1>Invalid reset link</h1><p className="form-error" role="alert">This password reset link is invalid.</p><p className="switch"><Link to="/forgot-password">Request a new reset link</Link></p><p className="switch"><Link to="/login">Back to sign in</Link></p></section></main>
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!token) return setError('This password reset link is invalid.')
     if (password.length < 12) return setError('Use at least 12 characters.')
     if (/\s/.test(password)) return setError('Password must not contain spaces.')
     if (password !== confirmPassword) return setError('Passwords do not match.')

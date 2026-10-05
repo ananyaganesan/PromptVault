@@ -6,7 +6,7 @@ import psycopg
 import pytest
 from api.app.config import Settings
 from api.app.main import create_app
-from api.app.security import create_access_token, hash_password
+from api.app.security import create_access_token, hash_one_time_token, hash_password
 from fastapi.testclient import TestClient
 
 SEEDED_USER_ID = UUID("11111111-1111-4111-8111-111111111111")
@@ -152,6 +152,59 @@ def test_password_reset_delivers_a_one_time_link_and_updates_the_password(
                 "UPDATE users SET password_hash = %s WHERE id = %s",
                 (hash_password("UserDemo2026!"), SEEDED_USER_ID),
             )
+
+
+@pytest.mark.database
+def test_password_reset_does_not_disclose_an_unknown_account(
+    auth_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    delivered: list[str] = []
+    monkeypatch.setattr(auth_client.app.state.settings, "smtp_host", "smtp.example.com")
+    monkeypatch.setattr(auth_client.app.state.settings, "smtp_from_email", "no-reply@example.com")
+    monkeypatch.setattr(
+        "api.app.services.auth.send_password_reset_email",
+        lambda _settings, recipient, _token: delivered.append(recipient),
+    )
+
+    response = auth_client.post(
+        "/api/v1/auth/password-reset",
+        json={"email": f"missing-{uuid4()}@example.com"},
+    )
+
+    assert response.status_code == 202
+    assert delivered == []
+
+
+@pytest.mark.database
+def test_expired_password_reset_token_cannot_change_the_password(
+    auth_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    token = f"expired-reset-token-{uuid4()}"
+    token_hash = hash_one_time_token(token)
+    with psycopg.connect(seeded_database_url, autocommit=True) as connection:
+        connection.execute(
+            """
+            INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+            VALUES (%s, %s, CURRENT_TIMESTAMP - INTERVAL '1 minute')
+            """,
+            (SEEDED_USER_ID, token_hash),
+        )
+    try:
+        response = auth_client.post(
+            "/api/v1/auth/password-reset/confirm",
+            json={"token": token, "password": "ExpiredToken2026!"},
+        )
+    finally:
+        with psycopg.connect(seeded_database_url, autocommit=True) as connection:
+            connection.execute(
+                "DELETE FROM password_reset_tokens WHERE token_hash = %s",
+                (token_hash,),
+            )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "invalid_reset_token"
 
 
 @pytest.mark.database
