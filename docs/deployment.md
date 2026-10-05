@@ -12,6 +12,8 @@ The packaged stack is intended for local development and evaluation. `docker com
 
 The Compose defaults are development placeholders. Copy `.env.example`, change passwords and application secrets before any shared deployment, and never use the Compose defaults in production. `VITE_API_URL` is compiled into the browser bundle and therefore must contain only a public API address, never a secret.
 
+Password reset requires a public HTTPS `PASSWORD_RESET_URL` in production and backend SMTP settings (`SMTP_HOST`, `SMTP_FROM_EMAIL`, and, for Gmail, `SMTP_USERNAME` and a Google App Password in `SMTP_PASSWORD`). Port 587 uses STARTTLS by default; port 465 uses `SMTP_SSL=true` and `SMTP_STARTTLS=false`. These settings are passed only to the API and migration containers, never to the browser build. Verify Gmail delivery before advertising password recovery.
+
 Container and CI installs use the fully pinned `api/requirements.lock` and `api/requirements-dev.lock`; the adjacent `.txt` files remain the human-maintained compatible dependency ranges. Regenerate and verify lock files deliberately when upgrading dependencies.
 
 ## Durable data

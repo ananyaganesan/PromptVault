@@ -17,7 +17,7 @@ The implementation sequence and acceptance criteria are tracked in [docs/working
 
 Database-backed login, JWT session restoration, the FastAPI domain routes, and the PostgreSQL schema are implemented. Normal web builds now use the API for workspace data; bundled example data is an explicit local/test mode. Project creation, settings, and member loading no longer switch to browser-only behavior based on demo-shaped IDs. Project creation, settings updates, and member addition were verified across browser reloads against the local FastAPI/PostgreSQL stack; focused frontend and backend tests also pass. The migration runner includes a narrowly scoped recovery for an older password-reset migration recorded as version 011, and development seed commands are restricted to development/test environments. Migration reconciliation and seed restrictions still need clean-stack and existing-database verification.
 
-The next implementation work is to align prompt-variable editing with the backend version contract and complete live run, deployment, and admin browser workflows. Password recovery remains incomplete: its backend settings and the frontend reset route still need work. Full backend type checking, database integration tests, and live browser regression must pass before claiming release readiness.
+The prompt editor now derives variable names from `{{placeholders}}`, matching the backend version contract; name validation runs before save and the editor no longer offers variable metadata that the API cannot persist. The next implementation work is to complete live run, deployment, and admin browser workflows. Password recovery has the reset route and SMTP configuration, while Gmail delivery needs a sender address and Google App Password before it can be activated and verified. Full backend type checking, database integration tests, and live browser regression must pass before claiming release readiness.
 
 ## Quick start
 
@@ -71,6 +71,24 @@ npm run dev --prefix web
 
 The client reads `VITE_API_BASE_URL` (or `VITE_API_URL`) and appends `/api/v1`. The default is `http://localhost:8000`. Browser sessions are tab-scoped through `sessionStorage`; authorization is always rechecked by FastAPI.
 Workspace data also uses the API by default. `VITE_USE_DEMO_DATA=true` is an explicit local example-data mode; the Docker web build keeps it disabled.
+
+## Password reset email
+
+The **Forgot password?** form calls `POST /api/v1/auth/password-reset`. For an active account, the API stores a hashed, one-use token and sends a link to the public `/reset-password` page. The link expires after `PASSWORD_RESET_TTL_MINUTES` (default 30).
+
+To send through Gmail or Google Workspace, enable 2-Step Verification and create a Google App Password for this application. Set `PASSWORD_RESET_URL` to the frontend's public absolute URL and configure these backend variables in the ignored `.env` file or a deployment secret store:
+
+```dotenv
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-address@gmail.com
+SMTP_PASSWORD=your-google-app-password
+SMTP_FROM_EMAIL=your-address@gmail.com
+SMTP_STARTTLS=true
+SMTP_SSL=false
+```
+
+Use the same Gmail address for `SMTP_USERNAME` and `SMTP_FROM_EMAIL`. For port 465, use `SMTP_SSL=true` and `SMTP_STARTTLS=false`. Restart the API after changing the settings. Without a configured SMTP server, reset requests return `503 email_delivery_unavailable`; login remains available. Gmail delivery has not been verified until an address and App Password are supplied.
 
 Frontend verification:
 
@@ -166,7 +184,7 @@ docker compose --profile verification run --rm verify
 - Provider secrets are encrypted at rest and never returned by list endpoints.
 - Runtime tokens are displayed once, stored only as hashes, project-scoped, and revocable.
 - Structured logs exclude query strings, request bodies, passwords, tokens, and provider keys.
-- Password recovery/email delivery is intentionally unavailable in this prototype.
+- Password reset uses one-use database tokens and a configurable SMTP provider; provider setup and live delivery are deployment responsibilities.
 - The included provider is deterministic for reproducible evaluation; external production LLM reliability is outside prototype scope.
 - JWT storage is tab-scoped for the prototype. A production deployment should evaluate an HTTPS-only cookie/BFF session model and rotate all example secrets.
 

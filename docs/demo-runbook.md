@@ -53,7 +53,7 @@ docker compose run --rm migrate python scripts/reset-development.py --confirm-re
 
 If the browser keeps an old identity, sign out or clear the tab's session storage. If a service is unhealthy, inspect `docker compose ps` and `docker compose logs api`. The deterministic mock provider does not require an external LLM key, so the core walkthrough remains reproducible offline after images and dependencies are present.
 
-Password-recovery email and external-provider reliability are deliberately outside the prototype. Do not enter production secrets into the demo stack.
+Password-recovery email requires SMTP settings in `.env`; the core walkthrough does not depend on email delivery. Do not enter production secrets into the demo stack.
 
 ## Verification
 

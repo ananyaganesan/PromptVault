@@ -77,6 +77,12 @@ class AuthService:
         return self._session(user)
 
     async def request_password_reset(self, request: PasswordResetRequest) -> None:
+        if not self.settings.smtp_host:
+            raise AppError(
+                503,
+                "email_delivery_unavailable",
+                "Password reset email could not be delivered",
+            )
         user = await self.repository.get_by_email(str(request.email))
         if user is None or not user.is_active:
             return

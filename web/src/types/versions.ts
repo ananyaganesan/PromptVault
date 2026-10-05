@@ -17,10 +17,9 @@ export interface PromptVersion {
 
 export interface CreateVersionRequest {
   template: string
-  variables: PromptVariable[]
   model_config: ModelConfig
   commit_message: string
-  parent_version_id?: Id
+  parent_version_id: Id
 }
 
 export interface VersionDiff {

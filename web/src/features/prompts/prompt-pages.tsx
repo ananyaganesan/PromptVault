@@ -16,7 +16,32 @@ import {
   versionsFor,
   workspaceService,
 } from "../projects/workspace-data";
-import type { PromptVariable } from "../../types/prompts";
+
+const variableNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function templateVariables(template: string): { names: string[]; error: string | null } {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const match of template.matchAll(/\{\{(.*?)\}\}/g)) {
+    const name = match[1].trim();
+    if (!variableNamePattern.test(name)) {
+      return { names, error: `Invalid variable "${name}". Use letters, numbers, and underscores, starting with a letter or underscore.` };
+    }
+    if (!seen.has(name)) {
+      names.push(name);
+      seen.add(name);
+    }
+  }
+  return { names, error: null };
+}
+
+function TemplateVariablePreview({ names, error }: { names: string[]; error: string | null }) {
+  return <section className="variable-editor" aria-label="Template variables">
+    <div className="panel-head"><div><h2>Template variables</h2><p>Detected from placeholders in the template. Every variable needs a value when you run this version.</p></div></div>
+    {error && <p className="form-error" role="alert">{error}</p>}
+    {names.length ? <ul className="template-variable-list">{names.map((name) => <li key={name}><code>{name}</code></li>)}</ul> : <p className="template-variable-empty">No variables in this template.</p>}
+  </section>;
+}
 
 export function PromptsPage() {
   const [search, setSearch] = useState("");
@@ -121,6 +146,7 @@ export function NewPromptPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [template, setTemplate] = useState("");
+  const parsedVariables = useMemo(() => templateVariables(template), [template]);
   const [commit, setCommit] = useState("Initial prompt version");
   const [error, setError] = useState("");
   async function submit(event: FormEvent) {
@@ -128,13 +154,13 @@ export function NewPromptPage() {
     const promptKey = key.trim().toLowerCase().replace(/\s+/g, "-");
     if (!projectId || !promptKey || !name.trim() || !template.trim())
       return setError("Project, key, name, and template are required.");
+    if (parsedVariables.error) return setError(parsedVariables.error);
     try {
       const prompt = await workspaceService.createPrompt(projectId, {
         key: promptKey,
         name: name.trim(),
         description: description.trim() || undefined,
         template,
-        variables: [],
         model_config: { provider: "mock", model: "deterministic-v1", temperature: 0, max_output_tokens: 500 },
         commit_message: commit || "Initial prompt version",
       });
@@ -189,10 +215,11 @@ export function NewPromptPage() {
           <span>Template</span>
           <textarea
             value={template}
-            onChange={(event) => setTemplate(event.target.value)}
+            onChange={(event) => { setTemplate(event.target.value); setError(""); }}
             placeholder="Write your prompt. Use {{variable_name}} for dynamic inputs."
           />
         </label>
+        <TemplateVariablePreview names={parsedVariables.names} error={parsedVariables.error} />
         <Field
           label="Commit message"
           placeholder="Initial prompt version"
@@ -219,18 +246,14 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
   const versions = versionsFor(prompt.id);
   const latest = versions[0];
   const [template, setTemplate] = useState(latest?.template ?? "");
-  const [variables, setVariables] = useState<PromptVariable[]>(
-    latest?.variables ?? [],
-  );
+  const parsedVariables = useMemo(() => templateVariables(template), [template]);
   const [commit, setCommit] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
-  function addVariable() {
-    setVariables([...variables, { name: "", description: "", required: true }]);
-  }
   async function saveVersion() {
     if (!template.trim() || !commit.trim())
       return setNotice("Add a template and a commit message before saving.");
+    if (parsedVariables.error) return setNotice(parsedVariables.error);
     if (!latest) return setNotice("The current version could not be loaded.");
     if (saving) return;
     setSaving(true);
@@ -238,7 +261,6 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
       const version = await workspaceService.createVersion(prompt.id, {
         parent_version_id: latest.id,
         template,
-        variables: variables.filter((variable) => variable.name.trim()),
         model_config: latest.model_config,
         commit_message: commit.trim(),
       });
@@ -259,7 +281,7 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
         action={<Button onClick={saveVersion} disabled={saving}>{saving ? "Saving…" : "Save new version"}</Button>}
       />
       {notice && (
-        <p className={/before saving|required/i.test(notice) ? "inline-feedback error" : "inline-feedback"} role={/before saving|required/i.test(notice) ? "alert" : "status"}>
+        <p className={/before saving|required|invalid variable|could not/i.test(notice) ? "inline-feedback error" : "inline-feedback"} role={/before saving|required|invalid variable|could not/i.test(notice) ? "alert" : "status"}>
           {notice}
         </p>
       )}
@@ -281,81 +303,10 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
             <span>Prompt template</span>
             <textarea
               value={template}
-              onChange={(event) => setTemplate(event.target.value)}
+              onChange={(event) => { setTemplate(event.target.value); setNotice(""); }}
             />
           </label>
-          <div className="variable-editor">
-            <div className="panel-head">
-              <div>
-                <h2>Template variables</h2>
-                <p>Values injected at run time.</p>
-              </div>
-              <button className="text-button" onClick={addVariable}>
-                Add variable
-              </button>
-            </div>
-            {variables.map((variable, index) => (
-              <div className="variable-row" key={`${variable.name}-${index}`}>
-                <input
-                  value={variable.name}
-                  onChange={(event) =>
-                    setVariables(
-                      variables.map((item, itemIndex) =>
-                        itemIndex === index
-                          ? {
-                              ...item,
-                              name: event.target.value.replace(/\s/g, ""),
-                            }
-                          : item,
-                      ),
-                    )
-                  }
-                  placeholder="variable_name"
-                  aria-label="Variable name"
-                />
-                <input
-                  value={variable.description ?? ""}
-                  onChange={(event) =>
-                    setVariables(
-                      variables.map((item, itemIndex) =>
-                        itemIndex === index
-                          ? { ...item, description: event.target.value }
-                          : item,
-                      ),
-                    )
-                  }
-                  placeholder="Description"
-                  aria-label="Variable description"
-                />
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={variable.required}
-                    onChange={(event) =>
-                      setVariables(
-                        variables.map((item, itemIndex) =>
-                          itemIndex === index
-                            ? { ...item, required: event.target.checked }
-                            : item,
-                        ),
-                      )
-                    }
-                  />
-                  <span>Required</span>
-                </label>
-                <button
-                  className="text-button danger"
-                  onClick={() =>
-                    setVariables(
-                      variables.filter((_, itemIndex) => itemIndex !== index),
-                    )
-                  }
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
+          <TemplateVariablePreview names={parsedVariables.names} error={parsedVariables.error} />
           <Field
             label="Commit message"
             placeholder="Explain this change"

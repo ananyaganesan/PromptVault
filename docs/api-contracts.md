@@ -162,9 +162,12 @@ Environments are `dev`, `staging`, and `prod`. Statuses are `pending`, `active`,
 |---|---|---|
 | `POST /auth/register` | `email`, `password`, `display_name` | `201` with `access_token`, `token_type`, `expires_in`, and `user` |
 | `POST /auth/login` | `email`, `password` | `200` with the same session shape |
+| `POST /auth/password-reset` | `email` | `202`; sends a one-use link for an active account when SMTP is configured |
+| `POST /auth/password-reset/confirm` | `token`, `password` | `204`; consumes the token and changes the password |
 | `GET /auth/me` | None | `200` User |
 
 Passwords contain 12-128 characters. Register/login never accept a role. Email comparison is case-insensitive and normalized.
+Password-reset requests return `503 email_delivery_unavailable` when SMTP is not configured or delivery fails. Confirmation returns `400 invalid_reset_token` for an expired or used link.
 
 ## Project and member endpoints
 

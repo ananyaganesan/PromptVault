@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import Annotated, Literal, Self
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import EmailStr, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -29,6 +29,26 @@ class Settings(BaseSettings):
     provider_timeout_seconds: float = 30.0
     max_request_body_bytes: int = 1_048_576
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    password_reset_ttl_minutes: int = 30
+    password_reset_url: str = "http://localhost:5173/reset-password"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: SecretStr | None = Field(default=None, repr=False)
+    smtp_from_email: EmailStr | None = None
+    smtp_starttls: bool = True
+    smtp_ssl: bool = False
+    smtp_timeout_seconds: float = 10.0
+
+    @field_validator("smtp_host", "smtp_username", "smtp_from_email", mode="before")
+    @classmethod
+    def empty_smtp_values_are_unset(cls, value: object) -> object:
+        return value.strip() or None if isinstance(value, str) else value
+
+    @field_validator("smtp_password", mode="before")
+    @classmethod
+    def empty_smtp_password_is_unset(cls, value: object) -> object:
+        return None if value == "" else value
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -57,6 +77,35 @@ class Settings(BaseSettings):
             raise ValueError("access token lifetime must be positive")
         if self.max_request_body_bytes <= 0:
             raise ValueError("MAX_REQUEST_BODY_BYTES must be positive")
+        if self.password_reset_ttl_minutes <= 0:
+            raise ValueError("PASSWORD_RESET_TTL_MINUTES must be positive")
+        reset_url = urlsplit(self.password_reset_url)
+        if (
+            reset_url.scheme not in {"http", "https"}
+            or not reset_url.netloc
+            or reset_url.username is not None
+            or reset_url.password is not None
+            or reset_url.fragment
+        ):
+            raise ValueError("PASSWORD_RESET_URL must be an absolute HTTP URL without credentials or a fragment")
+        if self.environment == "production" and self.smtp_host and reset_url.scheme != "https":
+            raise ValueError("production PASSWORD_RESET_URL must use HTTPS when SMTP is enabled")
+        if not 1 <= self.smtp_port <= 65535 or self.smtp_timeout_seconds <= 0:
+            raise ValueError("SMTP_PORT and SMTP_TIMEOUT_SECONDS must be positive and valid")
+        if bool(self.smtp_host) != bool(self.smtp_from_email):
+            raise ValueError("SMTP_HOST and SMTP_FROM_EMAIL must be configured together")
+        if bool(self.smtp_username) != bool(self.smtp_password):
+            raise ValueError("SMTP_USERNAME and SMTP_PASSWORD must be configured together")
+        if self.smtp_username and not self.smtp_host:
+            raise ValueError("SMTP_HOST is required for SMTP authentication")
+        if self.smtp_ssl and self.smtp_starttls:
+            raise ValueError("SMTP_SSL and SMTP_STARTTLS cannot both be enabled")
+        if self.smtp_username and not (self.smtp_ssl or self.smtp_starttls):
+            raise ValueError("SMTP authentication requires TLS")
+        if self.environment == "production" and self.smtp_host and not (
+            self.smtp_ssl or self.smtp_starttls
+        ):
+            raise ValueError("production SMTP delivery requires TLS")
         for origin in self.cors_origins:
             parsed = urlsplit(origin)
             if (

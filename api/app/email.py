@@ -36,7 +36,20 @@ def send_password_reset_email(settings: Settings, recipient: str, token: str) ->
     )
 
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as client:
+        if settings.smtp_ssl:
+            client = smtplib.SMTP_SSL(
+                settings.smtp_host,
+                settings.smtp_port,
+                timeout=settings.smtp_timeout_seconds,
+                context=ssl.create_default_context(),
+            )
+        else:
+            client = smtplib.SMTP(
+                settings.smtp_host,
+                settings.smtp_port,
+                timeout=settings.smtp_timeout_seconds,
+            )
+        with client:
             client.ehlo()
             if settings.smtp_starttls:
                 client.starttls(context=ssl.create_default_context())
