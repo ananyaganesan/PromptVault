@@ -118,6 +118,8 @@ def test_password_reset_delivers_a_one_time_link_and_updates_the_password(
     def capture_reset_email(_settings: Settings, recipient: str, token: str) -> None:
         delivered_tokens.append((recipient, token))
 
+    monkeypatch.setattr(auth_client.app.state.settings, "smtp_host", "smtp.example.com")
+    monkeypatch.setattr(auth_client.app.state.settings, "smtp_from_email", "no-reply@example.com")
     monkeypatch.setattr("api.app.services.auth.send_password_reset_email", capture_reset_email)
     requested = auth_client.post(
         "/api/v1/auth/password-reset",
