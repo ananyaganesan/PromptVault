@@ -10,8 +10,9 @@ import type { Page } from '../../types/api'
 import type { AdminRunListQuery, AdminUser, AuditEvent, AuditListQuery, Budget, CreateModelPriceRequest, CreateProviderKeyRequest, MaintenanceStatus, ModelPrice, OrganizationDashboard, ProviderKeyMetadata, UpdateUserRequest, UpsertBudgetRequest } from '../../types/admin'
 import type { UserSummary } from '../../types/auth'
 import type { PromptRun } from '../../types/runs'
+import { useDemoData } from '../../lib/runtime'
 
-const demo = import.meta.env.MODE === 'test'
+const demo = useDemoData
 const now = () => new Date().toISOString()
 const id = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 let revision = 0

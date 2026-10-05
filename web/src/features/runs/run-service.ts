@@ -3,8 +3,9 @@ import { projectStore, promptStore, versionStore } from '../projects/workspace-d
 import type { CreateRunRequest, PersonalDashboard, PromptRun, RunListQuery } from '../../types/runs'
 import type { Page } from '../../types/api'
 import { budgetStore } from '../admin/budget-store'
+import { useDemoData } from '../../lib/runtime'
 
-const useDemoRuns = import.meta.env.MODE === 'test' && import.meta.env.VITE_USE_MOCK_RUNS !== 'false'
+const useDemoRuns = useDemoData && import.meta.env.VITE_USE_MOCK_RUNS !== 'false'
 const currentMonth = new Date().toISOString().slice(0, 7)
 const daysAgo = (days: number) => new Date(Date.now() - days * 86400000).toISOString()
 const seedRuns: PromptRun[] = [

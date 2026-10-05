@@ -10,6 +10,7 @@ import {
 } from "../projects/workspace-data";
 import { versionsApi, type BackendVersionDiff } from "./api";
 import type { PromptVersion } from "../../types/versions";
+import { useDemoData } from '../../lib/runtime';
 
 function getVersion(versionId?: string) {
   for (const prompt of promptStore) {
@@ -109,6 +110,7 @@ function CompareVersionContent({ result: { prompt, version, versions } }: { resu
   const [diff, setDiff] = useState<BackendVersionDiff | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
+    if (useDemoData) return;
     if (compare.id === version.id) return;
     const controller = new AbortController();
     versionsApi.diff(version.id, compare.id, controller.signal)
@@ -168,6 +170,7 @@ function VersionLineageContent({ result: { prompt, version, versions } }: { resu
   const [lineage, setLineage] = useState<PromptVersion[] | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
+    if (useDemoData) return;
     const controller = new AbortController();
     versionsApi.lineage(version.id, controller.signal)
       .then((value) => {

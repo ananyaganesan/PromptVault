@@ -65,7 +65,7 @@ describe('LoginPage', () => {
     expect(sessionStorage.getItem('promptvault.session.token')).toBe('live-user-token')
   })
 
-  it('maps the backend admin role to the Super Admin workspace', async () => {
+  it('sends an admin to the dashboard after sign-in', async () => {
     const user = userEvent.setup()
     vi.stubGlobal('fetch', mockJson(session('admin')))
     renderLogin()
@@ -74,7 +74,7 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText('Password'), 'AdminDemo2026!')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByTestId('location')).toHaveTextContent('/admin')
+    expect(await screen.findByTestId('location')).toHaveTextContent('/dashboard')
   })
 
   it('shows the relevant login error for a missing email or wrong password', async () => {

@@ -3,9 +3,10 @@ import { clearAccessToken, setAccessToken } from '../../lib/api/client'
 import { demoUsers } from '../../mocks/users'
 import type { ApiUserSummary, LoginRequest, RegisterRequest, UserSummary } from '../../types/auth'
 import { authApi } from './api'
+import { useDemoData } from '../../lib/runtime'
 
 export type AuthMode = 'api' | 'demo'
-const defaultMode: AuthMode = import.meta.env.VITE_USE_MOCK_AUTH === 'true' ? 'demo' : 'api'
+const defaultMode: AuthMode = useDemoData ? 'demo' : 'api'
 const sessionKey = 'promptvault.demo.session'
 const apiSessionKey = 'promptvault.api.session'
 

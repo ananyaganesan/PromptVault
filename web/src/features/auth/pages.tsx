@@ -5,7 +5,6 @@ import { Button, Field } from '../../components/ui/prototype'
 import { ApiClientError } from '../../lib/api/client'
 import { useAuth } from './auth-context'
 import { authApi } from './api'
-import { PromptStream } from './prompt-stream'
 
 function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const navigate = useNavigate()
@@ -32,6 +31,10 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     setBusy(true)
     try {
       const user = mode === 'register' ? await register({ display_name: displayName.trim(), email: email.trim(), password }) : await login({ email: email.trim(), password })
+      if (mode === 'login') {
+        navigate('/dashboard', { replace: true })
+        return
+      }
       const from = (location.state as { from?: string } | null)?.from
       navigate(from && (user.role === 'super_admin' || !from.startsWith('/admin')) ? from : user.role === 'super_admin' ? '/admin' : '/dashboard', { replace: true })
     } catch (error) {
@@ -47,7 +50,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     }
     finally { setBusy(false) }
   }
-  return <main className={mode === 'login' ? 'auth-main login-page' : 'auth-main'}>{mode === 'login' && <PromptStream />}<form className="auth-card" onSubmit={submit} noValidate>
+  return <main className="auth-main"><form className="auth-card" onSubmit={submit} noValidate>
     {mode === 'login' && <div className="login-logo"><Logo to="/login" /></div>}
     <h1>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
     <p>{mode === 'login' ? 'Sign in to access your prompts, versions, and deployments.' : 'Join PromptVault to version, collaborate, and ship better prompts.'}</p>
@@ -55,7 +58,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     <Field label="Email address" placeholder="you@company.com" type="email" value={email} onChange={update(setEmail)} error={errors.email} />
     <Field label="Password" placeholder={mode === 'login' ? 'Enter your password' : 'Create a strong password (12+ characters, no spaces)'} type="password" value={password} onChange={update(setPassword)} error={errors.password} />
     {formError && <p className="form-error" role="alert">{formError}</p>}
-    {mode === 'login' && <div className="form-row"><span>Your session lasts for this tab.</span><Link to="/forgot-password">Forgot password?</Link></div>}
+    {mode === 'login' && <div className="form-row"><span /><Link to="/forgot-password">Forgot password?</Link></div>}
     <Button type="submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</Button>
     <p className="switch">{mode === 'login' ? "Don't have an account?" : 'Already have an account?'} <Link to={mode === 'login' ? '/register' : '/login'}>{mode === 'login' ? 'Register' : 'Sign in'}</Link></p>
   </form></main>

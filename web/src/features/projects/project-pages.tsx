@@ -13,6 +13,7 @@ import {
   promptStore,
   displayDate,
   workspaceService,
+  workspaceStore,
 } from "./workspace-data";
 
 export function PromptRows({
@@ -59,6 +60,7 @@ export function PromptRows({
 }
 export function ProjectsPage() {
   const { user } = useAuth();
+  const revision = useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const projects = useMemo(
@@ -67,7 +69,7 @@ export function ProjectsPage() {
         `${project.name} ${project.key}`.toLowerCase().includes(search.toLowerCase()) &&
         (filter === "all" || (filter === "owned" ? project.owner_id === user?.id : project.owner_id !== user?.id)),
       ),
-    [search, filter, user?.id],
+    [search, filter, user?.id, revision],
   );
   return (
     <>
@@ -106,7 +108,8 @@ export function ProjectsPage() {
               <span>⋯</span>
             </div>
             <code>{project.key}</code>
-            <p>
+            <p className="project-description">{project.description || "No description added."}</p>
+            <p className="project-meta">
               {project.prompt_count} prompts · Updated{" "}
               {displayDate(project.updated_at)}
             </p>
@@ -185,6 +188,7 @@ export function NewProjectPage() {
 }
 export function ProjectDetailPage() {
   const { projectId } = useParams();
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const project = projectFor(projectId);
   if (!project) return <EmptyState title="Project not found" description="This project does not exist or is no longer available." action={<Link to="/projects">Back to projects</Link>} />;
   return <ProjectDetailContent project={project} />;

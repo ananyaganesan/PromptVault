@@ -4,8 +4,9 @@ import type { Id, Page } from '../../types/api'
 import type { ApiTokenMetadata, CreateApiTokenRequest, CreatedApiToken, CreateDeploymentRequest, Deployment, DeploymentListQuery, DeploymentStatus, ReviewDeploymentRequest } from '../../types/deployments'
 import type { UserSummary } from '../../types/auth'
 import { auditStore } from '../admin/audit-store'
+import { useDemoData } from '../../lib/runtime'
 
-const useDemoDeployments = import.meta.env.MODE === 'test'
+const useDemoDeployments = useDemoData
 const now = () => new Date().toISOString()
 const seed: Deployment[] = [
   { id: 'deployment-pending', project_id: 'checkout', project_name: 'Checkout Assistant', prompt_id: 'checkout-reply', prompt_key: 'checkout-reply', version_id: 'checkout-v3', version_number: 3, environment: 'production', status: 'pending_approval', note: 'Add order context to checkout responses.', requested_by: 'usr_demo_user', requested_by_name: 'Jamie Chen', reviewed_by: null, reviewed_at: null, review_note: null, created_at: '2025-08-28T11:00:00Z' },
@@ -13,7 +14,11 @@ const seed: Deployment[] = [
   { id: 'deployment-staging', project_id: 'checkout', project_name: 'Checkout Assistant', prompt_id: 'checkout-reply', prompt_key: 'checkout-reply', version_id: 'checkout-v3', version_number: 3, environment: 'staging', status: 'active', note: 'Staging validation.', requested_by: 'usr_demo_user', requested_by_name: 'Jamie Chen', reviewed_by: null, reviewed_at: null, review_note: null, created_at: '2025-08-28T10:45:00Z' },
 ]
 let deployments = seed
-let tokens: ApiTokenMetadata[] = []
+let tokens: ApiTokenMetadata[] = useDemoDeployments ? [
+  { id: 'demo-token-checkout-prod', name: 'Checkout production', project_id: 'checkout', project_name: 'Checkout Assistant', created_at: '2026-09-18T09:20:00Z', last_used_at: '2026-10-04T14:35:00Z', revoked_at: null },
+  { id: 'demo-token-growth-preview', name: 'Growth preview', project_id: 'growth', project_name: 'Growth Tools', created_at: '2026-09-24T11:10:00Z', last_used_at: null, revoked_at: null },
+  { id: 'demo-token-checkout-legacy', name: 'Legacy checkout client', project_id: 'checkout', project_name: 'Checkout Assistant', created_at: '2026-08-12T08:00:00Z', last_used_at: '2026-09-02T16:40:00Z', revoked_at: '2026-09-15T10:00:00Z' },
+] : []
 let revision = 0
 const listeners = new Set<() => void>()
 const notify = () => { revision += 1; listeners.forEach((listener) => listener()) }

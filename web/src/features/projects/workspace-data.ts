@@ -3,6 +3,7 @@ import type { CreatePromptRequest, Prompt, PromptVariable } from '../../types/pr
 import type { CreateVersionRequest, PromptVersion } from '../../types/versions'
 import type { Page } from '../../types/api'
 import { apiClient } from '../../lib/api/client'
+import { useDemoData } from '../../lib/runtime'
 
 export const projectStore: Project[] = [
   { id: 'checkout', key: 'checkout-assistant', name: 'Checkout Assistant', description: 'Prompts for the checkout support experience.', prompt_count: 3, member_count: 5, monthly_spend: '$0.0140', updated_at: '2025-08-28T10:30:00Z', is_owner: true, created_at: '2025-08-01T09:00:00Z', owner_id: 'usr_demo_admin' },
@@ -188,6 +189,7 @@ export const workspaceStore = {
 
 export const workspaceService = {
   async load(userId: string) {
+    if (useDemoData) { notify(); return }
     const projects = await apiClient.request<Page<BackendProject>>('/projects', { query: { page: 1, page_size: 100 } })
     const nextProjects = projects.items.map((project) => adaptProject(project, userId))
     const nextPrompts: Prompt[] = []
@@ -207,6 +209,24 @@ export const workspaceService = {
     notify()
   },
   async createProject(request: CreateProjectRequest, userId: string) {
+    if (useDemoData || userId.startsWith('usr_demo_')) {
+      const createdAt = new Date().toISOString()
+      const project: Project = { id: `project-${Date.now()}`, key: request.key, name: request.name, description: request.description ?? null, prompt_count: 2, member_count: 1, monthly_spend: '$0.0000', updated_at: createdAt, is_owner: true, created_at: createdAt, owner_id: userId }
+      projectStore.unshift(project)
+      memberStore[project.id] = [{ user_id: userId, display_name: 'You', email: '', role: 'owner', joined_at: createdAt }]
+      const prompts: Prompt[] = [
+        { id: `${project.id}-assistant`, project_id: project.id, key: 'customer-assistant', name: 'Customer assistant', description: 'Answers common customer questions with a clear, helpful tone.', latest_version_number: 2, active_environment: 'staging', created_at: createdAt, updated_at: createdAt },
+        { id: `${project.id}-summary`, project_id: project.id, key: 'conversation-summary', name: 'Conversation summary', description: 'Summarizes key decisions and next steps from a conversation.', latest_version_number: 1, active_environment: 'draft', created_at: createdAt, updated_at: createdAt },
+      ]
+      promptStore.unshift(...prompts)
+      versionStore[prompts[0].id] = [
+        { id: `${prompts[0].id}-v2`, prompt_id: prompts[0].id, version_number: 2, parent_version_id: `${prompts[0].id}-v1`, template: 'You are a helpful customer assistant. Answer the customer clearly and include the next best step.\n\nCustomer message:\n{{customer_message}}', variables: [{ name: 'customer_message', description: 'The customer’s question.', required: true }], model_config: { provider: 'mock', model: 'deterministic-v1', temperature: 0.3, max_output_tokens: 400 }, commit_message: 'Clarify next steps', created_by: userId, created_by_name: 'You', created_at: createdAt },
+        { id: `${prompts[0].id}-v1`, prompt_id: prompts[0].id, version_number: 1, parent_version_id: null, template: 'Answer this customer question:\n{{customer_message}}', variables: [{ name: 'customer_message', required: true }], model_config: { provider: 'mock', model: 'deterministic-v1', temperature: 0.3, max_output_tokens: 400 }, commit_message: 'Initial version', created_by: userId, created_by_name: 'You', created_at: createdAt },
+      ]
+      versionStore[prompts[1].id] = [{ id: `${prompts[1].id}-v1`, prompt_id: prompts[1].id, version_number: 1, parent_version_id: null, template: 'Summarize the conversation below as decisions, open questions, and next steps.\n\nConversation:\n{{conversation}}', variables: [{ name: 'conversation', description: 'The conversation to summarize.', required: true }], model_config: { provider: 'mock', model: 'deterministic-v1', temperature: 0.2, max_output_tokens: 350 }, commit_message: 'Initial version', created_by: userId, created_by_name: 'You', created_at: createdAt }]
+      notify()
+      return project
+    }
     const result = await apiClient.request<BackendProject>('/projects', { method: 'POST', body: request })
     const project = adaptProject(result, userId)
     replaceProject(project)
@@ -214,6 +234,14 @@ export const workspaceService = {
     return project
   },
   async updateProject(projectId: string, request: UpdateProjectRequest, userId: string) {
+    if (useDemoData || projectId.startsWith('project-')) {
+      const current = projectFor(projectId)
+      if (!current) throw new Error('Project not found.')
+      const project = { ...current, ...request, updated_at: new Date().toISOString() }
+      replaceProject(project)
+      notify()
+      return project
+    }
     const result = await apiClient.request<BackendProject>(`/projects/${projectId}`, { method: 'PATCH', body: request })
     const project = adaptProject(result, userId)
     replaceProject(project)
@@ -221,6 +249,7 @@ export const workspaceService = {
     return project
   },
   async loadMembers(projectId: string) {
+    if (useDemoData || projectId.startsWith('project-')) return memberStore[projectId] ?? []
     const page = await apiClient.request<Page<BackendMember>>(`/projects/${projectId}/members`, { query: { page: 1, page_size: 100 } })
     const members = page.items.map(adaptMember)
     memberStore[projectId] = members

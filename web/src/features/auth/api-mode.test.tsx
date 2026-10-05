@@ -38,7 +38,7 @@ describe('PostgreSQL-backed authentication mode', () => {
     await user.type(screen.getByLabelText('Password'), 'User Demo 2026!')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByTestId('location')).toHaveTextContent('/admin')
+    expect(await screen.findByTestId('location')).toHaveTextContent('/dashboard')
     expect(login).toHaveBeenCalledWith({ email: backendUser.email, password: 'UserDemo2026!' })
     const fetcher = vi.fn().mockResolvedValue(new Response('{}', { headers: { 'Content-Type': 'application/json' } }))
     await createApiClient({ fetcher }).request('/api/v1/auth/me')
