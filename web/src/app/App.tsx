@@ -5,7 +5,7 @@ import { AdminDashboardPage, AdminRunsExplorerPage, ProviderKeyManagementPage, U
 import { AuditLogPage, BudgetManagementPage, MaintenanceHealthPage, PricingManagementPage } from '../features/admin/governance-console'
 import { DeploymentApprovalQueuePage, DeploymentApprovalReviewPage, DeploymentRollbackPage } from '../features/admin/deployment-governance'
 import { AdminOnly } from '../features/admin/admin-only'
-import { ApiTokensPage, CostsPage, ProfilePage } from '../features/account/account-pages'
+import { ApiTokensPage, ProfilePage } from '../features/account/account-pages'
 import { ForgotPasswordPage, LoginPage, RegisterPage } from '../features/auth/pages'
 import { AuthProvider } from '../features/auth/auth-context'
 import { RequireAuth } from '../features/auth/guards'
@@ -46,7 +46,6 @@ export function App() {
       <Route path="/deployments" element={<DeploymentListPage />} />
       <Route path="/deployments/new" element={<NewDeploymentPage />} />
       <Route path="/deployments/:deploymentId" element={<DeploymentDetailPage />} />
-      <Route path="/costs" element={<CostsPage />} />
       <Route path="/api-tokens" element={<ApiTokensPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route element={<AdminOnly />}>
