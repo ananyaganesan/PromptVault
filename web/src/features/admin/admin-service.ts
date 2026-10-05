@@ -1,8 +1,9 @@
-import { adminApi } from './api'
+import { adminApi, type BackendAdminDashboard, type BackendAdminUser, type BackendAuditEvent, type BackendBudget, type BackendMaintenanceStatus, type BackendModelPricing, type BackendProviderKey } from './api'
 import { auditStore } from './audit-store'
 import { budgetStore } from './budget-store'
 import { deploymentService } from '../deployments/deployment-service'
-import { runStore } from '../runs/run-service'
+import { adaptRun, runStore } from '../runs/run-service'
+import type { BackendPromptRun } from '../runs/api'
 import { demoUsers } from '../../mocks/users'
 import { projectStore } from '../projects/workspace-data'
 import type { Page } from '../../types/api'
@@ -10,7 +11,7 @@ import type { AdminRunListQuery, AdminUser, AuditEvent, AuditListQuery, Budget, 
 import type { UserSummary } from '../../types/auth'
 import type { PromptRun } from '../../types/runs'
 
-const demo = import.meta.env.VITE_USE_MOCK_ADMIN !== 'false'
+const demo = import.meta.env.MODE === 'test'
 const now = () => new Date().toISOString()
 const id = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 let revision = 0
@@ -37,10 +38,103 @@ function pageOf<T>(items: T[], page = 1, pageSize = 25): Page<T> { return { item
 function monthSpend(runs: PromptRun[], target: 'user' | 'project', targetId: string) { const month = now().slice(0, 7); return runs.filter((run) => run.status === 'completed' && run.created_at.startsWith(month) && (target === 'user' ? run.user_id : run.project_id) === targetId).reduce((total, run) => total + Number(run.cost), 0) }
 function record(action: string, resource: string, resourceId: string, actor: UserSummary) { auditStore.record(action, resource, resourceId, actor); notify() }
 
+export async function fetchAllAdminRuns(
+  load: (query: AdminRunListQuery) => Promise<Page<BackendPromptRun>> = adminApi.listRuns,
+): Promise<BackendPromptRun[]> {
+  const items: BackendPromptRun[] = []
+  let page = 1
+  while (true) {
+    const result = await load({ page, page_size: 100 })
+    items.push(...result.items)
+    if (items.length >= result.total || result.items.length === 0) return items
+    page += 1
+  }
+}
+
+export function adaptAdminUser(item: BackendAdminUser): AdminUser {
+  return {
+    id: item.id,
+    email: item.email,
+    display_name: item.display_name,
+    role: item.role === 'admin' ? 'super_admin' : 'user',
+    is_active: item.is_active,
+    created_at: item.created_at,
+    project_count: item.project_count,
+    last_active_at: item.updated_at,
+  }
+}
+
+export function adaptAdminDashboard(item: BackendAdminDashboard): OrganizationDashboard {
+  const total = Number(item.total_spend)
+  return {
+    monthly_spend: item.total_spend,
+    run_count: item.run_count,
+    active_user_count: item.active_user_count,
+    pending_approval_count: item.pending_approval_count,
+    spend_by_model: item.spend_by_model.map((row) => ({
+      model: row.model,
+      cost: row.cost,
+      percentage: total > 0 ? Math.round(Number(row.cost) / total * 100) : 0,
+    })),
+  }
+}
+
+function adaptProviderKey(item: BackendProviderKey): ProviderKeyMetadata {
+  return { id: item.id, provider: item.provider, label: item.alias, created_at: item.created_at, deactivated_at: item.deactivated_at }
+}
+
+export function adaptModelPricing(item: BackendModelPricing): ModelPrice[] {
+  const shared = { provider: item.provider, model: item.model, effective_from: item.effective_from, effective_to: item.effective_to }
+  return [
+    { ...shared, id: `${item.id}:input`, token_type: 'input', price_per_million_tokens: item.input_price_per_million },
+    { ...shared, id: `${item.id}:output`, token_type: 'output', price_per_million_tokens: item.output_price_per_million },
+  ]
+}
+
+function adaptAudit(item: BackendAuditEvent, actorName?: string): AuditEvent {
+  return {
+    id: String(item.id),
+    actor_id: item.actor_user_id,
+    actor_name: actorName ?? null,
+    action: item.action,
+    resource_type: item.entity_type,
+    resource_id: item.entity_id,
+    request_id: item.request_id,
+    created_at: item.created_at,
+  }
+}
+
+export function adaptMaintenance(item: BackendMaintenanceStatus): MaintenanceStatus {
+  const refreshes = item.materialized_views.map((view) => view.refreshed_through).filter((value): value is string => Boolean(value)).sort()
+  const databaseStatus: MaintenanceStatus['database_status'] = item.database === 'healthy' ? 'healthy' : item.database === 'degraded' ? 'degraded' : 'unavailable'
+  return {
+    api_status: 'healthy',
+    database_status: databaseStatus,
+    partition_count: item.run_partitions.length,
+    last_view_refresh_at: refreshes.length ? refreshes[refreshes.length - 1] : null,
+  }
+}
+
+function adaptBudget(item: BackendBudget, targetName: string, spend = 0): Budget {
+  const targetType = item.user_id ? 'user' : 'project'
+  const start = new Date(); start.setUTCDate(1); start.setUTCHours(0, 0, 0, 0)
+  const end = new Date(start); end.setUTCMonth(end.getUTCMonth() + 1)
+  return {
+    id: item.id,
+    target_type: targetType,
+    target_id: item.user_id ?? item.project_id!,
+    target_name: targetName,
+    monthly_limit: item.monthly_limit,
+    monthly_spend: spend.toFixed(6),
+    period_start: start.toISOString(),
+    period_end: end.toISOString(),
+  }
+}
+
 export const adminService = {
   async dashboard(actor: UserSummary | null): Promise<OrganizationDashboard> {
     requireAdmin(actor)
-    if (!demo) return adminApi.dashboard()
+    if (!demo) return adaptAdminDashboard(await adminApi.dashboard())
     const runs = runStore.getRuns(); const monthRuns = runs.filter((run) => run.created_at.startsWith(now().slice(0, 7))); const total = monthRuns.reduce((sum, run) => sum + Number(run.cost), 0)
     const grouped = new Map<string, number>()
     monthRuns.forEach((run) => grouped.set(run.model, (grouped.get(run.model) ?? 0) + Number(run.cost)))
@@ -49,20 +143,28 @@ export const adminService = {
   },
   async listRuns(query: AdminRunListQuery = {}, actor: UserSummary | null): Promise<Page<PromptRun>> {
     requireAdmin(actor)
-    if (!demo) return adminApi.listRuns(query)
+    if (!demo) { const page = await adminApi.listRuns(query); return { ...page, items: page.items.map(adaptRun) } }
     const rows = runStore.getRuns().filter((run) => (!query.user_id || run.user_id === query.user_id) && (!query.project_id || run.project_id === query.project_id) && (!query.status || run.status === query.status) && (!query.from || run.created_at >= query.from) && (!query.to || run.created_at <= query.to))
     return pageOf(rows, query.page, query.page_size)
   },
   async listUsers(query: { page?: number; page_size?: number; search?: string; role?: string; is_active?: boolean } = {}, actor: UserSummary | null): Promise<Page<AdminUser>> {
     requireAdmin(actor)
-    if (!demo) return adminApi.listUsers(query)
+    if (!demo) {
+      const role = query.role === 'super_admin' ? 'admin' : query.role === 'user' ? 'user' : undefined
+      const page = await adminApi.listUsers({ ...query, role })
+      return { ...page, items: page.items.map(adaptAdminUser) }
+    }
     const items = users.filter((user) => (!query.search || `${user.display_name} ${user.email}`.toLowerCase().includes(query.search.toLowerCase())) && (!query.role || user.role === query.role) && (query.is_active === undefined || user.is_active === query.is_active))
     return pageOf(items, query.page, query.page_size)
   },
   async updateUser(userId: string, request: UpdateUserRequest, actor: UserSummary | null): Promise<AdminUser> {
     const admin = requireAdmin(actor)
     if (userId === admin.id && (request.role === 'user' || request.is_active === false)) throw new Error('You cannot remove your own Super Admin access or deactivate your account.')
-    if (!demo) return adminApi.updateUser(userId, request)
+    if (!demo) {
+      const updated = adaptAdminUser(await adminApi.updateUser(userId, { ...request, role: request.role === 'super_admin' ? 'admin' : request.role }))
+      notify()
+      return updated
+    }
     const current = users.find((user) => user.id === userId)
     if (!current) throw new Error('User not found.')
     const updated = { ...current, ...request }
@@ -72,17 +174,27 @@ export const adminService = {
     record('user.updated', 'user', userId, admin)
     return updated
   },
-  async listProviderKeys(actor: UserSummary | null): Promise<ProviderKeyMetadata[]> { requireAdmin(actor); return demo ? [...providerKeys] : adminApi.listProviderKeys() },
+  async listProviderKeys(actor: UserSummary | null): Promise<ProviderKeyMetadata[]> { requireAdmin(actor); return demo ? [...providerKeys] : (await adminApi.listProviderKeys()).items.map(adaptProviderKey) },
   async addProviderKey(request: CreateProviderKeyRequest, actor: UserSummary | null): Promise<ProviderKeyMetadata> {
     const admin = requireAdmin(actor)
     if (!request.provider.trim() || !request.label.trim() || !request.secret.trim()) throw new Error('Provider, label, and secret are required.')
-    if (!demo) return adminApi.createProviderKey(request)
+    if (!demo) {
+      const item = adaptProviderKey(await adminApi.createProviderKey({ provider: request.provider, alias: request.label, secret: request.secret }))
+      notify()
+      return item
+    }
     const item: ProviderKeyMetadata = { id: id('provider-key'), provider: request.provider.trim(), label: request.label.trim(), created_at: now(), deactivated_at: null }
     providerKeys = [item, ...providerKeys]; record('provider_key.created', 'provider_key', item.id, admin); return item
   },
   async deactivateProviderKey(keyId: string, actor: UserSummary | null): Promise<ProviderKeyMetadata> {
     const admin = requireAdmin(actor)
-    if (!demo) return adminApi.deactivateProviderKey(keyId)
+    if (!demo) {
+      const current = (await adminApi.listProviderKeys()).items.find((item) => item.id === keyId)
+      await adminApi.deactivateProviderKey(keyId)
+      notify()
+      if (!current) throw new Error('Active provider key not found.')
+      return adaptProviderKey({ ...current, deactivated_at: now() })
+    }
     const key = providerKeys.find((item) => item.id === keyId)
     if (!key || key.deactivated_at) throw new Error('Active provider key not found.')
     const updated = { ...key, deactivated_at: now() }
@@ -90,7 +202,25 @@ export const adminService = {
   },
   async listBudgets(actor: UserSummary | null): Promise<Budget[]> {
     requireAdmin(actor)
-    if (!demo) return adminApi.listBudgets()
+    if (!demo) {
+      const [budgetPage, userPage, runs] = await Promise.all([
+        adminApi.listBudgets(),
+        adminApi.listUsers({ page: 1, page_size: 100 }),
+        fetchAllAdminRuns(),
+      ])
+      const userNames = new Map(userPage.items.map((item) => [item.id, item.display_name]))
+      const month = now().slice(0, 7)
+      return budgetPage.items.map((item) => {
+        const targetId = item.user_id ?? item.project_id!
+        const spend = runs
+          .filter((run) => run.status === 'completed' && run.created_at.startsWith(month) && (item.user_id ? run.user_id === targetId : run.project_id === targetId))
+          .reduce((total, run) => total + Number(run.cost), 0)
+        const targetName = item.user_id
+          ? userNames.get(item.user_id) ?? item.user_id
+          : projectStore.find((project) => project.id === item.project_id)?.name ?? item.project_id!
+        return adaptBudget(item, targetName, spend)
+      })
+    }
     const runs = runStore.getRuns()
     return budgetStore.getBudgets().map((item) => ({ ...item, monthly_spend: monthSpend(runs, item.target_type, item.target_id).toFixed(4) }))
   },
@@ -98,18 +228,42 @@ export const adminService = {
     const admin = requireAdmin(actor)
     const amount = Number(request.monthly_limit)
     if (!request.monthly_limit.trim() || !Number.isFinite(amount) || amount < 0) throw new Error('Enter a valid non-negative monthly limit.')
-    if (!demo) return adminApi.upsertBudget(request)
+    if (!demo) {
+      const page = await adminApi.listBudgets()
+      const existing = page.items.find((item) => request.target_type === 'user' ? item.user_id === request.target_id : item.project_id === request.target_id)
+      const payload = { monthly_limit: request.monthly_limit, timezone: 'UTC' }
+      const result = existing
+        ? await adminApi.updateBudget(existing.id, payload)
+        : await adminApi.createBudget({ ...payload, ...(request.target_type === 'user' ? { user_id: request.target_id } : { project_id: request.target_id }) })
+      const targetName = request.target_type === 'user'
+        ? (await adminApi.listUsers({ page: 1, page_size: 100 })).items.find((item) => item.id === request.target_id)?.display_name ?? request.target_id
+        : projectStore.find((project) => project.id === request.target_id)?.name ?? request.target_id
+      notify()
+      return adaptBudget(result, targetName)
+    }
     const target = request.target_type === 'user' ? users.find((user) => user.id === request.target_id) : projectStore.find((project) => project.id === request.target_id)
     if (!target) throw new Error('Select a valid budget target.')
     const previous = budgetStore.getBudgets().find((item) => item.target_type === request.target_type && item.target_id === request.target_id)
     const item: Budget = { id: previous?.id ?? id('budget'), target_type: request.target_type, target_id: request.target_id, target_name: request.target_type === 'user' ? (target as AdminUser).display_name : (target as typeof projectStore[number]).name, monthly_limit: amount.toFixed(4), monthly_spend: monthSpend(runStore.getRuns(), request.target_type, request.target_id).toFixed(4), period_start: previous?.period_start ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(), period_end: previous?.period_end ?? new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString() }
     budgetStore.upsert(item); record('budget.updated', 'budget', item.id, admin); return item
   },
-  async listModelPrices(actor: UserSummary | null): Promise<ModelPrice[]> { requireAdmin(actor); return demo ? [...modelPrices] : adminApi.listModelPrices() },
+  async listModelPrices(actor: UserSummary | null): Promise<ModelPrice[]> { requireAdmin(actor); return demo ? [...modelPrices] : (await adminApi.listModelPrices()).items.flatMap(adaptModelPricing) },
   async addModelPrice(request: CreateModelPriceRequest, actor: UserSummary | null): Promise<ModelPrice> {
     const admin = requireAdmin(actor)
     if (!request.provider.trim() || !request.model.trim() || !request.price_per_million_tokens.trim() || !Number.isFinite(Number(request.price_per_million_tokens)) || Number(request.price_per_million_tokens) < 0 || Number.isNaN(Date.parse(request.effective_from))) throw new Error('Enter a provider, model, non-negative price, and valid effective date.')
-    if (!demo) return adminApi.createModelPrice(request)
+    if (!demo) {
+      const input = request.token_type === 'output' ? '0' : request.price_per_million_tokens
+      const output = request.token_type === 'input' ? '0' : request.price_per_million_tokens
+      const rows = adaptModelPricing(await adminApi.createModelPrice({
+        provider: request.provider,
+        model: request.model,
+        input_price_per_million: input,
+        output_price_per_million: output,
+        effective_from: request.effective_from,
+      }))
+      notify()
+      return request.token_type === 'output' ? rows[1] : rows[0]
+    }
     const sameSeries = modelPrices.filter((price) => price.provider === request.provider.trim() && price.model === request.model.trim() && price.token_type === request.token_type)
     if (sameSeries.some((price) => price.effective_from === request.effective_from)) throw new Error('A price already starts on that date for this model and token type.')
     const next = sameSeries.filter((price) => price.effective_from > request.effective_from).sort((a, b) => a.effective_from.localeCompare(b.effective_from))[0]
@@ -119,10 +273,14 @@ export const adminService = {
   },
   async listAudit(query: AuditListQuery = {}, actor: UserSummary | null): Promise<Page<AuditEvent>> {
     requireAdmin(actor)
-    if (!demo) return adminApi.listAudit(query)
+    if (!demo) {
+      const [page, userPage] = await Promise.all([adminApi.listAudit(query), adminApi.listUsers({ page: 1, page_size: 100 })])
+      const names = new Map(userPage.items.map((item) => [item.id, item.display_name]))
+      return { ...page, items: page.items.map((item) => adaptAudit(item, item.actor_user_id ? names.get(item.actor_user_id) : undefined)) }
+    }
     const rows = auditStore.getEvents().filter((event) => (!query.action || event.action.startsWith(query.action)) && (!query.actor_id || event.actor_id === query.actor_id) && (!query.from || event.created_at >= query.from) && (!query.to || event.created_at <= query.to))
     return pageOf(rows, query.page, query.page_size)
   },
-  async maintenance(actor: UserSummary | null): Promise<MaintenanceStatus> { requireAdmin(actor); return demo ? { api_status: 'unavailable', database_status: 'unavailable', partition_count: 0, last_view_refresh_at: refreshedAt } : adminApi.maintenanceStatus() },
-  async refreshViews(actor: UserSummary | null): Promise<MaintenanceStatus> { const admin = requireAdmin(actor); if (!demo) return adminApi.refreshViews(); refreshedAt = now(); record('maintenance.views_refreshed', 'maintenance', 'views', admin); return this.maintenance(actor) },
+  async maintenance(actor: UserSummary | null): Promise<MaintenanceStatus> { requireAdmin(actor); return demo ? { api_status: 'unavailable', database_status: 'unavailable', partition_count: 0, last_view_refresh_at: refreshedAt } : adaptMaintenance(await adminApi.maintenanceStatus()) },
+  async refreshViews(actor: UserSummary | null): Promise<MaintenanceStatus> { const admin = requireAdmin(actor); if (!demo) { await adminApi.refreshViews(); notify(); return this.maintenance(actor) } refreshedAt = now(); record('maintenance.views_refreshed', 'maintenance', 'views', admin); return this.maintenance(actor) },
 }

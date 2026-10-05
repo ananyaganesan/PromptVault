@@ -1,5 +1,8 @@
 """Password hashing and signed application access tokens."""
 
+import hashlib
+import secrets
+from base64 import urlsafe_b64encode
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -9,12 +12,14 @@ from uuid import UUID
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+from cryptography.fernet import Fernet, InvalidToken
 
 from api.app.config import Settings
 
 UserRole = Literal["user", "admin"]
 _JWT_ALGORITHM = "HS256"
 _PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
+_RUNTIME_TOKEN_PREFIX = "pv_live_"
 
 
 class InvalidAccessToken(ValueError):
@@ -31,6 +36,34 @@ class AccessTokenClaims:
     role: UserRole
     issued_at: datetime
     expires_at: datetime
+
+
+def generate_runtime_token() -> str:
+    """Create a project runtime credential whose plaintext is shown once."""
+
+    return f"{_RUNTIME_TOKEN_PREFIX}{secrets.token_urlsafe(32)}"
+
+
+def hash_runtime_token(token: str) -> str:
+    """Return the non-reversible lookup value persisted for a runtime token."""
+
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _provider_cipher(encryption_key: str) -> Fernet:
+    derived = hashlib.sha256(encryption_key.encode("utf-8")).digest()
+    return Fernet(urlsafe_b64encode(derived))
+
+
+def encrypt_provider_secret(secret: str, encryption_key: str) -> bytes:
+    return _provider_cipher(encryption_key).encrypt(secret.encode("utf-8"))
+
+
+def decrypt_provider_secret(ciphertext: bytes, encryption_key: str) -> str:
+    try:
+        return _provider_cipher(encryption_key).decrypt(ciphertext).decode("utf-8")
+    except (InvalidToken, UnicodeDecodeError) as exc:
+        raise ValueError("provider secret cannot be decrypted") from exc
 
 
 def hash_password(password: str) -> str:

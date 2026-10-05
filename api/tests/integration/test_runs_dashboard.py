@@ -1,0 +1,586 @@
+import time
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from uuid import uuid4
+
+import psycopg
+import pytest
+from api.app.config import Settings
+from api.app.main import create_app
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture(scope="module")
+def run_client(
+    test_settings: Settings,
+    seeded_database_url: str,
+) -> Iterator[TestClient]:
+    settings = test_settings.model_copy(update={"database_url": seeded_database_url})
+    with TestClient(create_app(settings)) as client:
+        yield client
+
+
+@pytest.fixture(scope="module")
+def single_connection_run_client(
+    test_settings: Settings,
+    seeded_database_url: str,
+) -> Iterator[TestClient]:
+    settings = test_settings.model_copy(
+        update={
+            "database_url": seeded_database_url,
+            "db_pool_min_size": 0,
+            "db_pool_max_size": 1,
+            "db_pool_timeout_seconds": 0.05,
+        }
+    )
+    with TestClient(create_app(settings)) as client:
+        yield client
+
+
+def register_user(client: TestClient, label: str) -> tuple[dict[str, object], dict[str, str]]:
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": f"{label}-{uuid4()}@example.com",
+            "password": "CorrectHorse2026!",
+            "display_name": label.replace("-", " ").title(),
+        },
+    )
+    assert response.status_code == 201
+    session = response.json()
+    return session["user"], {"Authorization": f"Bearer {session['access_token']}"}
+
+
+def create_prompt_version(
+    client: TestClient,
+    headers: dict[str, str],
+    *,
+    model: str = "deterministic-v1",
+) -> tuple[dict[str, object], dict[str, object]]:
+    project_response = client.post(
+        "/api/v1/projects",
+        headers=headers,
+        json={"name": "Run Workspace", "key": f"run-{uuid4().hex}"},
+    )
+    assert project_response.status_code == 201
+    project = project_response.json()
+    prompt_response = client.post(
+        f"/api/v1/projects/{project['id']}/prompts",
+        headers=headers,
+        json={
+            "key": "greeting",
+            "name": "Greeting",
+            "template_body": "Hello {{name}}.",
+            "model_config": {
+                "provider": "mock",
+                "model": model,
+                "temperature": 0,
+                "max_output_tokens": 100,
+            },
+            "commit_message": "Initial",
+        },
+    )
+    assert prompt_response.status_code == 201
+    return project, prompt_response.json()["latest_version"]
+
+
+@pytest.mark.database
+def test_run_execution_persists_precise_ledger_and_scopes_reads(
+    run_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    user, headers = register_user(run_client, "run-owner")
+    _, outsider_headers = register_user(run_client, "run-outsider")
+    project, version = create_prompt_version(run_client, headers)
+
+    executed = run_client.post(
+        "/api/v1/runs",
+        headers={**headers, "X-Request-ID": "run-success-request"},
+        json={"version_id": version["id"], "variables": {"name": "Jobin"}},
+    )
+
+    assert executed.status_code == 201
+    run = executed.json()
+    assert run["user_id"] == user["id"]
+    assert run["project_id"] == project["id"]
+    assert run["version_id"] == version["id"]
+    assert run["status"] == "completed"
+    assert run["provider"] == "mock"
+    assert run["model"] == "deterministic-v1"
+    assert run["input_variables"] == {"name": "Jobin"}
+    assert run["output_text"] == "Mock response: Hello Jobin."
+    assert run["prompt_tokens"] == 3
+    assert run["completion_tokens"] == 6
+    assert run["latency_ms"] == 25
+    assert Decimal(run["cost"]) == Decimal("0.000015")
+    assert run["error_code"] is None
+    with psycopg.connect(seeded_database_url) as connection:
+        request_id = connection.execute(
+            "SELECT request_id FROM runs WHERE id = %s", (run["id"],)
+        ).fetchone()
+    assert request_id == ("run-success-request",)
+
+    detail = run_client.get(f"/api/v1/runs/{run['id']}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json() == run
+
+    page = run_client.get(
+        "/api/v1/runs",
+        headers=headers,
+        params={"project_id": project["id"], "status": "completed", "model": "deterministic-v1"},
+    )
+    assert page.status_code == 200
+    assert run["id"] in {item["id"] for item in page.json()["items"]}
+
+    hidden = run_client.get(f"/api/v1/runs/{run['id']}", headers=outsider_headers)
+    unknown = run_client.get(f"/api/v1/runs/{uuid4()}", headers=outsider_headers)
+    outsider_page = run_client.get("/api/v1/runs", headers=outsider_headers)
+    assert hidden.status_code == unknown.status_code == 404
+    assert run["id"] not in {item["id"] for item in outsider_page.json()["items"]}
+
+
+@pytest.mark.database
+def test_run_rejects_variable_mismatch_without_calling_provider(
+    run_client: TestClient,
+) -> None:
+    _, headers = register_user(run_client, "variable-owner")
+    _, version = create_prompt_version(run_client, headers)
+
+    for variables in ({}, {"name": "Jobin", "admin": "true"}):
+        response = run_client.post(
+            "/api/v1/runs",
+            headers=headers,
+            json={"version_id": version["id"], "variables": variables},
+        )
+        assert response.status_code == 422
+        assert response.json()["code"] == "invalid_variables"
+
+    page = run_client.get(
+        "/api/v1/runs",
+        headers=headers,
+        params={"version_id": version["id"]},
+    )
+    assert page.status_code == 200
+    assert page.json()["total"] == 0
+
+
+@pytest.mark.database
+def test_run_rejects_oversized_variable_payload_without_ledger_row(
+    run_client: TestClient,
+) -> None:
+    _, headers = register_user(run_client, "oversized-variable-owner")
+    _, version = create_prompt_version(run_client, headers)
+
+    response = run_client.post(
+        "/api/v1/runs",
+        headers=headers,
+        json={
+            "version_id": version["id"],
+            "variables": {"name": "x" * 60_000, "other": "y" * 60_000},
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "validation_error"
+
+    page = run_client.get(
+        "/api/v1/runs",
+        headers=headers,
+        params={"version_id": version["id"]},
+    )
+    assert page.status_code == 200
+    assert page.json()["total"] == 0
+
+
+@pytest.mark.database
+def test_run_list_truncates_output_but_detail_keeps_full_ledger_value(
+    run_client: TestClient,
+) -> None:
+    _, headers = register_user(run_client, "run-output-owner")
+    _, version = create_prompt_version(run_client, headers)
+    response = run_client.post(
+        "/api/v1/runs",
+        headers=headers,
+        json={"version_id": version["id"], "variables": {"name": "x" * 3_000}},
+    )
+    assert response.status_code == 201
+    full_output = response.json()["output_text"]
+    assert len(full_output) > 3_000
+
+    page = run_client.get(
+        "/api/v1/runs",
+        headers=headers,
+        params={"version_id": version["id"]},
+    )
+    detail = run_client.get(f"/api/v1/runs/{response.json()['id']}", headers=headers)
+    assert page.status_code == detail.status_code == 200
+    assert len(page.json()["items"][0]["output_text"]) == 2_000
+    assert detail.json()["output_text"] == full_output
+
+
+@pytest.mark.database
+@pytest.mark.parametrize(
+    ("model", "status_code", "error_code"),
+    [
+        ("deterministic-error", 502, "provider_error"),
+        ("deterministic-timeout", 504, "provider_timeout"),
+        ("deterministic-crash", 502, "provider_error"),
+    ],
+)
+def test_provider_failures_return_normalized_errors_and_remain_in_ledger(
+    run_client: TestClient,
+    seeded_database_url: str,
+    model: str,
+    status_code: int,
+    error_code: str,
+) -> None:
+    model = f"{model}-{uuid4().hex}"
+    _, headers = register_user(run_client, f"{model}-owner")
+    with psycopg.connect(seeded_database_url) as connection:
+        connection.execute(
+            """
+            INSERT INTO model_pricing (
+                provider, model, input_price_per_million,
+                output_price_per_million, effective_from
+            ) VALUES ('mock', %s, 1, 2, '2026-01-01T00:00:00Z')
+            """,
+            (model,),
+        )
+    _, version = create_prompt_version(run_client, headers, model=model)
+
+    response = run_client.post(
+        "/api/v1/runs",
+        headers=headers,
+        json={"version_id": version["id"], "variables": {"name": "Jobin"}},
+    )
+    assert response.status_code == status_code
+    assert response.json()["code"] == error_code
+
+    page = run_client.get(
+        "/api/v1/runs",
+        headers=headers,
+        params={"version_id": version["id"]},
+    )
+    assert page.status_code == 200
+    assert page.json()["total"] == 1
+    recorded = page.json()["items"][0]
+    assert recorded["status"] == "failed"
+    assert recorded["error_code"] == error_code
+    assert Decimal(recorded["cost"]) == 0
+    assert recorded["output_text"] is None
+
+
+@pytest.mark.database
+def test_budget_rejection_is_atomic_auditable_and_included_in_dashboard(
+    run_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    user, headers = register_user(run_client, "budget-owner")
+    project, version = create_prompt_version(run_client, headers)
+    with psycopg.connect(seeded_database_url) as connection:
+        connection.execute(
+            """
+            INSERT INTO budgets (user_id, monthly_limit, timezone, created_by)
+            VALUES (%s, 0, 'UTC', %s)
+            """,
+            (user["id"], user["id"]),
+        )
+
+    response = run_client.post(
+        "/api/v1/runs",
+        headers=headers,
+        json={"version_id": version["id"], "variables": {"name": "Jobin"}},
+    )
+    assert response.status_code == 409
+    assert response.json()["code"] == "budget_exceeded"
+
+    page = run_client.get(
+        "/api/v1/runs",
+        headers=headers,
+        params={"project_id": project["id"]},
+    )
+    assert page.status_code == 200
+    assert page.json()["total"] == 1
+    blocked = page.json()["items"][0]
+    assert blocked["status"] == "blocked"
+    assert blocked["error_code"] == "budget_exceeded"
+    assert Decimal(blocked["cost"]) == 0
+    assert blocked["output_text"] is None
+
+    dashboard = run_client.get("/api/v1/dashboard/me", headers=headers)
+    assert dashboard.status_code == 200
+    summary = dashboard.json()
+    assert summary["project_count"] == 1
+    assert summary["prompt_count"] == 1
+    assert summary["run_count"] == 1
+    assert summary["completed_run_count"] == 0
+    assert summary["blocked_run_count"] == 1
+    assert Decimal(summary["monthly_spend"]) == 0
+    assert Decimal(summary["monthly_budget"]) == 0
+    assert summary["recent_runs"][0]["id"] == blocked["id"]
+
+
+@pytest.mark.database
+def test_effective_price_is_snapshotted_and_project_budget_is_enforced(
+    run_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    user, headers = register_user(run_client, "priced-owner")
+    model = f"priced-{uuid4().hex}"
+    project, version = create_prompt_version(run_client, headers, model=model)
+    cutoff = datetime.now(UTC) - timedelta(days=1)
+    with psycopg.connect(seeded_database_url) as connection:
+        connection.execute(
+            """
+            INSERT INTO model_pricing (
+                provider, model, input_price_per_million,
+                output_price_per_million, effective_from, effective_to, created_by
+            )
+            VALUES
+                ('mock', %s, 999, 999, %s, %s, %s),
+                ('mock', %s, 3, 4, %s, NULL, %s)
+            """,
+            (
+                model,
+                cutoff - timedelta(days=30),
+                cutoff,
+                user["id"],
+                model,
+                cutoff,
+                user["id"],
+            ),
+        )
+
+    completed = run_client.post(
+        "/api/v1/runs",
+        headers=headers,
+        json={"version_id": version["id"], "variables": {"name": "Jobin"}},
+    )
+    assert completed.status_code == 201
+    assert Decimal(completed.json()["cost"]) == Decimal("0.000033")
+
+    with psycopg.connect(seeded_database_url) as connection:
+        connection.execute(
+            """
+            INSERT INTO budgets (project_id, monthly_limit, timezone, created_by)
+            VALUES (%s, 0.000033, 'UTC', %s)
+            """,
+            (project["id"], user["id"]),
+        )
+
+    blocked = run_client.post(
+        "/api/v1/runs",
+        headers=headers,
+        json={"version_id": version["id"], "variables": {"name": "Again"}},
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "budget_exceeded"
+
+    page = run_client.get(
+        "/api/v1/runs",
+        headers=headers,
+        params={"project_id": project["id"]},
+    ).json()
+    assert [item["status"] for item in page["items"]] == ["blocked", "completed"]
+    assert sum(Decimal(item["cost"]) for item in page["items"]) == Decimal("0.000033")
+
+
+@pytest.mark.database
+def test_unpriced_model_is_rejected_before_execution(run_client: TestClient) -> None:
+    _, headers = register_user(run_client, "unpriced-owner")
+    _, version = create_prompt_version(
+        run_client,
+        headers,
+        model=f"unpriced-{uuid4().hex}",
+    )
+
+    response = run_client.post(
+        "/api/v1/runs",
+        headers=headers,
+        json={"version_id": version["id"], "variables": {"name": "Jobin"}},
+    )
+    assert response.status_code == 409
+    assert response.json()["code"] == "pricing_not_configured"
+
+    page = run_client.get(
+        "/api/v1/runs",
+        headers=headers,
+        params={"version_id": version["id"]},
+    )
+    assert page.status_code == 200
+    assert page.json()["total"] == 0
+
+
+@pytest.mark.database
+def test_membership_is_revalidated_after_provider_execution(
+    run_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    member, member_headers = register_user(run_client, "delayed-member")
+    _, owner_headers = register_user(run_client, "delayed-owner")
+    model = f"deterministic-delay-{uuid4().hex}"
+    with psycopg.connect(seeded_database_url) as connection:
+        connection.execute(
+            """
+            INSERT INTO model_pricing (
+                provider, model, input_price_per_million,
+                output_price_per_million, effective_from
+            ) VALUES ('mock', %s, 1, 2, '2026-01-01T00:00:00Z')
+            """,
+            (model,),
+        )
+    project, version = create_prompt_version(run_client, owner_headers, model=model)
+    added = run_client.post(
+        f"/api/v1/projects/{project['id']}/members",
+        headers=owner_headers,
+        json={"email": member["email"]},
+    )
+    assert added.status_code == 201
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        pending = executor.submit(
+            run_client.post,
+            "/api/v1/runs",
+            headers=member_headers,
+            json={"version_id": version["id"], "variables": {"name": "Jobin"}},
+        )
+        time.sleep(0.05)
+        removed = run_client.delete(
+            f"/api/v1/projects/{project['id']}/members/{member['id']}",
+            headers=owner_headers,
+        )
+        response = pending.result(timeout=2)
+
+    assert removed.status_code == 204
+    assert response.status_code == 404
+    page = run_client.get(
+        "/api/v1/runs",
+        headers=owner_headers,
+        params={"project_id": project["id"]},
+    )
+    assert page.status_code == 200
+    assert page.json()["total"] == 0
+
+
+@pytest.mark.database
+def test_provider_wait_does_not_hold_the_only_database_connection(
+    single_connection_run_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    client = single_connection_run_client
+    _, headers = register_user(client, "pool-release-owner")
+    model = f"deterministic-delay-{uuid4().hex}"
+    with psycopg.connect(seeded_database_url) as connection:
+        connection.execute(
+            """
+            INSERT INTO model_pricing (
+                provider, model, input_price_per_million,
+                output_price_per_million, effective_from
+            ) VALUES ('mock', %s, 1, 2, '2026-01-01T00:00:00Z')
+            """,
+            (model,),
+        )
+    _, version = create_prompt_version(client, headers, model=model)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        pending = executor.submit(
+            client.post,
+            "/api/v1/runs",
+            headers=headers,
+            json={"version_id": version["id"], "variables": {"name": "Jobin"}},
+        )
+        time.sleep(0.05)
+        projects = client.get("/api/v1/projects", headers=headers)
+        completed = pending.result(timeout=2)
+
+    assert projects.status_code == 200
+    assert completed.status_code == 201
+
+
+@pytest.mark.database
+def test_run_reads_cover_member_removed_owner_and_admin_scopes(
+    run_client: TestClient,
+) -> None:
+    member, member_headers = register_user(run_client, "scope-member")
+    _, owner_headers = register_user(run_client, "scope-owner")
+    project, version = create_prompt_version(run_client, owner_headers)
+    added = run_client.post(
+        f"/api/v1/projects/{project['id']}/members",
+        headers=owner_headers,
+        json={"email": member["email"]},
+    )
+    assert added.status_code == 201
+
+    owner_run_response = run_client.post(
+        "/api/v1/runs",
+        headers=owner_headers,
+        json={"version_id": version["id"], "variables": {"name": "Owner"}},
+    )
+    member_run_response = run_client.post(
+        "/api/v1/runs",
+        headers=member_headers,
+        json={"version_id": version["id"], "variables": {"name": "Member"}},
+    )
+    assert owner_run_response.status_code == member_run_response.status_code == 201
+    owner_run = owner_run_response.json()
+    member_run = member_run_response.json()
+
+    assert run_client.get(
+        f"/api/v1/runs/{owner_run['id']}", headers=member_headers
+    ).status_code == 200
+    removed = run_client.delete(
+        f"/api/v1/projects/{project['id']}/members/{member['id']}",
+        headers=owner_headers,
+    )
+    assert removed.status_code == 204
+    assert run_client.get(
+        f"/api/v1/runs/{owner_run['id']}", headers=member_headers
+    ).status_code == 404
+    assert run_client.get(
+        f"/api/v1/runs/{member_run['id']}", headers=member_headers
+    ).status_code == 200
+
+    admin_session = run_client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin@promptvault.dev", "password": "AdminDemo2026!"},
+    )
+    assert admin_session.status_code == 200
+    admin_headers = {
+        "Authorization": f"Bearer {admin_session.json()['access_token']}"
+    }
+    assert run_client.get(
+        f"/api/v1/runs/{owner_run['id']}", headers=admin_headers
+    ).status_code == 200
+    admin_page = run_client.get(
+        "/api/v1/runs",
+        headers=admin_headers,
+        params={"project_id": project["id"]},
+    )
+    assert admin_page.status_code == 200
+    assert {item["id"] for item in admin_page.json()["items"]} == {
+        owner_run["id"],
+        member_run["id"],
+    }
+
+
+@pytest.mark.database
+def test_run_and_dashboard_routes_require_auth_and_reject_invalid_filters(
+    run_client: TestClient,
+) -> None:
+    _, headers = register_user(run_client, "filter-owner")
+    assert run_client.get("/api/v1/runs").status_code == 401
+    assert run_client.get("/api/v1/dashboard/me").status_code == 401
+    assert run_client.post("/api/v1/runs", json={}).status_code == 401
+
+    invalid_run_filter = run_client.get(
+        "/api/v1/runs", headers=headers, params={"unsupported": "value"}
+    )
+    assert invalid_run_filter.status_code == 400
+    assert invalid_run_filter.json()["code"] == "invalid_filter"
+    for month in ("2026-13", "0000-01", "9999-12"):
+        invalid_month = run_client.get(
+            "/api/v1/dashboard/me", headers=headers, params={"month": month}
+        )
+        assert invalid_month.status_code == 400
+        assert invalid_month.json()["code"] == "invalid_filter"

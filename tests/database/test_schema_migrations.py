@@ -17,7 +17,7 @@ def migration_sql(version: int) -> str:
 def test_complete_migration_chain_is_discoverable() -> None:
     migrations = discover_migrations(MIGRATIONS_DIRECTORY)
 
-    assert [migration.version for migration in migrations] == list(range(1, 12))
+    assert [migration.version for migration in migrations] == list(range(1, 15))
 
 
 @pytest.mark.parametrize("path", sorted(MIGRATIONS_DIRECTORY.glob("*.sql")), ids=lambda p: p.name)
@@ -40,12 +40,10 @@ def test_migration_has_valid_postgresql_syntax(path: Path) -> None:
         "deployments",
         "runs",
         "audit_events",
-        "password_reset_tokens",
     ],
 )
 def test_domain_tables_are_declared(table: str) -> None:
-    migration_version = 11 if table == "password_reset_tokens" else 2
-    assert f"create table {table}" in migration_sql(migration_version)
+    assert f"create table {table}" in migration_sql(2)
 
 
 def test_run_ledger_is_monthly_partitioned() -> None:

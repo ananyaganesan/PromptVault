@@ -1,0 +1,39 @@
+# Deployment and recovery expectations
+
+The packaged stack is intended for local development and evaluation. `docker compose up -d --build --wait` starts PostgreSQL, runs migrations and development seeds once, starts the API after that job succeeds, and starts the web container only after API readiness succeeds.
+
+| Service | Role | Startup gate |
+|---|---|---|
+| `db` | PostgreSQL 16 system of record | `pg_isready` |
+| `migrate` | One-shot migration and seed job | Healthy database |
+| `api` | Unprivileged Uvicorn/FastAPI process | Successful migration job; `/ready` health check |
+| `web` | Nginx serving the Vite build with SPA fallback | Healthy API; HTTP health check |
+| `verify` | Optional containerized backend quality suite | `verification` profile only; healthy database |
+
+The Compose defaults are development placeholders. Copy `.env.example`, change passwords and application secrets before any shared deployment, and never use the Compose defaults in production. `VITE_API_URL` is compiled into the browser bundle and therefore must contain only a public API address, never a secret.
+
+Container and CI installs use the fully pinned `api/requirements.lock` and `api/requirements-dev.lock`; the adjacent `.txt` files remain the human-maintained compatible dependency ranges. Regenerate and verify lock files deliberately when upgrading dependencies.
+
+## Durable data
+
+PostgreSQL is the system of record. API restarts are stateless: the connection pool closes during shutdown and a new pool restores access to committed projects, prompt snapshots, deployments, tokens, runs, and audit events. `tests/e2e/test_user_prompt_workflow.py` exercises that restart boundary.
+
+The named `promptvault-data` volume survives `docker compose down`. `docker compose down -v` destroys that local database and is not recoverable unless it was backed up. The migration/seed job is idempotent on an existing volume; a changed checksum for an already-applied migration fails closed.
+
+For any environment whose data matters, take a logical or managed PostgreSQL backup before migrations or reset operations. Restore into a separate database first, run migrations, and verify row counts plus the critical Serve/deployment flow before switching traffic. A production deployment should add scheduled backups, retention, encryption, restore drills, and point-in-time recovery according to its PostgreSQL provider.
+
+## Reset boundaries
+
+`python3 scripts/reset-development.py --confirm-reset` is intentionally restricted to the development environment and reconstructs schema, migrations, and seed data. Never point it at a shared or production database. Tests require a dedicated `TEST_DATABASE_URL`; clean verification drops/recreates only that disposable test schema.
+
+The migration runner stores SHA-256 checksums in `schema_migrations`, takes an advisory lock, and applies each file atomically. Applied migration files must not be edited; introduce a later numbered migration instead. Current and next-month run partitions must exist before accepting ledger writes.
+
+## Verification and evidence
+
+`python3 scripts/verify-release.py` refuses a dirty tree, creates a detached checkout and uniquely named Compose project, builds the images, runs the containerized verification profile against `promptvault_test`, probes liveness/readiness/web/login, executes race demonstrations, loads the representative 2,000-run ledger, and runs showcase SQL. It writes a redacted `evidence/release/latest.txt`, then removes the isolated containers and volume. Release tags are created only after this command passes.
+
+The `verify` profile is not part of normal startup. It contains development tooling and must not be deployed as an application service.
+
+## Prototype limitations
+
+TLS termination, edge rate limiting, managed secrets, a dedicated login inheriting `promptvault_app`, automated backups, multi-instance orchestration, and zero-downtime migration strategy are infrastructure responsibilities deferred to production packaging. Race-sensitive version/run/deployment writes have tested function-only grants, while ordinary trusted-server repository CRUD retains direct grants; local Compose currently connects with the development database owner. The packaged web service currently demonstrates the visual frontend only and does not yet provide API-backed end-to-end behavior.
