@@ -5,6 +5,7 @@ import { Button, Field } from '../../components/ui/prototype'
 import { ApiClientError } from '../../lib/api/client'
 import { useAuth } from './auth-context'
 import { authApi } from './api'
+import { PromptStream } from './prompt-stream'
 
 function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const navigate = useNavigate()
@@ -46,7 +47,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     }
     finally { setBusy(false) }
   }
-  return <main className={mode === 'login' ? 'auth-main login-page' : 'auth-main'}><form className="auth-card" onSubmit={submit} noValidate>
+  return <main className={mode === 'login' ? 'auth-main login-page' : 'auth-main'}>{mode === 'login' && <PromptStream />}<form className="auth-card" onSubmit={submit} noValidate>
     {mode === 'login' && <div className="login-logo"><Logo to="/login" /></div>}
     <h1>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
     <p>{mode === 'login' ? 'Sign in to access your prompts, versions, and deployments.' : 'Join PromptVault to version, collaborate, and ship better prompts.'}</p>
