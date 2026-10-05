@@ -147,6 +147,7 @@ class DeploymentService:
             version_id=deployment.version_id,
             status=None,
             model=None,
+            search=None,
             created_from=None,
             created_to=None,
             page=1,

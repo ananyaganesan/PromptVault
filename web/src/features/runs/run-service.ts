@@ -85,7 +85,8 @@ export const runService = {
       const page = await runsApi.list(query)
       return { ...page, items: page.items.map(adaptRun) }
     }
-    const rows = demoRuns.filter((run) => (!query.project_id || run.project_id === query.project_id) && (!query.prompt_id || run.prompt_id === query.prompt_id) && (!query.status || run.status === query.status) && (!query.from || run.created_at >= query.from) && (!query.to || run.created_at <= query.to))
+    const search = query.search?.trim().toLowerCase()
+    const rows = demoRuns.filter((run) => (!search || `${run.prompt_key} ${run.id}`.toLowerCase().includes(search)) && (!query.project_id || run.project_id === query.project_id) && (!query.prompt_id || run.prompt_id === query.prompt_id) && (!query.status || run.status === query.status) && (!query.from || run.created_at >= query.from) && (!query.to || run.created_at <= query.to))
     const page = query.page ?? 1; const pageSize = query.page_size ?? 20
     return { items: rows.slice((page - 1) * pageSize, page * pageSize), total: rows.length, page, page_size: pageSize }
   },
@@ -104,11 +105,13 @@ export const runService = {
         pending_approval_count: dashboard.pending_approval_count,
         run_count: dashboard.run_count,
         cost_trend: dashboard.cost_trend,
+        recent_runs: dashboard.recent_runs.map(adaptRun),
       }
     }
     const buckets = new Map<string, { cost: number; run_count: number }>()
     for (let index = 13; index >= 0; index -= 1) buckets.set(daysAgo(index).slice(0, 10), { cost: 0, run_count: 0 })
     for (const run of demoRuns.filter((item) => item.user_id === userId)) { const bucket = buckets.get(run.created_at.slice(0, 10)); if (bucket) { bucket.cost += Number(run.cost); bucket.run_count += 1 } }
-    return { project_count: projectStore.length, prompt_count: promptStore.length, monthly_spend: money(totalSpend(userId)), monthly_budget: budgetStore.getLimit('user', userId), pending_approval_count: 0, run_count: demoRuns.filter((run) => run.user_id === userId).length, cost_trend: [...buckets].map(([date, value]) => ({ date, cost: money(value.cost), run_count: value.run_count })) }
+    const userRuns = demoRuns.filter((run) => run.user_id === userId)
+    return { project_count: projectStore.length, prompt_count: promptStore.length, monthly_spend: money(totalSpend(userId)), monthly_budget: budgetStore.getLimit('user', userId), pending_approval_count: 0, run_count: userRuns.length, cost_trend: [...buckets].map(([date, value]) => ({ date, cost: money(value.cost), run_count: value.run_count })), recent_runs: userRuns.slice(0, 10) }
   },
 }

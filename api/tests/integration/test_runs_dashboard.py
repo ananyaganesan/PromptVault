@@ -220,6 +220,41 @@ def test_run_list_truncates_output_but_detail_keeps_full_ledger_value(
 
 
 @pytest.mark.database
+def test_run_search_filters_the_full_scoped_ledger_before_pagination(
+    run_client: TestClient,
+) -> None:
+    _, headers = register_user(run_client, "search-owner")
+    _, version = create_prompt_version(run_client, headers)
+    created_ids: list[str] = []
+    for index in range(3):
+        response = run_client.post(
+            "/api/v1/runs",
+            headers=headers,
+            json={"version_id": version["id"], "variables": {"name": f"Search {index}"}},
+        )
+        assert response.status_code == 201
+        created_ids.append(response.json()["id"])
+
+    response = run_client.get(
+        "/api/v1/runs",
+        headers=headers,
+        params={"search": created_ids[-1][:12], "page": 1, "page_size": 1},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["id"] == created_ids[-1]
+
+    wildcard = run_client.get(
+        "/api/v1/runs",
+        headers=headers,
+        params={"search": "%", "page": 1, "page_size": 10},
+    )
+    assert wildcard.status_code == 200
+    assert wildcard.json()["total"] == 0
+
+
+@pytest.mark.database
 @pytest.mark.parametrize(
     ("model", "status_code", "error_code"),
     [

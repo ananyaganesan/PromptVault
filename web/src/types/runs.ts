@@ -28,6 +28,7 @@ export interface CreateRunRequest {
 }
 
 export interface RunListQuery extends PageQuery {
+  search?: string
   project_id?: Id
   prompt_id?: Id
   status?: RunStatus
@@ -49,4 +50,5 @@ export interface PersonalDashboard {
   pending_approval_count: number
   run_count: number
   cost_trend: CostTrendPoint[]
+  recent_runs: PromptRun[]
 }

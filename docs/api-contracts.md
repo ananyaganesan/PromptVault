@@ -202,7 +202,7 @@ Variable names match `^[A-Za-z_][A-Za-z0-9_]*$`. Duplicate placeholders appear o
 | Method and path | Request/query | Success |
 |---|---|---|
 | `POST /runs` | `version_id`, `variables` object | `201` Run; budget rejection is `409 budget_exceeded` and records a blocked ledger row |
-| `GET /runs` | Project/prompt/version/status/model/date filters and paging | `200` permitted run page |
+| `GET /runs` | Literal prompt-key/run-ID search, project/prompt/version/status/model/date filters, and paging | `200` permitted run page; filtering occurs before pagination |
 | `GET /runs/{run_id}` | None | `200` Run detail |
 
 Variable keys must exactly match the version. Provider timeouts are bounded and normalized; provider output is untrusted text.

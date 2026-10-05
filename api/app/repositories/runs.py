@@ -250,6 +250,7 @@ class RunRepository:
         version_id: UUID | None,
         status: RunStatus | None,
         model: str | None,
+        search: str | None,
         created_from: datetime | None,
         created_to: datetime | None,
         page: int,
@@ -275,9 +276,19 @@ class RunRepository:
             if value is not None:
                 where.append(clause)
                 parameters.append(value)
+        if search is not None:
+            escaped_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            where.append(
+                "(p.key ILIKE %s ESCAPE E'\\\\' OR r.id::text ILIKE %s ESCAPE E'\\\\')"
+            )
+            pattern = f"%{escaped_search}%"
+            parameters.extend((pattern, pattern))
         where_sql = " AND ".join(where)
         count_cursor = await self.connection.execute(
-            f"SELECT count(*) AS total FROM runs r WHERE {where_sql}",
+            f"""SELECT count(*) AS total
+                FROM runs r
+                JOIN prompts p ON p.id = r.prompt_id
+                WHERE {where_sql}""",
             tuple(parameters),
         )
         total_row = await count_cursor.fetchone()

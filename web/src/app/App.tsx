@@ -10,6 +10,7 @@ import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from '
 import { AuthProvider } from '../features/auth/auth-context'
 import { RequireAuth } from '../features/auth/guards'
 import { DashboardPage } from '../features/dashboard/dashboard-page'
+import { CostsPage } from '../features/costs/costs-page'
 import { DeploymentDetailPage, DeploymentListPage, NewDeploymentPage } from '../features/deployments/deployment-pages'
 import { PlaygroundPage } from '../features/playground/playground-page'
 import { NewProjectPage, ProjectDetailPage, ProjectsPage } from '../features/projects/project-pages'
@@ -44,6 +45,7 @@ export function App() {
       <Route path="/playground" element={<PlaygroundPage />} />
       <Route path="/runs" element={<RunsPage />} />
       <Route path="/runs/:runId" element={<RunDetailPage />} />
+      <Route path="/costs" element={<CostsPage />} />
       <Route path="/deployments" element={<DeploymentListPage />} />
       <Route path="/deployments/new" element={<NewDeploymentPage />} />
       <Route path="/deployments/:deploymentId" element={<DeploymentDetailPage />} />
