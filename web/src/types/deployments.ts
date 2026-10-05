@@ -43,14 +43,16 @@ export interface ApiTokenMetadata {
   name: string
   project_id: Id
   project_name: string
+  token_prefix: string
   created_at: IsoDateString
-  last_used_at: IsoDateString | null
+  expires_at: IsoDateString | null
   revoked_at: IsoDateString | null
 }
 
 export interface CreateApiTokenRequest {
   name: string
   project_id: Id
+  expires_at?: IsoDateString
 }
 
 export interface CreatedApiToken extends ApiTokenMetadata {

@@ -84,6 +84,15 @@ def test_staging_is_immediate_and_production_requires_atomic_admin_review(
     admin_headers = login_admin(deployment_client)
     project, prompt, version = create_prompt(deployment_client, owner_headers)
 
+    development = deployment_client.post(
+        "/api/v1/deployments",
+        headers=owner_headers,
+        json={"version_id": version["id"], "environment": "dev"},
+    )
+    assert development.status_code == 201
+    assert development.json()["status"] == "active"
+    assert development.json()["activated_at"] is not None
+
     staging = deployment_client.post(
         "/api/v1/deployments",
         headers=owner_headers,
@@ -297,12 +306,18 @@ def test_runtime_token_is_disclosed_once_scoped_revocable_and_serves_rollback(
     created = deployment_client.post(
         "/api/v1/api-tokens",
         headers=owner_headers,
-        json={"project_id": project["id"], "name": "Production runtime"},
+        json={
+            "project_id": project["id"],
+            "name": "Production runtime",
+            "expires_at": "2099-01-01T00:00:00Z",
+        },
     )
     assert created.status_code == 201
     issued = created.json()
     token = issued.pop("token")
     assert token.startswith("pv_live_")
+    assert issued["token_prefix"] == token[:20]
+    assert issued["expires_at"] == "2099-01-01T00:00:00Z"
     assert "token_hash" not in created.text
 
     with psycopg.connect(seeded_database_url) as connection:
@@ -328,6 +343,8 @@ def test_runtime_token_is_disclosed_once_scoped_revocable_and_serves_rollback(
     )
     assert listed.status_code == 200
     assert listed.json()["items"][0]["id"] == issued["id"]
+    assert listed.json()["items"][0]["token_prefix"] == token[:20]
+    assert listed.json()["items"][0]["expires_at"] == "2099-01-01T00:00:00Z"
     assert '"token":' not in listed.text
     assert "token_hash" not in listed.text
     denied_list = deployment_client.get(

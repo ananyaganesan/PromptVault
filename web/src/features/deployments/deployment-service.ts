@@ -15,9 +15,9 @@ const seed: Deployment[] = [
 ]
 let deployments = seed
 let tokens: ApiTokenMetadata[] = useDemoDeployments ? [
-  { id: 'demo-token-checkout-prod', name: 'Checkout production', project_id: 'checkout', project_name: 'Checkout Assistant', created_at: '2026-09-18T09:20:00Z', last_used_at: '2026-10-04T14:35:00Z', revoked_at: null },
-  { id: 'demo-token-growth-preview', name: 'Growth preview', project_id: 'growth', project_name: 'Growth Tools', created_at: '2026-09-24T11:10:00Z', last_used_at: null, revoked_at: null },
-  { id: 'demo-token-checkout-legacy', name: 'Legacy checkout client', project_id: 'checkout', project_name: 'Checkout Assistant', created_at: '2026-08-12T08:00:00Z', last_used_at: '2026-09-02T16:40:00Z', revoked_at: '2026-09-15T10:00:00Z' },
+  { id: 'demo-token-checkout-prod', name: 'Checkout production', project_id: 'checkout', project_name: 'Checkout Assistant', token_prefix: 'pv_live_checkout', created_at: '2026-09-18T09:20:00Z', expires_at: null, revoked_at: null },
+  { id: 'demo-token-growth-preview', name: 'Growth preview', project_id: 'growth', project_name: 'Growth Tools', token_prefix: 'pv_live_growth', created_at: '2026-09-24T11:10:00Z', expires_at: '2026-12-31T00:00:00Z', revoked_at: null },
+  { id: 'demo-token-checkout-legacy', name: 'Legacy checkout client', project_id: 'checkout', project_name: 'Checkout Assistant', token_prefix: 'pv_live_legacy', created_at: '2026-08-12T08:00:00Z', expires_at: null, revoked_at: '2026-09-15T10:00:00Z' },
 ] : []
 let revision = 0
 const listeners = new Set<() => void>()
@@ -71,8 +71,9 @@ export function adaptBackendToken(item: BackendApiToken, projectName?: string): 
     name: item.name,
     project_id: item.project_id,
     project_name: projectName ?? projectStore.find((project) => project.id === item.project_id)?.name ?? item.project_id,
+    token_prefix: item.token_prefix,
     created_at: item.created_at,
-    last_used_at: null,
+    expires_at: item.expires_at,
     revoked_at: item.revoked_at,
   }
 }
@@ -173,9 +174,10 @@ export const tokenService = {
     }
     const project = projectStore.find((item) => item.id === request.project_id)
     if (!project || !request.name.trim()) throw new Error('Token name and project are required.')
-    const metadata: ApiTokenMetadata = { id: uniqueId('token'), name: request.name.trim(), project_id: project.id, project_name: project.name, created_at: now(), last_used_at: null, revoked_at: null }
+    const token = generateSecret()
+    const metadata: ApiTokenMetadata = { id: uniqueId('token'), name: request.name.trim(), project_id: project.id, project_name: project.name, token_prefix: token.slice(0, 20), created_at: now(), expires_at: request.expires_at ?? null, revoked_at: null }
     tokens = [metadata, ...tokens]; notify(); auditStore.record('token.issued', 'api_token', metadata.id, actor)
-    return { ...metadata, token: generateSecret() }
+    return { ...metadata, token }
   },
   async revoke(id: Id, user: UserSummary | null): Promise<void> {
     const actor = requireUser(user)

@@ -31,7 +31,7 @@ describe('deployment API adapters', () => {
     })
   })
 
-  it('adds safe project display data without inventing token usage metadata', () => {
+  it('preserves safe token prefix and expiration metadata', () => {
     expect(adaptBackendToken({
       id: 'token-id',
       project_id: 'project-id',
@@ -39,11 +39,12 @@ describe('deployment API adapters', () => {
       token_prefix: 'pv_1234',
       created_by: 'user-id',
       created_at: '2026-09-27T00:00:00Z',
-      expires_at: null,
+      expires_at: '2026-12-31T00:00:00Z',
       revoked_at: null,
     }, 'Checkout Assistant')).toEqual(expect.objectContaining({
       project_name: 'Checkout Assistant',
-      last_used_at: null,
+      token_prefix: 'pv_1234',
+      expires_at: '2026-12-31T00:00:00Z',
       revoked_at: null,
     }))
   })

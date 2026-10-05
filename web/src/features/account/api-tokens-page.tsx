@@ -25,6 +25,7 @@ export function ApiTokensPage() {
   const [items, setItems] = useState<ApiTokenMetadata[]>([]);
   const [name, setName] = useState("");
   const [projectId, setProjectId] = useState(projectStore[0]?.id ?? "");
+  const [expiresAt, setExpiresAt] = useState("");
   const [issueOpen, setIssueOpen] = useState(false);
   const [secret, setSecret] = useState<string | null>(null);
   const [revokeId, setRevokeId] = useState<string | null>(null);
@@ -51,12 +52,13 @@ export function ApiTokensPage() {
     event.preventDefault();
     try {
       const created = await tokenService.issue(
-        { name, project_id: projectId },
+        { name, project_id: projectId, expires_at: expiresAt ? new Date(expiresAt).toISOString() : undefined },
         user,
       );
       setSecret(created.token);
       setIssueOpen(false);
       setName("");
+      setExpiresAt("");
       setError("");
       setCopyState("");
     } catch (cause) {
@@ -118,8 +120,9 @@ export function ApiTokensPage() {
             <tr>
               <th>NAME</th>
               <th>PROJECT</th>
+              <th>PREFIX</th>
               <th>CREATED</th>
-              <th>LAST USED</th>
+              <th>EXPIRES</th>
               <th>STATUS</th>
               <th></th>
             </tr>
@@ -129,15 +132,16 @@ export function ApiTokensPage() {
               <tr key={item.id}>
                 <td>{item.name}</td>
                 <td>{item.project_name}</td>
+                <td><code>{item.token_prefix}…</code></td>
                 <td>{new Date(item.created_at).toLocaleDateString()}</td>
                 <td>
-                  {item.last_used_at
-                    ? new Date(item.last_used_at).toLocaleDateString()
+                  {item.expires_at
+                    ? new Date(item.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                     : "Never"}
                 </td>
                 <td>
-                  <Status tone={item.revoked_at ? "neutral" : "success"}>
-                    {item.revoked_at ? "Revoked" : "Active"}
+                  <Status tone={item.revoked_at || (item.expires_at && new Date(item.expires_at) <= new Date()) ? "neutral" : "success"}>
+                    {item.revoked_at ? "Revoked" : item.expires_at && new Date(item.expires_at) <= new Date() ? "Expired" : "Active"}
                   </Status>
                 </td>
                 <td>
@@ -185,6 +189,14 @@ export function ApiTokensPage() {
                 </option>
               ))}
             </select>
+          </label>
+          <label className="field">
+            <span>Expiration</span>
+            <input
+              type="datetime-local"
+              value={expiresAt}
+              onChange={(event) => setExpiresAt(event.target.value)}
+            />
           </label>
           <p className="deployment-hint">
             A token only grants runtime access to its selected project.
