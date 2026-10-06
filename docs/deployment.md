@@ -16,7 +16,17 @@ Production startup additionally requires `DATABASE_ROLE=promptvault_app`. `docke
 
 ## Production Compose deployment
 
-Point the public DNS name at the host and permit inbound TCP 80/443 plus UDP 443. Create an owner-only `SECRET_DIR` containing files named `postgres_owner_password`, `migration_database_url`, `runtime_database_password`, `runtime_database_url`, `secret_key`, `provider_encryption_key`, `redis_password`, `rate_limit_redis_url`, and `smtp_password`; set every file to mode `0400`. The two database URLs must use the owner and `promptvault_runtime` passwords respectively, and the Redis URL must contain the same password used by the Redis service. Percent-encode URI-reserved password characters in URL files.
+Point the public DNS name at the host and permit inbound TCP 80/443 plus UDP 443. Copy `.env.production.example` to an operator-managed environment file. Create an owner-only `SECRET_DIR` containing files named `postgres_owner_password`, `migration_database_url`, `runtime_database_password`, `runtime_database_url`, `secret_key`, `provider_encryption_key`, `redis_password`, `rate_limit_redis_url`, `smtp_password`, `alert_webhook_url`, `restic_password`, and `restic_credentials`; set every file to mode `0400` or `0600`. `alert_webhook_url` contains the HTTPS receiver URL. `restic_credentials` uses the AWS shared-credentials format for S3-compatible storage. The two database URLs must use the owner and `promptvault_runtime` passwords respectively, and the Redis URL must contain the same password used by the Redis service. Percent-encode URI-reserved password characters in URL files.
+
+Run the offline preflight before starting containers, then rerun it without `--offline` after DNS points at the host and Caddy has obtained its certificate:
+
+```bash
+set -a; . ./.env.production; set +a
+python3 scripts/production-preflight.py --offline
+python3 scripts/production-preflight.py
+```
+
+The preflight prints only failing field/file names, never secret contents. SMTP, alerting, and off-site backup checks are required by default; `--skip-smtp`, `--skip-alerting`, and `--skip-offsite` make an intentionally omitted integration explicit.
 
 ```bash
 DOMAIN=promptvault.example.com SECRET_DIR=/secure/promptvault \
@@ -25,16 +35,22 @@ DOMAIN=promptvault.example.com SECRET_DIR=/secure/promptvault \
 
 Caddy obtains and renews public certificates, redirects HTTP to HTTPS, adds HSTS and security headers, and exposes only ports 80/443. PostgreSQL, Redis, the API, web server, Prometheus, and `/metrics` remain on an internal Docker network. Because the API has no published port and only Caddy can reach it on that network, Uvicorn trusts Caddy's forwarded client address for per-client throttling. Application, Redis, database, and SMTP password secrets are mounted as files rather than committed or placed in Compose YAML.
 
-Prometheus scrapes the internal low-cardinality `/metrics` endpoint and loads alerts for API availability, 5xx ratio, and mean latency. Connect Prometheus to the deployment's Alertmanager/remote-write destination and aggregate the API's structured JSON logs in the chosen platform before accepting production traffic.
+Prometheus scrapes the internal low-cardinality `/metrics` endpoint and loads alerts for API availability, 5xx ratio, and mean latency. The packaged Alertmanager groups alerts by name/severity and sends firing and resolved notifications to the HTTPS URL stored in `alert_webhook_url`. Aggregate the API's structured JSON container logs in the platform's log destination before accepting production traffic.
 
-Run the one-shot backup job from the platform scheduler and place `production-backups` on encrypted storage with off-host replication:
+The `operations` profile starts an always-on scheduler that writes an atomic custom-format dump every `BACKUP_INTERVAL_SECONDS` and removes expired dumps. The one-shot command remains available for release or migration checkpoints:
 
 ```bash
 DOMAIN=promptvault.example.com SECRET_DIR=/secure/promptvault \
   docker compose -f docker-compose.production.yml --profile operations run --rm backup
 ```
 
-The job creates owner-only custom-format dumps and removes files older than `BACKUP_RETENTION_DAYS`. The scheduler, encrypted volume/object-storage policy, retention lock, and alert delivery are infrastructure controls and must be verified in the target environment.
+Enable the `offsite-backup` profile to start the same scheduler plus restic replication. Restic encrypts each snapshot before sending it to `RESTIC_REPOSITORY`, applies daily/weekly/monthly retention, and ignores incomplete `.partial` dumps:
+
+```bash
+docker compose -f docker-compose.production.yml --profile offsite-backup up -d --wait
+```
+
+Object-storage immutability/retention lock and alert delivery remain provider controls and must be verified in the target account.
 
 Password reset requires a public HTTPS `PASSWORD_RESET_URL` in production and backend SMTP settings (`SMTP_HOST`, `SMTP_FROM_EMAIL`, and, for Gmail, `SMTP_USERNAME` and a Google App Password in `SMTP_PASSWORD`). Port 587 uses STARTTLS by default; port 465 uses `SMTP_SSL=true` and `SMTP_STARTTLS=false`. These settings are passed only to the API and migration containers, never to the browser build. Verify Gmail delivery before advertising password recovery.
 
@@ -73,4 +89,4 @@ The `verify` profile is not part of normal startup. It contains development tool
 
 ## Deployment boundaries
 
-The repository supplies TLS termination, Redis-backed application throttling, file-mounted secret wiring, restricted-login provisioning, Prometheus configuration/alerts, and an invocable retention-aware backup job. DNS, certificate reachability, real SMTP/Gemini credentials, encrypted/off-site storage, an external scheduler and Alertmanager/log destination, multi-host orchestration, and zero-downtime migration strategy must be supplied and tested in the target platform. The default local Compose stack intentionally remains development-oriented.
+The repository supplies TLS termination, Redis-backed application throttling, file-mounted secret wiring, restricted-login provisioning, Prometheus plus Alertmanager webhook routing, scheduled atomic dumps, optional encrypted restic replication, and production preflight checks. DNS ownership, real SMTP/Gemini credentials, the Alertmanager receiver, object-storage account/retention lock, log destination, multi-host orchestration, and zero-downtime migration strategy must be supplied and tested in the target platform. The default local Compose stack intentionally remains development-oriented.

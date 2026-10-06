@@ -27,6 +27,9 @@ def test_production_stack_has_tls_metrics_redis_and_restricted_runtime(
         "redis_password",
         "rate_limit_redis_url",
         "smtp_password",
+        "alert_webhook_url",
+        "restic_password",
+        "restic_credentials",
     ):
         path = tmp_path / name
         path.write_text("test-secret")
@@ -39,6 +42,8 @@ def test_production_stack_has_tls_metrics_redis_and_restricted_runtime(
             str(COMPOSE_FILE),
             "--profile",
             "operations",
+            "--profile",
+            "offsite-backup",
             "config",
             "--format",
             "json",
@@ -48,6 +53,7 @@ def test_production_stack_has_tls_metrics_redis_and_restricted_runtime(
             **os.environ,
             "DOMAIN": "promptvault.example.com",
             "SECRET_DIR": str(tmp_path),
+            "RESTIC_REPOSITORY": "s3:https://objects.example.com/promptvault",
         },
         capture_output=True,
         text=True,
@@ -56,7 +62,11 @@ def test_production_stack_has_tls_metrics_redis_and_restricted_runtime(
     assert result.returncode == 0, result.stderr
     document = json.loads(result.stdout)
     services = document["services"]
-    assert {"db", "redis", "migrate", "provision", "api", "web", "caddy", "prometheus"}.issubset(services)
+    assert {
+        "db", "redis", "migrate", "provision", "api", "web", "caddy",
+        "prometheus", "alertmanager", "backup", "backup-scheduler",
+        "backup-replicator",
+    }.issubset(services)
     assert services["api"]["environment"]["ENVIRONMENT"] == "production"
     assert services["api"]["environment"]["DATABASE_ROLE"] == "promptvault_app"
     assert services["api"]["user"] == "0:0"
@@ -70,6 +80,15 @@ def test_production_stack_has_tls_metrics_redis_and_restricted_runtime(
     assert services["api"]["depends_on"]["redis"]["condition"] == "service_healthy"
     assert "--forwarded-allow-ips='*'" in services["api"]["command"][-1]
     assert services["caddy"]["ports"]
-    for service_name in ("db", "redis", "api", "web", "prometheus"):
+    for service_name in (
+        "db", "redis", "api", "web", "prometheus", "alertmanager",
+        "backup-scheduler", "backup-replicator",
+    ):
         assert not services[service_name].get("ports")
     assert services["backup"]["profiles"] == ["operations"]
+    assert set(services["backup-scheduler"]["profiles"]) == {"operations", "offsite-backup"}
+    assert services["backup-scheduler"]["restart"] == "unless-stopped"
+    assert services["backup-replicator"]["profiles"] == ["offsite-backup"]
+    assert services["backup-replicator"]["restart"] == "unless-stopped"
+    assert services["prometheus"]["depends_on"]["alertmanager"]["condition"] == "service_healthy"
+    assert services["alertmanager"]["secrets"][0]["target"] == "alert_webhook_url"

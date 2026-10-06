@@ -17,7 +17,7 @@ The implementation sequence and acceptance criteria are tracked in [docs/working
 
 The working-prototype scope is implemented across the React client, FastAPI service, and PostgreSQL schema. A clean detached checkout builds the production-target containers, applies migrations and deterministic seeds, passes lint and strict type checking, runs the complete backend/database/security/concurrency/performance suite, verifies OpenAPI drift, starts a healthy stack, exercises seeded login and race demonstrations, loads 2,000 representative runs, and executes the showcase queries. The latest redacted transcript is in [`evidence/release/latest.txt`](evidence/release/latest.txt); connected cross-browser acceptance is recorded in [`docs/browser-smoke.md`](docs/browser-smoke.md).
 
-The remaining boundaries require real infrastructure or human certification rather than more repository code: Gmail password-reset delivery needs a sender account and App Password; Gemini execution needs an active encrypted provider key and effective model pricing; a production host needs DNS, operator-managed secret rotation, encrypted off-site backup storage/scheduling, and an Alertmanager/log destination. Automated WebKit coverage is included, while physical Safari/device, screen-reader, and manual accessibility certification remain outside the automated acceptance boundary.
+The remaining boundaries require real infrastructure or human certification rather than more repository code: Gmail password-reset delivery needs a sender account and App Password; Gemini execution needs an active encrypted provider key and effective model pricing; a production host needs DNS, operator-managed secrets, an Alertmanager webhook, an off-site restic repository, and a log destination. The repository now supplies scheduled atomic dumps, encrypted restic replication, Alertmanager routing, and a DNS/TLS/secret preflight. Automated WebKit coverage is included, while physical Safari/device, screen-reader, and manual accessibility certification remain outside the automated acceptance boundary.
 
 ## Quick start
 
@@ -157,7 +157,7 @@ python3 scripts/approval-race-demo.py
 
 Migration history is stored in `schema_migrations`; checksums prevent already-applied files from changing. Migrations are ordered, advisory-lock serialized, and transactional. The only history reconciliation recognizes a version-011 password-reset record with exactly the current SQL checksum and an existing reset table, then records it as version 015 so the missing run-budget migration can apply. All other history mismatches fail closed. Development seed commands refuse production mode; reset refuses non-development environments and requires explicit confirmation.
 
-`verify-backup.py` uses PostgreSQL's tools inside the running Compose `db` service. It takes a consistent custom-format dump, restores it into a randomly named isolated database, compares critical table counts, and drops the verification database even when validation fails. It proves the local restore path without overwriting the source database; production backup scheduling, retention, encryption, and off-site storage remain deployment-platform responsibilities.
+`verify-backup.py` uses PostgreSQL's tools inside the running Compose `db` service. It takes a consistent custom-format dump, restores it into a randomly named isolated database, compares critical table counts, and drops the verification database even when validation fails. It proves the local restore path without overwriting the source database. The production Compose file adds scheduled atomic dumps, retention, and optional encrypted restic replication; the object-storage account and immutability policy remain deployment responsibilities.
 
 ## Backend verification
 
@@ -182,7 +182,7 @@ docker compose --profile verification run --rm verify
 
 `python3 scripts/verify-release.py` performs the backend clean-checkout release workflow in an isolated Compose project and writes a redacted transcript below `evidence/release/`.
 
-For a production-oriented single-host deployment, use `docker-compose.production.yml`. It adds automatic HTTPS through Caddy, file-mounted secrets, separate migration/runtime database credentials, idempotent restricted-role provisioning, Redis-backed distributed authentication throttles, internal Prometheus scraping/alerts, and an operations-profile backup job. Required secret files and the deployment command are documented in [docs/deployment.md](docs/deployment.md).
+For a production-oriented single-host deployment, use `docker-compose.production.yml`. It adds automatic HTTPS through Caddy, file-mounted secrets, separate migration/runtime database credentials, idempotent restricted-role provisioning, Redis-backed distributed authentication throttles, Prometheus/Alertmanager monitoring, scheduled backups, and optional encrypted restic replication. Run `python3 scripts/production-preflight.py --offline` before deployment; required secret files and the live DNS/TLS check are documented in [docs/deployment.md](docs/deployment.md).
 
 ## Security and prototype boundaries
 

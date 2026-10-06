@@ -190,6 +190,27 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      alertmanager:
+        condition: service_healthy
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.1@sha256:e9733bafb1bdef9b00e25a21f8f99dc26a22224bf16641ad754d1649f4c3357a
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    secrets:
+      - source: alert_webhook_url
+        target: alert_webhook_url
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9093/-/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     restart: unless-stopped
 
   backup:
@@ -200,7 +221,12 @@ services:
       - -ec
       - |
         umask 077
-        pg_dump --dbname="$$(cat /run/secrets/migration_database_url)" --format=custom --no-owner --no-privileges --file="/backups/promptvault-$$(date -u +%Y%m%dT%H%M%SZ).dump"
+        destination="/backups/promptvault-$$(date -u +%Y%m%dT%H%M%SZ).dump"
+        partial="$${destination}.partial"
+        trap 'rm -f "$${partial}"' EXIT
+        pg_dump --dbname="$$(cat /run/secrets/migration_database_url)" --format=custom --no-owner --no-privileges --file="$${partial}"
+        mv "$${partial}" "$${destination}"
+        trap - EXIT
         find /backups -type f -name 'promptvault-*.dump' -mtime +"$${BACKUP_RETENTION_DAYS:-14}" -delete
     environment:
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
@@ -214,6 +240,72 @@ services:
       db:
         condition: service_healthy
     restart: "no"
+
+  backup-scheduler:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    profiles: [operations, offsite-backup]
+    command:
+      - sh
+      - -ec
+      - |
+        while true; do
+          umask 077
+          destination="/backups/promptvault-$$(date -u +%Y%m%dT%H%M%SZ).dump"
+          partial="$${destination}.partial"
+          trap 'rm -f "$${partial}"' EXIT
+          pg_dump --dbname="$$(cat /run/secrets/migration_database_url)" --format=custom --no-owner --no-privileges --file="$${partial}"
+          mv "$${partial}" "$${destination}"
+          trap - EXIT
+          find /backups -type f -name 'promptvault-*.dump' -mtime +"$${BACKUP_RETENTION_DAYS:-14}" -delete
+          sleep "$${BACKUP_INTERVAL_SECONDS:-86400}"
+        done
+    environment:
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    secrets:
+      - source: migration_database_url
+        target: migration_database_url
+    volumes:
+      - production-backups:/backups
+    networks: [backend]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backup-replicator:
+    image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+    profiles: [offsite-backup]
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        export RESTIC_PASSWORD_FILE=/run/secrets/restic_password
+        export AWS_SHARED_CREDENTIALS_FILE=/run/secrets/restic_credentials
+        test -n "$${RESTIC_REPOSITORY:-}" || { echo 'RESTIC_REPOSITORY is required' >&2; exit 1; }
+        restic snapshots >/dev/null 2>&1 || restic init
+        while true; do
+          restic backup /backups --exclude '*.partial' --tag promptvault
+          restic forget --keep-daily "$${RESTIC_KEEP_DAILY:-14}" --keep-weekly "$${RESTIC_KEEP_WEEKLY:-8}" --keep-monthly "$${RESTIC_KEEP_MONTHLY:-12}" --prune
+          sleep "$${RESTIC_INTERVAL_SECONDS:-86400}"
+        done
+    environment:
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
+      RESTIC_INTERVAL_SECONDS: ${RESTIC_INTERVAL_SECONDS:-86400}
+      RESTIC_KEEP_DAILY: ${RESTIC_KEEP_DAILY:-14}
+      RESTIC_KEEP_WEEKLY: ${RESTIC_KEEP_WEEKLY:-8}
+      RESTIC_KEEP_MONTHLY: ${RESTIC_KEEP_MONTHLY:-12}
+    secrets:
+      - source: restic_password
+        target: restic_password
+      - source: restic_credentials
+        target: restic_credentials
+    volumes:
+      - production-backups:/backups:ro
+    networks: [backend]
+    depends_on:
+      backup-scheduler:
+        condition: service_started
+    restart: unless-stopped
 
 secrets:
   postgres_owner_password:
@@ -234,12 +326,19 @@ secrets:
     file: ${SECRET_DIR:-./secrets}/rate_limit_redis_url
   smtp_password:
     file: ${SECRET_DIR:-./secrets}/smtp_password
+  alert_webhook_url:
+    file: ${SECRET_DIR:-./secrets}/alert_webhook_url
+  restic_password:
+    file: ${SECRET_DIR:-./secrets}/restic_password
+  restic_credentials:
+    file: ${SECRET_DIR:-./secrets}/restic_credentials
 
 volumes:
   production-db:
   production-redis:
   production-backups:
   prometheus-data:
+  alertmanager-data:
   caddy-data:
   caddy-config:
 

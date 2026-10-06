@@ -11,6 +11,7 @@ describe('Costs page', () => {
     expect(await screen.findByRole('heading', { name: 'Costs' })).toBeInTheDocument()
     expect(screen.getByText('All recorded runs')).toBeInTheDocument()
     expect(screen.getByRole('table', { name: 'Daily cost history' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Daily cost history table' })).toHaveAttribute('tabindex', '0')
     expect(screen.getByText('MONTHLY SPEND')).toBeInTheDocument()
   })
 })

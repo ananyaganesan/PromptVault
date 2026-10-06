@@ -39,7 +39,7 @@ export function CostsPage() {
         <Stat label="REMAINING" value={remaining == null ? 'Unlimited' : currency(remaining)} note="Before the next run is blocked" />
         <Stat label="TOTAL RUNS" value={String(data.run_count)} note="All recorded runs" />
       </div>
-      <section className="panel table-panel">
+      <section className="panel table-panel" aria-label="Daily cost history table" tabIndex={0}>
         <div className="panel-head"><div><h2>Daily usage</h2><p>Authoritative run and cost totals for the last 14 days.</p></div></div>
         <table aria-label="Daily cost history">
           <thead><tr><th>DATE</th><th>RUNS</th><th>COST</th></tr></thead>
