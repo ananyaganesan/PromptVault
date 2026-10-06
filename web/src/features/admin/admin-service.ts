@@ -92,6 +92,16 @@ export function adaptModelPricing(item: BackendModelPricing): ModelPrice[] {
   ]
 }
 
+export function toBackendModelPricingRequest(request: CreateModelPriceRequest) {
+  return {
+    provider: request.provider.trim(),
+    model: request.model.trim(),
+    input_price_per_million: request.input_price_per_million,
+    output_price_per_million: request.output_price_per_million,
+    effective_from: request.effective_from,
+  }
+}
+
 function adaptAudit(item: BackendAuditEvent, actorName?: string): AuditEvent {
   return {
     id: String(item.id),
@@ -247,28 +257,28 @@ export const adminService = {
     budgetStore.upsert(item); record('budget.updated', 'budget', item.id, admin); return item
   },
   async listModelPrices(actor: UserSummary | null): Promise<ModelPrice[]> { requireAdmin(actor); return demo ? [...modelPrices] : (await adminApi.listModelPrices()).items.flatMap(adaptModelPricing) },
-  async addModelPrice(request: CreateModelPriceRequest, actor: UserSummary | null): Promise<ModelPrice> {
+  async addModelPrice(request: CreateModelPriceRequest, actor: UserSummary | null): Promise<ModelPrice[]> {
     const admin = requireAdmin(actor)
-    if (!request.provider.trim() || !request.model.trim() || !request.price_per_million_tokens.trim() || !Number.isFinite(Number(request.price_per_million_tokens)) || Number(request.price_per_million_tokens) < 0 || Number.isNaN(Date.parse(request.effective_from))) throw new Error('Enter a provider, model, non-negative price, and valid effective date.')
+    const prices = [request.input_price_per_million, request.output_price_per_million]
+    if (!request.provider.trim() || !request.model.trim() || prices.some((price) => !price.trim() || !Number.isFinite(Number(price)) || Number(price) < 0) || Number.isNaN(Date.parse(request.effective_from))) throw new Error('Enter a provider, model, non-negative input and output prices, and valid effective date.')
     if (!demo) {
-      const input = request.token_type === 'output' ? '0' : request.price_per_million_tokens
-      const output = request.token_type === 'input' ? '0' : request.price_per_million_tokens
-      const rows = adaptModelPricing(await adminApi.createModelPrice({
-        provider: request.provider,
-        model: request.model,
-        input_price_per_million: input,
-        output_price_per_million: output,
-        effective_from: request.effective_from,
-      }))
+      const rows = adaptModelPricing(await adminApi.createModelPrice(toBackendModelPricingRequest(request)))
       notify()
-      return request.token_type === 'output' ? rows[1] : rows[0]
+      return rows
     }
-    const sameSeries = modelPrices.filter((price) => price.provider === request.provider.trim() && price.model === request.model.trim() && price.token_type === request.token_type)
-    if (sameSeries.some((price) => price.effective_from === request.effective_from)) throw new Error('A price already starts on that date for this model and token type.')
-    const next = sameSeries.filter((price) => price.effective_from > request.effective_from).sort((a, b) => a.effective_from.localeCompare(b.effective_from))[0]
-    const previous = sameSeries.filter((price) => price.effective_from < request.effective_from).sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0]
-    const item: ModelPrice = { id: id('price'), provider: request.provider.trim(), model: request.model.trim(), token_type: request.token_type, price_per_million_tokens: Number(request.price_per_million_tokens).toFixed(6), effective_from: request.effective_from, effective_to: next?.effective_from ?? null }
-    modelPrices = [item, ...modelPrices.map((price) => price.id === previous?.id ? { ...price, effective_to: item.effective_from } : price)]; record('model_price.created', 'model_price', item.id, admin); return item
+    const provider = request.provider.trim()
+    const model = request.model.trim()
+    const sameModel = modelPrices.filter((price) => price.provider === provider && price.model === model)
+    if (sameModel.some((price) => price.effective_from === request.effective_from)) throw new Error('A price already starts on that date for this model.')
+    const items: ModelPrice[] = (['input', 'output'] as const).map((tokenType) => {
+      const sameSeries = sameModel.filter((price) => price.token_type === tokenType)
+      const next = sameSeries.filter((price) => price.effective_from > request.effective_from).sort((a, b) => a.effective_from.localeCompare(b.effective_from))[0]
+      return { id: id('price'), provider, model, token_type: tokenType, price_per_million_tokens: Number(tokenType === 'input' ? request.input_price_per_million : request.output_price_per_million).toFixed(6), effective_from: request.effective_from, effective_to: next?.effective_from ?? null }
+    })
+    const previousIds = new Set((['input', 'output'] as const).flatMap((tokenType) => sameModel.filter((price) => price.token_type === tokenType && price.effective_from < request.effective_from).sort((a, b) => b.effective_from.localeCompare(a.effective_from)).slice(0, 1).map((price) => price.id)))
+    modelPrices = [...items, ...modelPrices.map((price) => previousIds.has(price.id) ? { ...price, effective_to: request.effective_from } : price)]
+    record('model_price.created', 'model_price', items[0].id, admin)
+    return items
   },
   async listAudit(query: AuditListQuery = {}, actor: UserSummary | null): Promise<Page<AuditEvent>> {
     requireAdmin(actor)

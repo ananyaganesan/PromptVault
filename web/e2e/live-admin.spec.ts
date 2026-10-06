@@ -58,6 +58,7 @@ test('admin governance uses live users, encrypted keys, budgets, audit, pricing,
   await expect(page.getByText(secret, { exact: true })).toHaveCount(0)
 
   await setUserBudget(page, '0')
+  const initialBlockedRunCount = Number(await page.locator('.stat').filter({ hasText: 'BLOCKED RUNS' }).locator('strong').textContent())
   await switchAccount(page, 'user')
   await page.goto('/playground')
   await expect(page.getByRole('button', { name: 'Run prompt' })).toBeVisible()
@@ -69,15 +70,15 @@ test('admin governance uses live users, encrypted keys, budgets, audit, pricing,
   await switchAccount(page, 'admin')
   await setUserBudget(page, '100')
   const blockedRuns = page.locator('.stat').filter({ hasText: 'BLOCKED RUNS' })
-  await expect(blockedRuns.locator('strong')).toHaveText('1')
+  await expect(blockedRuns.locator('strong')).toHaveText(String(initialBlockedRunCount + 1))
 
   await page.goto('/admin/model-pricing')
   await page.getByRole('button', { name: 'Add price' }).click()
   const priceDialog = page.getByRole('dialog', { name: 'Add model price' })
   await priceDialog.getByLabel('Provider').fill('mock')
   await priceDialog.getByLabel('Model').fill(model)
-  await priceDialog.getByLabel('Token type').selectOption('input')
-  await priceDialog.getByLabel('USD per million tokens').fill('1.250000')
+  await priceDialog.getByLabel('Input price per million tokens').fill('1.250000')
+  await priceDialog.getByLabel('Output price per million tokens').fill('2.500000')
   await priceDialog.getByRole('button', { name: 'Add price' }).click()
   await expect(page.getByRole('row').filter({ hasText: model }).first()).toContainText('1.250000')
 

@@ -298,8 +298,8 @@ export function PricingManagementPage() {
   const [open, setOpen] = useState(false);
   const [provider, setProvider] = useState("gemini");
   const [model, setModel] = useState("");
-  const [tokenType, setTokenType] = useState<ModelPrice["token_type"]>("input");
-  const [price, setPrice] = useState("");
+  const [inputPrice, setInputPrice] = useState("");
+  const [outputPrice, setOutputPrice] = useState("");
   const [effectiveDate, setEffectiveDate] = useState(
     new Date().toISOString().slice(0, 10),
   );
@@ -316,15 +316,16 @@ export function PricingManagementPage() {
         {
           provider,
           model,
-          token_type: tokenType,
-          price_per_million_tokens: price,
+          input_price_per_million: inputPrice,
+          output_price_per_million: outputPrice,
           effective_from: new Date(`${effectiveDate}T00:00:00Z`).toISOString(),
         },
         user,
       );
       setOpen(false);
       setModel("");
-      setPrice("");
+      setInputPrice("");
+      setOutputPrice("");
       setMutationError("");
     } catch (cause) {
       setMutationError(
@@ -432,26 +433,24 @@ export function PricingManagementPage() {
             />
           </label>
           <label className="field">
-            <span>Token type</span>
-            <select
-              value={tokenType}
-              onChange={(event) =>
-                setTokenType(event.target.value as ModelPrice["token_type"])
-              }
-            >
-              <option value="input">Input</option>
-              <option value="output">Output</option>
-              <option value="combined">Combined</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>USD per million tokens</span>
+            <span>Input price per million tokens</span>
             <input
               type="number"
               min="0"
               step="0.000001"
-              value={price}
-              onChange={(event) => setPrice(event.target.value)}
+              value={inputPrice}
+              onChange={(event) => setInputPrice(event.target.value)}
+              required
+            />
+          </label>
+          <label className="field">
+            <span>Output price per million tokens</span>
+            <input
+              type="number"
+              min="0"
+              step="0.000001"
+              value={outputPrice}
+              onChange={(event) => setOutputPrice(event.target.value)}
               required
             />
           </label>

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as adminServiceModule from './admin-service'
-import { adaptAdminDashboard, adaptAdminUser, adaptMaintenance, adaptModelPricing } from './admin-service'
+import { adaptAdminDashboard, adaptAdminUser, adaptMaintenance, adaptModelPricing, toBackendModelPricingRequest } from './admin-service'
 import type { BackendPromptRun } from '../runs/api'
 
 describe('admin API adapters', () => {
@@ -28,6 +28,18 @@ describe('admin API adapters', () => {
       expect.objectContaining({ id: 'price-id:input', token_type: 'input', price_per_million_tokens: '1.0' }),
       expect.objectContaining({ id: 'price-id:output', token_type: 'output', price_per_million_tokens: '2.0' }),
     ])
+  })
+
+  it('sends both token prices when creating an effective-dated price', () => {
+    expect(toBackendModelPricingRequest({
+      provider: 'gemini', model: 'gemini-2.0-flash',
+      input_price_per_million: '0.125000', output_price_per_million: '0.500000',
+      effective_from: '2026-10-01T00:00:00Z',
+    })).toEqual({
+      provider: 'gemini', model: 'gemini-2.0-flash',
+      input_price_per_million: '0.125000', output_price_per_million: '0.500000',
+      effective_from: '2026-10-01T00:00:00Z',
+    })
   })
 
   it('summarizes database maintenance details without claiming unavailable data', () => {

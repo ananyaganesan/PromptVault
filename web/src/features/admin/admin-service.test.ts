@@ -38,8 +38,8 @@ describe('admin governance prototype', () => {
 
   it('preserves price history and reports prototype maintenance honestly', async () => {
     const before = await adminService.listModelPrices(admin)
-    await adminService.addModelPrice({ provider: 'gemini', model: 'gemini-2.0-flash', token_type: 'input', price_per_million_tokens: '0.200000', effective_from: '2026-10-01T00:00:00Z' }, admin)
-    expect((await adminService.listModelPrices(admin)).length).toBe(before.length + 1)
+    await adminService.addModelPrice({ provider: 'gemini', model: 'gemini-2.0-flash', input_price_per_million: '0.200000', output_price_per_million: '0.800000', effective_from: '2026-10-01T00:00:00Z' }, admin)
+    expect((await adminService.listModelPrices(admin)).length).toBe(before.length + 2)
     expect((await adminService.maintenance(admin)).database_status).toBe('unavailable')
     expect((await adminService.refreshViews(admin)).last_view_refresh_at).not.toBeNull()
   })
