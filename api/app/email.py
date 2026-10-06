@@ -36,6 +36,7 @@ def send_password_reset_email(settings: Settings, recipient: str, token: str) ->
     )
 
     try:
+        client: smtplib.SMTP
         if settings.smtp_ssl:
             client = smtplib.SMTP_SSL(
                 settings.smtp_host,

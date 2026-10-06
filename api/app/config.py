@@ -87,7 +87,9 @@ class Settings(BaseSettings):
             or reset_url.password is not None
             or reset_url.fragment
         ):
-            raise ValueError("PASSWORD_RESET_URL must be an absolute HTTP URL without credentials or a fragment")
+            raise ValueError(
+                "PASSWORD_RESET_URL must be an absolute HTTP URL without credentials or a fragment"
+            )
         if self.environment == "production" and self.smtp_host and reset_url.scheme != "https":
             raise ValueError("production PASSWORD_RESET_URL must use HTTPS when SMTP is enabled")
         if not 1 <= self.smtp_port <= 65535 or self.smtp_timeout_seconds <= 0:
