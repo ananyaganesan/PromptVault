@@ -155,7 +155,8 @@ export const adminService = {
   async listRuns(query: AdminRunListQuery = {}, actor: UserSummary | null): Promise<Page<PromptRun>> {
     requireAdmin(actor)
     if (!demo) { const page = await adminApi.listRuns(query); return { ...page, items: page.items.map(adaptRun) } }
-    const rows = runStore.getRuns().filter((run) => (!query.user_id || run.user_id === query.user_id) && (!query.project_id || run.project_id === query.project_id) && (!query.status || run.status === query.status) && (!query.from || run.created_at >= query.from) && (!query.to || run.created_at <= query.to))
+    const search = query.search?.trim().toLowerCase()
+    const rows = runStore.getRuns().filter((run) => (!search || `${run.prompt_key} ${run.id}`.toLowerCase().includes(search)) && (!query.user_id || run.user_id === query.user_id) && (!query.project_id || run.project_id === query.project_id) && (!query.status || run.status === query.status) && (!query.from || run.created_at >= query.from) && (!query.to || run.created_at <= query.to))
     return pageOf(rows, query.page, query.page_size)
   },
   async listUsers(query: { page?: number; page_size?: number; search?: string; role?: string; is_active?: boolean } = {}, actor: UserSummary | null): Promise<Page<AdminUser>> {

@@ -392,7 +392,7 @@ async def create_admin_model_pricing(
     dependencies=[
         Depends(
             allow_query_parameters(
-                "user_id", "project_id", "prompt_id", "model", "status",
+                "search", "user_id", "project_id", "prompt_id", "model", "status",
                 "from", "to", "page", "page_size"
             )
         )
@@ -401,6 +401,7 @@ async def create_admin_model_pricing(
 async def list_admin_runs(
     _admin: SuperAdmin,
     service: AdminGovernance,
+    search: Annotated[str | None, Query(min_length=1, max_length=160)] = None,
     user_id: UUID | None = None,
     project_id: UUID | None = None,
     prompt_id: UUID | None = None,
@@ -412,6 +413,7 @@ async def list_admin_runs(
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
 ) -> Page[RunResponse]:
     return await service.list_runs(
+        search=search,
         user_id=user_id,
         project_id=project_id,
         prompt_id=prompt_id,

@@ -249,7 +249,7 @@ Serve returns project ID, prompt key, environment, version, template, variables,
 | `GET/POST /admin/provider-keys` | List or `provider: gemini`, alias, secret | Metadata list or `201`; no existing plaintext |
 | `DELETE /admin/provider-keys/{key_id}` | None | `204` |
 | `GET/POST /admin/model-pricing` | List or effective-dated prices | History or `201` immutable price row |
-| `GET /admin/runs` | User/project/prompt/model/status/date filters | Organization run page |
+| `GET /admin/runs` | Literal prompt-key/run-ID search, user/project/prompt/model/status/date filters, and paging | Organization run page; filtering occurs before pagination |
 | `GET /admin/audit` | Actor/action/entity/date filters | Redacted audit page |
 | `GET /admin/maintenance` | None | View/partition/provider/job status without secrets |
 | `POST /admin/maintenance/refresh-views` | None | `202` refresh result/job |

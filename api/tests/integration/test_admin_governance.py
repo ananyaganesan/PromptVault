@@ -199,6 +199,15 @@ def test_admin_users_dashboard_and_organization_runs(
     assert runs.status_code == 200
     assert run["id"] in {item["id"] for item in runs.json()["items"]}
 
+    searched_runs = admin_client.get(
+        "/api/v1/admin/runs",
+        headers=admin_headers,
+        params={"search": run["id"], "page": 1, "page_size": 1},
+    )
+    assert searched_runs.status_code == 200
+    assert searched_runs.json()["total"] == 1
+    assert searched_runs.json()["items"][0]["id"] == run["id"]
+
 
 @pytest.mark.database
 def test_concurrent_admin_cross_deactivation_returns_safe_loser_response(

@@ -149,6 +149,7 @@ class AdminGovernanceService:
     async def list_runs(
         self,
         *,
+        search: str | None,
         user_id: UUID | None,
         project_id: UUID | None,
         prompt_id: UUID | None,
@@ -161,6 +162,7 @@ class AdminGovernanceService:
     ) -> Page[RunResponse]:
         created_from, created_to = normalize_datetime_window(created_from, created_to)
         items, total = await self.repository.list_runs(
+            search=search,
             user_id=user_id,
             project_id=project_id,
             prompt_id=prompt_id,
