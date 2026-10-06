@@ -147,6 +147,7 @@ python3 scripts/seed-database.py
 python3 scripts/reset-development.py --confirm-reset
 python3 scripts/create-partition.py
 python3 scripts/refresh-views.py
+python3 scripts/verify-backup.py
 python3 scripts/simulate-traffic.py --runs 2000
 python3 scripts/run-showcase.py
 python3 scripts/version-race-demo.py --workers 20
@@ -154,6 +155,8 @@ python3 scripts/approval-race-demo.py
 ```
 
 Migration history is stored in `schema_migrations`; checksums prevent already-applied files from changing. Migrations are ordered, advisory-lock serialized, and transactional. The only history reconciliation recognizes a version-011 password-reset record with exactly the current SQL checksum and an existing reset table, then records it as version 015 so the missing run-budget migration can apply. All other history mismatches fail closed. Development seed commands refuse production mode; reset refuses non-development environments and requires explicit confirmation.
+
+`verify-backup.py` uses PostgreSQL's tools inside the running Compose `db` service. It takes a consistent custom-format dump, restores it into a randomly named isolated database, compares critical table counts, and drops the verification database even when validation fails. It proves the local restore path without overwriting the source database; production backup scheduling, retention, encryption, and off-site storage remain deployment-platform responsibilities.
 
 ## Backend verification
 

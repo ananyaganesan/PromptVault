@@ -309,6 +309,7 @@ def main() -> int:
                 "2000",
             ]
         )
+        verification.command(["python3", "scripts/verify-backup.py"])
         verification.command(
             [
                 "docker",

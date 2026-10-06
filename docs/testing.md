@@ -29,7 +29,7 @@ The representative ledger is idempotent and can be loaded manually with `python3
 
 ## Containerized release verification
 
-`python3 scripts/verify-release.py` is the clean-checkout acceptance command. It builds the production-target images, runs the `verification` Compose profile with lint, strict mypy, branch-aware coverage, dependency checks and OpenAPI drift detection, then performs stack smoke tests, concurrency demos, representative-data loading, and showcase queries. The timestamped command transcript is written below `evidence/release/`; test tooling is absent from the runtime image.
+`python3 scripts/verify-release.py` is the clean-checkout acceptance command. It builds the production-target images, runs the `verification` Compose profile with lint, strict mypy, branch-aware coverage, dependency checks and OpenAPI drift detection, then performs stack smoke tests, concurrency demos, representative-data loading, an isolated PostgreSQL dump/restore drill, and showcase queries. The timestamped command transcript is written below `evidence/release/`; test tooling is absent from the runtime image.
 
 `tests/delivery/` validates the Compose service/dependency contract and the executable demo clients. The web image build runs both TypeScript type checking and the Vite production build. Docker-backed Playwright suites then exercise the connected React/FastAPI/PostgreSQL workflows in desktop Chrome, mobile Chrome emulation, and desktop Firefox; see `docs/browser-smoke.md` for the recorded acceptance boundary.
 
