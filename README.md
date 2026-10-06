@@ -17,7 +17,7 @@ The implementation sequence and acceptance criteria are tracked in [docs/working
 
 The working-prototype scope is implemented across the React client, FastAPI service, and PostgreSQL schema. A clean detached checkout builds the production-target containers, applies migrations and deterministic seeds, passes lint and strict type checking, runs the complete backend/database/security/concurrency/performance suite, verifies OpenAPI drift, starts a healthy stack, exercises seeded login and race demonstrations, loads 2,000 representative runs, and executes the showcase queries. The latest redacted transcript is in [`evidence/release/latest.txt`](evidence/release/latest.txt); connected cross-browser acceptance is recorded in [`docs/browser-smoke.md`](docs/browser-smoke.md).
 
-The remaining boundaries are deployment-specific rather than unfinished prototype workflows: Gmail password-reset delivery requires a real sender address and Google App Password; the bundled deterministic model provider is not an external LLM integration; production needs managed TLS, secret rotation, backups, monitoring, and a distributed edge rate limiter. Safari/WebKit, physical-device, screen-reader, and manual accessibility certification are also outside the automated acceptance boundary.
+The remaining boundaries are deployment-specific rather than unfinished prototype workflows: Gmail password-reset delivery requires a real sender address and Google App Password; optional Gemini execution requires an active encrypted `gemini` provider key and effective model pricing; production needs managed TLS, secret rotation, backups, monitoring, and a distributed edge rate limiter. Safari/WebKit, physical-device, screen-reader, and manual accessibility certification are also outside the automated acceptance boundary.
 
 ## Quick start
 
@@ -190,7 +190,7 @@ docker compose --profile verification run --rm verify
 - Login/registration and password recovery have configurable per-client throttles; production still requires a distributed edge limiter.
 - Production rejects placeholder secrets and unrestricted database-role configuration; pooled API connections run as `promptvault_app`.
 - Password reset uses one-use database tokens and a configurable SMTP provider; provider setup and live delivery are deployment responsibilities.
-- The included provider is deterministic for reproducible evaluation; external production LLM reliability is outside prototype scope.
+- The deterministic provider keeps evaluation reproducible. An optional Gemini REST adapter uses the newest active encrypted `gemini` key; upstream quotas, safety blocks, and service reliability remain external concerns.
 - JWT storage is tab-scoped for the prototype. A production deployment should evaluate an HTTPS-only cookie/BFF session model and rotate all example secrets.
 
 ## Repository layout

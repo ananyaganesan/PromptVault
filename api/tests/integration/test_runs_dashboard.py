@@ -1,14 +1,18 @@
+import json
+import threading
 import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from uuid import uuid4
 
 import psycopg
 import pytest
 from api.app.config import Settings
 from api.app.main import create_app
+from api.app.security import encrypt_provider_secret
 from fastapi.testclient import TestClient
 
 
@@ -57,6 +61,7 @@ def create_prompt_version(
     client: TestClient,
     headers: dict[str, str],
     *,
+    provider: str = "mock",
     model: str = "deterministic-v1",
 ) -> tuple[dict[str, object], dict[str, object]]:
     project_response = client.post(
@@ -74,7 +79,7 @@ def create_prompt_version(
             "name": "Greeting",
             "template_body": "Hello {{name}}.",
             "model_config": {
-                "provider": "mock",
+                "provider": provider,
                 "model": model,
                 "temperature": 0,
                 "max_output_tokens": 100,
@@ -84,6 +89,97 @@ def create_prompt_version(
     )
     assert prompt_response.status_code == 201
     return project, prompt_response.json()["latest_version"]
+
+
+@pytest.mark.database
+def test_gemini_run_uses_active_encrypted_key_and_persists_usage(
+    test_settings: Settings,
+    seeded_database_url: str,
+) -> None:
+    observed: dict[str, str | None] = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            observed["api_key"] = self.headers.get("x-goog-api-key")
+            body = json.dumps(
+                {
+                    "candidates": [
+                        {"content": {"parts": [{"text": "Live Gemini output"}]}}
+                    ],
+                    "usageMetadata": {
+                        "promptTokenCount": 7,
+                        "candidatesTokenCount": 3,
+                    },
+                }
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    model = f"gemini-test-{uuid4().hex}"
+    with psycopg.connect(seeded_database_url) as connection:
+        admin_id = connection.execute(
+            "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"
+        ).fetchone()[0]
+        connection.execute(
+            """INSERT INTO provider_keys (provider, alias, encrypted_secret, created_by)
+               VALUES ('gemini', %s, %s, %s)""",
+            (
+                f"integration-{uuid4().hex}",
+                encrypt_provider_secret(
+                    "integration-gemini-secret",
+                    test_settings.resolved_provider_encryption_key,
+                ),
+                admin_id,
+            ),
+        )
+        connection.execute(
+            """INSERT INTO model_pricing (
+                   provider, model, input_price_per_million,
+                   output_price_per_million, effective_from, created_by
+               ) VALUES ('gemini', %s, 1, 2, '2026-01-01T00:00:00Z', %s)""",
+            (model, admin_id),
+        )
+        connection.commit()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    settings = test_settings.model_copy(
+        update={
+            "database_url": seeded_database_url,
+            "gemini_api_base_url": f"http://127.0.0.1:{server.server_port}/v1beta",
+        }
+    )
+    try:
+        with TestClient(create_app(settings)) as client:
+            _, headers = register_user(client, "gemini-owner")
+            _, version = create_prompt_version(
+                client, headers, provider="gemini", model=model
+            )
+            response = client.post(
+                "/api/v1/runs",
+                headers=headers,
+                json={"version_id": version["id"], "variables": {"name": "Jobin"}},
+            )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert response.status_code == 201, response.text
+    run = response.json()
+    assert run["provider"] == "gemini"
+    assert run["output_text"] == "Live Gemini output"
+    assert run["prompt_tokens"] == 7
+    assert run["completion_tokens"] == 3
+    assert Decimal(run["cost"]) == Decimal("0.000013")
+    assert observed["api_key"] == "integration-gemini-secret"
 
 
 @pytest.mark.database

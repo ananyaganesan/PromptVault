@@ -13,10 +13,12 @@ from api.app.providers.base import ProviderRequest, execute_with_timeout
 from api.app.providers.errors import ProviderExecutionError, ProviderTimeoutError
 from api.app.providers.factory import get_provider
 from api.app.repositories.pricing import EffectivePrice, PricingRepository
+from api.app.repositories.provider_keys import ProviderKeyRepository
 from api.app.repositories.runs import RunRepository, RunTarget
 from api.app.repositories.users import UserRecord
 from api.app.schemas.common import Page
 from api.app.schemas.runs import RunCreate, RunResponse, RunStatus
+from api.app.security import decrypt_provider_secret
 from api.app.services.budget_enforcement import BudgetEnforcementService
 from api.app.services.cost_calculation import calculate_cost
 from psycopg import AsyncConnection
@@ -70,14 +72,18 @@ class RunExecutionService:
         pool: PoolProtocol,
         request_id: str,
         provider_timeout_seconds: float,
+        provider_encryption_key: str,
+        gemini_api_base_url: str,
     ) -> None:
         self.pool = pool
         self.request_id = request_id
         self.provider_timeout_seconds = provider_timeout_seconds
+        self.provider_encryption_key = provider_encryption_key
+        self.gemini_api_base_url = gemini_api_base_url
 
     async def execute(self, payload: RunCreate, actor: UserRecord) -> RunResponse:
         executed_at = datetime.now(UTC)
-        target, price = await self._load_target_and_price(
+        target, price, credential = await self._load_target_price_and_credential(
             payload.version_id, actor, executed_at
         )
         try:
@@ -109,7 +115,11 @@ class RunExecutionService:
         config = target.model_configuration
         try:
             result = await execute_with_timeout(
-                get_provider(config.provider),
+                get_provider(
+                    config.provider,
+                    credential=credential,
+                    gemini_base_url=self.gemini_api_base_url,
+                ),
                 ProviderRequest(
                     prompt=prompt,
                     model=config.model,
@@ -157,12 +167,12 @@ class RunExecutionService:
             raise AppError(409, "budget_exceeded", "Monthly budget was exceeded")
         return recorded
 
-    async def _load_target_and_price(
+    async def _load_target_price_and_credential(
         self,
         version_id: UUID,
         actor: UserRecord,
         executed_at: datetime,
-    ) -> tuple[RunTarget, EffectivePrice]:
+    ) -> tuple[RunTarget, EffectivePrice, str | None]:
         async with self.pool.connection() as raw_connection:
             connection = cast(AsyncConnection[dict[str, Any]], raw_connection)
             async with connection.transaction():
@@ -183,7 +193,28 @@ class RunExecutionService:
                         "pricing_not_configured",
                         "Model pricing is not configured",
                     )
-                return target, price
+                credential = None
+                if config.provider != "mock":
+                    encrypted = await ProviderKeyRepository(
+                        connection
+                    ).newest_active_secret(config.provider)
+                    if encrypted is None:
+                        raise AppError(
+                            409,
+                            "provider_not_configured",
+                            "Model provider is not configured",
+                        )
+                    try:
+                        credential = decrypt_provider_secret(
+                            encrypted, self.provider_encryption_key
+                        )
+                    except ValueError as exc:
+                        raise AppError(
+                            503,
+                            "provider_configuration_error",
+                            "Model provider is unavailable",
+                        ) from exc
+                return target, price, credential
 
     async def _record(
         self,

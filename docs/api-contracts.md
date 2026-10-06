@@ -128,6 +128,8 @@ The first version has `parent_version_id: null`. Clients never send `version_num
 
 Run status is `completed`, `failed`, or `blocked`. Lists may truncate output; detail returns the stored value.
 
+Provider `mock` is always runnable and deterministic. Provider `gemini` is runnable only when an active encrypted `gemini` provider key and effective model price exist. The newest active Gemini key is selected; missing configuration returns `409 provider_not_configured`, while upstream HTTP/response failures remain the normalized `502 provider_error` and bounded timeouts return `504 provider_timeout`.
+
 ### Deployment
 
 ```json

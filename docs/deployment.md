@@ -16,6 +16,8 @@ Production startup additionally requires `DATABASE_ROLE=promptvault_app`. Provis
 
 Password reset requires a public HTTPS `PASSWORD_RESET_URL` in production and backend SMTP settings (`SMTP_HOST`, `SMTP_FROM_EMAIL`, and, for Gmail, `SMTP_USERNAME` and a Google App Password in `SMTP_PASSWORD`). Port 587 uses STARTTLS by default; port 465 uses `SMTP_SSL=true` and `SMTP_STARTTLS=false`. These settings are passed only to the API and migration containers, never to the browser build. Verify Gmail delivery before advertising password recovery.
 
+Gemini execution is optional. Keep `GEMINI_API_BASE_URL` at Google's HTTPS endpoint, create an active provider key whose provider is `gemini` through the admin API, and add effective-dated pricing for each enabled model before saving a Gemini-backed prompt version. PromptVault decrypts the newest active key only for the outbound request and sends it in the `x-goog-api-key` header; it never places the plaintext key in API responses, logs, or run records. The deterministic `mock` provider remains available for offline verification.
+
 Container and CI installs use the fully pinned `api/requirements.lock` and `api/requirements-dev.lock`; the adjacent `.txt` files remain the human-maintained compatible dependency ranges. Regenerate and verify lock files deliberately when upgrading dependencies.
 
 ## Durable data

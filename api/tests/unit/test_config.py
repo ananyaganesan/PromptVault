@@ -136,3 +136,18 @@ def test_production_requires_restricted_application_database_role(
 
     with pytest.raises(ValidationError):
         Settings(**values)
+
+
+def test_production_requires_https_gemini_api_base_url() -> None:
+    values = {
+        **BASE,
+        "environment": "production",
+        "secret_key": "production-secret-that-is-at-least-32-characters",
+        "provider_encryption_key": "independent-provider-key-that-is-at-least-32-characters",
+        "cors_origins": "https://app.example.com",
+        "database_role": "promptvault_app",
+        "gemini_api_base_url": "http://gemini.example.com/v1beta",
+    }
+
+    with pytest.raises(ValidationError, match="GEMINI_API_BASE_URL"):
+        Settings(**values)

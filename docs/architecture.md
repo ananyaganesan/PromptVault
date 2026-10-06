@@ -59,7 +59,7 @@ Dependencies point inward. Routers may depend on schemas, services, and authoriz
 - `api.app.services.projects` owns project/member workflows and audit attribution.
 - `api.app.services.prompt_versioning` owns prompt metadata, variable extraction, immutable version creation, structured diff, and recursive lineage.
 - `api.app.routers.projects`, `prompts`, and `versions` expose the Phase 2 HTTP contract.
-- `api.app.providers` defines the bounded provider interface and deterministic mock behavior.
+- `api.app.providers` defines the bounded provider interface, deterministic mock behavior, and optional Gemini REST execution. Gemini credentials are resolved from the newest active encrypted provider-key row before the database connection is released; plaintext credentials exist only for the outbound call and are never persisted in the run ledger.
 - `api.app.repositories.runs`, `pricing`, and `budgets` resolve scoped targets, effective prices, and append-only ledger data.
 - `api.app.services.playground`, `budget_enforcement`, and `analytics` orchestrate safe rendering, execution, atomic admission, and live personal aggregates.
 - `api.app.routers.runs` and `dashboard` expose the Phase 3 HTTP contract.

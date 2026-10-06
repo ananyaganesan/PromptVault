@@ -20,6 +20,8 @@ def get_run_execution_service(
         pool,
         get_request_id(request),
         request.app.state.settings.provider_timeout_seconds,
+        request.app.state.settings.resolved_provider_encryption_key,
+        request.app.state.settings.gemini_api_base_url,
     )
 
 

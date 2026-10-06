@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     db_pool_timeout_seconds: float = 5.0
     database_health_timeout_seconds: float = 2.0
     provider_timeout_seconds: float = 30.0
+    gemini_api_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
     max_request_body_bytes: int = 1_048_576
     auth_rate_limit_requests: int = 10
     auth_rate_limit_window_seconds: int = 60
@@ -145,6 +146,18 @@ class Settings(BaseSettings):
             self.secret_key == "change-me" or len(self.secret_key) < 32
         ):
             raise ValueError("production SECRET_KEY must be at least 32 characters")
+        gemini_url = urlsplit(self.gemini_api_base_url)
+        if (
+            gemini_url.scheme not in {"http", "https"}
+            or not gemini_url.netloc
+            or gemini_url.username is not None
+            or gemini_url.password is not None
+            or gemini_url.query
+            or gemini_url.fragment
+        ):
+            raise ValueError("GEMINI_API_BASE_URL must be an absolute HTTP URL")
+        if self.environment == "production" and gemini_url.scheme != "https":
+            raise ValueError("production GEMINI_API_BASE_URL must use HTTPS")
         if self.environment == "production" and self.database_role != "promptvault_app":
             raise ValueError("production DATABASE_ROLE must be promptvault_app")
         if self.environment == "production" and (
