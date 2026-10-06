@@ -273,13 +273,21 @@ def test_admin_provider_keys_budgets_and_effective_pricing(
     _, owner_headers = register(admin_client, "governance-owner")
     admin_headers = login_admin(admin_client)
     project, _ = create_project_and_run(admin_client, owner_headers)
-    provider = f"provider-{uuid4().hex}"
+    provider = "gemini"
+    provider_alias = f"primary-{uuid4().hex}"
     plaintext = "  super-secret-provider-credential  "
+
+    unsupported = admin_client.post(
+        "/api/v1/admin/provider-keys",
+        headers=admin_headers,
+        json={"provider": "openai", "alias": "unused", "secret": plaintext},
+    )
+    assert unsupported.status_code == 422
 
     created_key = admin_client.post(
         "/api/v1/admin/provider-keys",
         headers=admin_headers,
-        json={"provider": provider, "alias": "primary", "secret": plaintext},
+        json={"provider": provider, "alias": provider_alias, "secret": plaintext},
     )
     assert created_key.status_code == 201
     key_metadata = created_key.json()
@@ -306,7 +314,11 @@ def test_admin_provider_keys_budgets_and_effective_pricing(
     duplicate_key = admin_client.post(
         "/api/v1/admin/provider-keys",
         headers=admin_headers,
-        json={"provider": provider, "alias": "primary", "secret": "different-secret"},
+        json={
+            "provider": provider,
+            "alias": provider_alias,
+            "secret": "different-secret",
+        },
     )
     assert duplicate_key.status_code == 409
     filtered_keys = admin_client.get(
@@ -314,7 +326,9 @@ def test_admin_provider_keys_budgets_and_effective_pricing(
         headers=admin_headers,
         params={"provider": provider},
     )
-    assert filtered_keys.json()["total"] == 1
+    assert key_metadata["id"] in {
+        item["id"] for item in filtered_keys.json()["items"]
+    }
     revoked_key = admin_client.delete(
         f"/api/v1/admin/provider-keys/{key_metadata['id']}", headers=admin_headers
     )
@@ -408,12 +422,13 @@ def test_admin_audit_is_filterable_attributed_and_redacted(
     admin_client: TestClient,
 ) -> None:
     admin_headers = login_admin(admin_client)
-    provider = f"audit-provider-{uuid4().hex}"
+    provider = "gemini"
+    provider_alias = f"audit-{uuid4().hex}"
     secret = "audit-secret-must-never-appear"
     created = admin_client.post(
         "/api/v1/admin/provider-keys",
         headers={**admin_headers, "X-Request-ID": "governance-audit-request"},
-        json={"provider": provider, "alias": "audit", "secret": secret},
+        json={"provider": provider, "alias": provider_alias, "secret": secret},
     )
     assert created.status_code == 201
 

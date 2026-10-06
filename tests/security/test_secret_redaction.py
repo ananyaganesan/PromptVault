@@ -50,7 +50,7 @@ def test_runtime_and_provider_secrets_are_write_only(
     provider = api_client.post(
         "/api/v1/admin/provider-keys",
         headers=admin_headers(api_client),
-        json={"provider": "stabilization", "alias": "primary", "secret": provider_secret},
+        json={"provider": "gemini", "alias": "primary", "secret": provider_secret},
     )
     assert provider.status_code == 201
     assert provider_secret not in provider.text

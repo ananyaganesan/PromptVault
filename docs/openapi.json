@@ -2754,8 +2754,7 @@
             "type": "string"
           },
           "provider": {
-            "maxLength": 80,
-            "minLength": 1,
+            "const": "gemini",
             "title": "Provider",
             "type": "string"
           },

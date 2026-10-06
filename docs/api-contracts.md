@@ -246,7 +246,7 @@ Serve returns project ID, prompt key, environment, version, template, variables,
 | `PATCH /admin/users/{user_id}` | `role?`, `is_active?` | `200` User with last-admin/self-lockout guards |
 | `GET/POST /admin/budgets` | Filters or scope, one target, monthly limit, timezone | List or `201` budget |
 | `PATCH/DELETE /admin/budgets/{budget_id}` | Update or none | `200` budget or `204` |
-| `GET/POST /admin/provider-keys` | List or provider, alias, secret | Metadata list or `201`; no existing plaintext |
+| `GET/POST /admin/provider-keys` | List or `provider: gemini`, alias, secret | Metadata list or `201`; no existing plaintext |
 | `DELETE /admin/provider-keys/{key_id}` | None | `204` |
 | `GET/POST /admin/model-pricing` | List or effective-dated prices | History or `201` immutable price row |
 | `GET /admin/runs` | User/project/prompt/model/status/date filters | Organization run page |

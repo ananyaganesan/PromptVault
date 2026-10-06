@@ -76,7 +76,7 @@ class AdminDashboardResponse(BaseModel):
 class ProviderKeyCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: Annotated[str, Field(min_length=1, max_length=80)]
+    provider: Literal["gemini"]
     alias: Annotated[str, Field(min_length=1, max_length=120)]
     secret: Annotated[str, Field(min_length=1, max_length=10_000, repr=False)]
 
