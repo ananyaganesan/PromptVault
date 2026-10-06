@@ -17,7 +17,7 @@ The implementation sequence and acceptance criteria are tracked in [docs/working
 
 The working-prototype scope is implemented across the React client, FastAPI service, and PostgreSQL schema. A clean detached checkout builds the production-target containers, applies migrations and deterministic seeds, passes lint and strict type checking, runs the complete backend/database/security/concurrency/performance suite, verifies OpenAPI drift, starts a healthy stack, exercises seeded login and race demonstrations, loads 2,000 representative runs, and executes the showcase queries. The latest redacted transcript is in [`evidence/release/latest.txt`](evidence/release/latest.txt); connected cross-browser acceptance is recorded in [`docs/browser-smoke.md`](docs/browser-smoke.md).
 
-The remaining boundaries are deployment-specific rather than unfinished prototype workflows: Gmail password-reset delivery requires a real sender address and Google App Password; optional Gemini execution requires an active encrypted `gemini` provider key and effective model pricing; production needs managed TLS, secret rotation, backups, monitoring, and a distributed edge rate limiter. Safari/WebKit, physical-device, screen-reader, and manual accessibility certification are also outside the automated acceptance boundary.
+The remaining boundaries require real infrastructure or human certification rather than more repository code: Gmail password-reset delivery needs a sender account and App Password; Gemini execution needs an active encrypted provider key and effective model pricing; a production host needs DNS, operator-managed secret rotation, encrypted off-site backup storage/scheduling, and an Alertmanager/log destination. Automated WebKit coverage is included, while physical Safari/device, screen-reader, and manual accessibility certification remain outside the automated acceptance boundary.
 
 ## Quick start
 
@@ -103,10 +103,11 @@ npm run build --prefix web
 Live browser workflows require the Docker stack:
 
 ```bash
-npm exec --prefix web playwright install firefox
+npm exec --prefix web playwright install firefox webkit
 E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-chrome
 E2E_LIVE=1 npm --prefix web run test:e2e -- --project=mobile-chrome
 E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-firefox
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-webkit
 ```
 
 The live suites cover authentication/session recovery, forbidden routes, project/member/prompt/version persistence, real diff/lineage, runs/costs, database budget rejection, deployments/approval, one-time runtime tokens, Serve, rollback, governance, responsive layouts, and axe-core serious/critical accessibility checks. Mocks remain only in isolated Vitest service/component tests.
@@ -181,13 +182,15 @@ docker compose --profile verification run --rm verify
 
 `python3 scripts/verify-release.py` performs the backend clean-checkout release workflow in an isolated Compose project and writes a redacted transcript below `evidence/release/`.
 
+For a production-oriented single-host deployment, use `docker-compose.production.yml`. It adds automatic HTTPS through Caddy, file-mounted secrets, separate migration/runtime database credentials, idempotent restricted-role provisioning, Redis-backed distributed authentication throttles, internal Prometheus scraping/alerts, and an operations-profile backup job. Required secret files and the deployment command are documented in [docs/deployment.md](docs/deployment.md).
+
 ## Security and prototype boundaries
 
 - FastAPI enforces all authorization; hidden UI controls are not security boundaries.
 - Provider secrets are encrypted at rest and never returned by list endpoints.
 - Runtime tokens are displayed once, stored only as hashes, project-scoped, and revocable.
 - Structured logs exclude query strings, request bodies, passwords, tokens, and provider keys.
-- Login/registration and password recovery have configurable per-client throttles; production still requires a distributed edge limiter.
+- Login/registration and password recovery have configurable per-client throttles; production requires and uses a shared Redis store, with an ingress/WAF limit still recommended.
 - Production rejects placeholder secrets and unrestricted database-role configuration; pooled API connections run as `promptvault_app`.
 - Password reset uses one-use database tokens and a configurable SMTP provider; provider setup and live delivery are deployment responsibilities.
 - The deterministic provider keeps evaluation reproducible. An optional Gemini REST adapter uses the newest active encrypted `gemini` key; upstream quotas, safety blocks, and service reliability remain external concerns.

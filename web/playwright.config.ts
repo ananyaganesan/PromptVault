@@ -11,6 +11,7 @@ export default defineConfig({
   projects: [
     { name: 'desktop-chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
     { name: 'desktop-firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'desktop-webkit', use: { ...devices['Desktop Safari'] } },
     { name: 'mobile-chrome', use: { ...devices['iPhone 13'], browserName: 'chromium', channel: 'chrome' } },
     { name: 'mobile-chrome-320', use: { ...devices['Desktop Chrome'], channel: 'chrome', viewport: { width: 320, height: 700 }, isMobile: true, hasTouch: true } },
     { name: 'tablet-chrome-768', use: { ...devices['Desktop Chrome'], channel: 'chrome', viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true } },

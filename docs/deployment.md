@@ -1,6 +1,6 @@
 # Deployment and recovery expectations
 
-The packaged stack is intended for local development and evaluation. `docker compose up -d --build --wait` starts PostgreSQL, runs migrations and, only when `ENVIRONMENT=development`, development seeds once, starts the API after that job succeeds, and starts the web container only after API readiness succeeds. The direct seed command also refuses non-development/non-test environments.
+The default packaged stack is intended for local development and evaluation. `docker compose up -d --build --wait` starts PostgreSQL, runs migrations and, only when `ENVIRONMENT=development`, development seeds once, starts the API after that job succeeds, and starts the web container only after API readiness succeeds. The direct seed command also refuses non-development/non-test environments.
 
 | Service | Role | Startup gate |
 |---|---|---|
@@ -12,7 +12,29 @@ The packaged stack is intended for local development and evaluation. `docker com
 
 The Compose defaults are development placeholders. Copy `.env.example`, change passwords and application secrets before any shared deployment, and never use the Compose defaults in production. `VITE_API_URL` is compiled into the browser bundle and therefore must contain only a public API address, never a secret.
 
-Production startup additionally requires `DATABASE_ROLE=promptvault_app`. Provision a dedicated non-owner login for `DATABASE_URL`, grant it membership in `promptvault_app`, and do not grant superuser, role-creation, database-creation, or schema-ownership privileges. The API sets that role on every pooled connection. Migration credentials are a separate deployment concern and should be available only to the one-shot migration job.
+Production startup additionally requires `DATABASE_ROLE=promptvault_app`. `docker-compose.production.yml` separates the owner-only migration URL from the runtime URL and runs the idempotent `provision-production-role.py` job between migrations and API startup. The runtime login receives membership in `promptvault_app`, bounded statement/idle-transaction timeouts, and no superuser, role-creation, database-creation, or schema ownership. The API sets the restricted role on every pooled connection.
+
+## Production Compose deployment
+
+Point the public DNS name at the host and permit inbound TCP 80/443 plus UDP 443. Create an owner-only `SECRET_DIR` containing files named `postgres_owner_password`, `migration_database_url`, `runtime_database_password`, `runtime_database_url`, `secret_key`, `provider_encryption_key`, `redis_password`, `rate_limit_redis_url`, and `smtp_password`; set every file to mode `0400`. The two database URLs must use the owner and `promptvault_runtime` passwords respectively, and the Redis URL must contain the same password used by the Redis service. Percent-encode URI-reserved password characters in URL files.
+
+```bash
+DOMAIN=promptvault.example.com SECRET_DIR=/secure/promptvault \
+  docker compose -f docker-compose.production.yml up -d --build --wait
+```
+
+Caddy obtains and renews public certificates, redirects HTTP to HTTPS, adds HSTS and security headers, and exposes only ports 80/443. PostgreSQL, Redis, the API, web server, Prometheus, and `/metrics` remain on an internal Docker network. Because the API has no published port and only Caddy can reach it on that network, Uvicorn trusts Caddy's forwarded client address for per-client throttling. Application, Redis, database, and SMTP password secrets are mounted as files rather than committed or placed in Compose YAML.
+
+Prometheus scrapes the internal low-cardinality `/metrics` endpoint and loads alerts for API availability, 5xx ratio, and mean latency. Connect Prometheus to the deployment's Alertmanager/remote-write destination and aggregate the API's structured JSON logs in the chosen platform before accepting production traffic.
+
+Run the one-shot backup job from the platform scheduler and place `production-backups` on encrypted storage with off-host replication:
+
+```bash
+DOMAIN=promptvault.example.com SECRET_DIR=/secure/promptvault \
+  docker compose -f docker-compose.production.yml --profile operations run --rm backup
+```
+
+The job creates owner-only custom-format dumps and removes files older than `BACKUP_RETENTION_DAYS`. The scheduler, encrypted volume/object-storage policy, retention lock, and alert delivery are infrastructure controls and must be verified in the target environment.
 
 Password reset requires a public HTTPS `PASSWORD_RESET_URL` in production and backend SMTP settings (`SMTP_HOST`, `SMTP_FROM_EMAIL`, and, for Gmail, `SMTP_USERNAME` and a Google App Password in `SMTP_PASSWORD`). Port 587 uses STARTTLS by default; port 465 uses `SMTP_SSL=true` and `SMTP_STARTTLS=false`. These settings are passed only to the API and migration containers, never to the browser build. Verify Gmail delivery before advertising password recovery.
 
@@ -32,7 +54,7 @@ For any environment whose data matters, take a logical or managed PostgreSQL bac
 
 - Terminate TLS at a trusted ingress, redirect HTTP to HTTPS, use HSTS after validation, and permit only the documented public web/API origins. PostgreSQL and SMTP connections must use transport encryption supplied by their providers.
 - Keep JWT access tokens short-lived. Rotate `SECRET_KEY` through the secret manager during a planned session invalidation, never log it, and keep `JWT_ISSUER`/`JWT_AUDIENCE` environment-specific. PromptVault intentionally has no refresh-token session.
-- The process-local login/reset limits are a safety floor. Enforce a shared per-IP/account limit at the ingress for multiple replicas and alert on sustained `429`, `401`, password-reset `503`, and provider-error rates.
+- Production authentication/reset limits use Redis so multiple API replicas share counters. Retain a coarser ingress/WAF limit and alert on sustained `429`, `401`, password-reset `503`, and provider-error rates.
 - Monitor `/health` for process liveness and `/ready` for database readiness; ingest structured request logs by request ID without bodies or query strings. Alert on readiness failures, elevated 5xx latency, pool exhaustion, failed migration jobs, missing run partitions, stale materialized views, and backup failures.
 - Create the next run partition before each month boundary and refresh reporting views on the analytics freshness schedule. Both operations are exposed through audited Super Admin maintenance endpoints/scripts. Verify the result rather than treating command exit alone as evidence.
 - Take encrypted scheduled backups with retention and point-in-time recovery where available. Run recurring restore drills into an isolated database and validate migrations, row counts, login, run recording, deployment approval, and Serve retrieval.
@@ -49,6 +71,6 @@ The migration runner stores SHA-256 checksums in `schema_migrations`, takes an a
 
 The `verify` profile is not part of normal startup. It contains development tooling and must not be deployed as an application service.
 
-## Prototype limitations
+## Deployment boundaries
 
-TLS termination, distributed edge rate limiting, managed secret delivery, restricted-login provisioning, automated backup scheduling, multi-instance orchestration, and zero-downtime migration strategy remain infrastructure responsibilities. The application enforces production configuration, sets the restricted database role, and supplies audited maintenance operations, but local Compose intentionally connects with the development database owner.
+The repository supplies TLS termination, Redis-backed application throttling, file-mounted secret wiring, restricted-login provisioning, Prometheus configuration/alerts, and an invocable retention-aware backup job. DNS, certificate reachability, real SMTP/Gemini credentials, encrypted/off-site storage, an external scheduler and Alertmanager/log destination, multi-host orchestration, and zero-downtime migration strategy must be supplied and tested in the target platform. The default local Compose stack intentionally remains development-oriented.

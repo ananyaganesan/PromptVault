@@ -36,6 +36,7 @@ test('admin governance uses live users, encrypted keys, budgets, audit, pricing,
   const secret = `super-secret-${suffix}`
   const model = `priced-model-${suffix}`
   await signIn(page, 'admin')
+  await page.goto('/admin')
 
   await expect(page.getByRole('heading', { name: 'Administration' })).toBeVisible()
   await expect(page.getByText('ORGANIZATION SPEND')).toBeVisible()

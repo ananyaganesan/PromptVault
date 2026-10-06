@@ -1,0 +1,34 @@
+groups:
+  - name: promptvault
+    rules:
+      - alert: PromptVaultApiUnavailable
+        expr: up{job="promptvault-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: PromptVault API metrics target is unavailable
+
+      - alert: PromptVaultElevatedServerErrors
+        expr: >-
+          sum(rate(promptvault_http_requests_total{status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(promptvault_http_requests_total[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 5% of PromptVault responses are server errors
+
+      - alert: PromptVaultElevatedMeanLatency
+        expr: >-
+          rate(promptvault_http_request_duration_seconds_sum[5m])
+          /
+          clamp_min(rate(promptvault_http_request_duration_seconds_count[5m]), 0.001)
+          > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: PromptVault mean request latency exceeds one second

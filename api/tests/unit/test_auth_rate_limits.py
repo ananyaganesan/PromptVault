@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
+from math import ceil
+from time import monotonic
 
 import pytest
 from api.app.config import Settings
@@ -25,6 +27,23 @@ class NoopConnection:
     @asynccontextmanager
     async def transaction(self) -> AsyncIterator[None]:
         yield
+
+
+class SharedRateLimitStore:
+    def __init__(self) -> None:
+        self.hits: dict[str, list[float]] = {}
+
+    async def retry_after(self, key: str, requests: int, window_seconds: int) -> int | None:
+        now = monotonic()
+        hits = self.hits.setdefault(key, [])
+        hits[:] = [hit for hit in hits if hit > now - window_seconds]
+        if len(hits) >= requests:
+            return max(1, ceil(window_seconds - (now - hits[0])))
+        hits.append(now)
+        return None
+
+    async def close(self) -> None:
+        return None
 
 
 @pytest.fixture
@@ -81,6 +100,29 @@ def test_password_reset_request_and_confirmation_share_a_stricter_limit(
     assert limited.status_code == 429
     assert limited.json()["code"] == "rate_limited"
     assert limited.headers["Access-Control-Allow-Origin"] == "http://localhost:5173"
+
+
+def test_two_api_instances_share_the_configured_rate_limit_store(
+    test_settings: Settings,
+) -> None:
+    settings = test_settings.model_copy(
+        update={"auth_rate_limit_requests": 1, "auth_rate_limit_window_seconds": 60}
+    )
+    store = SharedRateLimitStore()
+    first_app = create_app(
+        settings,
+        pool_factory=lambda _: NoopPool(),
+        rate_limit_store=store,
+    )
+    second_app = create_app(
+        settings,
+        pool_factory=lambda _: NoopPool(),
+        rate_limit_store=store,
+    )
+
+    with TestClient(first_app) as first, TestClient(second_app) as second:
+        assert first.post("/api/v1/auth/login", json={}).status_code == 422
+        assert second.post("/api/v1/auth/login", json={}).status_code == 429
 
 
 @pytest.mark.parametrize(

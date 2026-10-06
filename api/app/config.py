@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     auth_rate_limit_window_seconds: int = 60
     password_reset_rate_limit_requests: int = 5
     password_reset_rate_limit_window_seconds: int = 300
+    rate_limit_redis_url: SecretStr | None = Field(default=None, repr=False)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     password_reset_ttl_minutes: int = 30
     password_reset_url: str = "http://localhost:5173/reset-password"
@@ -59,6 +60,11 @@ class Settings(BaseSettings):
     @field_validator("smtp_password", mode="before")
     @classmethod
     def empty_smtp_password_is_unset(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("rate_limit_redis_url", mode="before")
+    @classmethod
+    def empty_redis_url_is_unset(cls, value: object) -> object:
         return None if value == "" else value
 
     @field_validator("cors_origins", mode="before")
@@ -158,6 +164,12 @@ class Settings(BaseSettings):
             raise ValueError("GEMINI_API_BASE_URL must be an absolute HTTP URL")
         if self.environment == "production" and gemini_url.scheme != "https":
             raise ValueError("production GEMINI_API_BASE_URL must use HTTPS")
+        if self.rate_limit_redis_url is not None:
+            redis_url = urlsplit(self.rate_limit_redis_url.get_secret_value())
+            if redis_url.scheme not in {"redis", "rediss"} or not redis_url.hostname:
+                raise ValueError("RATE_LIMIT_REDIS_URL must be a Redis URL")
+        if self.environment == "production" and self.rate_limit_redis_url is None:
+            raise ValueError("production RATE_LIMIT_REDIS_URL is required")
         if self.environment == "production" and self.database_role != "promptvault_app":
             raise ValueError("production DATABASE_ROLE must be promptvault_app")
         if self.environment == "production" and (

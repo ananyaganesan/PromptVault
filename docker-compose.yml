@@ -21,10 +21,14 @@ x-api-common: &api-common
     PROVIDER_TIMEOUT_SECONDS: ${PROVIDER_TIMEOUT_SECONDS:-30}
     GEMINI_API_BASE_URL: ${GEMINI_API_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
     MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-1048576}
-    AUTH_RATE_LIMIT_REQUESTS: ${AUTH_RATE_LIMIT_REQUESTS:-10}
+    # The development stack runs the complete serial browser suite from one
+    # Docker NAT address. Production keeps the stricter default in its own
+    # compose file; this higher local ceiling avoids test-only false positives.
+    AUTH_RATE_LIMIT_REQUESTS: ${AUTH_RATE_LIMIT_REQUESTS:-100}
     AUTH_RATE_LIMIT_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:-60}
     PASSWORD_RESET_RATE_LIMIT_REQUESTS: ${PASSWORD_RESET_RATE_LIMIT_REQUESTS:-5}
     PASSWORD_RESET_RATE_LIMIT_WINDOW_SECONDS: ${PASSWORD_RESET_RATE_LIMIT_WINDOW_SECONDS:-300}
+    RATE_LIMIT_REDIS_URL: ${RATE_LIMIT_REDIS_URL:-}
     LOG_LEVEL: ${LOG_LEVEL:-INFO}
     PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
     PASSWORD_RESET_URL: ${PASSWORD_RESET_URL:-http://localhost:5173/reset-password}

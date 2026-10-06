@@ -46,7 +46,7 @@ test('project, member, prompt, and immutable versions survive reloads through Fa
   await page.getByRole('link', { name: 'New prompt' }).first().click()
   await page.getByLabel('Prompt key').fill(promptKey)
   await page.getByLabel('Prompt name').fill(promptName)
-  await page.getByLabel('Template').fill('Answer {{customer_message}} for order {{order_id}}.')
+  await page.getByRole('textbox', { name: 'Template', exact: true }).fill('Answer {{customer_message}} for order {{order_id}}.')
   await page.getByRole('button', { name: 'Create prompt' }).click()
   await expect(page.getByRole('heading', { name: promptName })).toBeVisible()
   await page.reload()

@@ -114,6 +114,7 @@ def test_production_accepts_independent_provider_encryption_key() -> None:
         "provider_encryption_key": "independent-provider-key-that-is-at-least-32-characters",
         "cors_origins": "https://app.example.com",
         "database_role": "promptvault_app",
+        "rate_limit_redis_url": "redis://redis:6379/0",
     }
 
     settings = Settings(**values)
@@ -146,8 +147,23 @@ def test_production_requires_https_gemini_api_base_url() -> None:
         "provider_encryption_key": "independent-provider-key-that-is-at-least-32-characters",
         "cors_origins": "https://app.example.com",
         "database_role": "promptvault_app",
+        "rate_limit_redis_url": "redis://redis:6379/0",
         "gemini_api_base_url": "http://gemini.example.com/v1beta",
     }
 
     with pytest.raises(ValidationError, match="GEMINI_API_BASE_URL"):
+        Settings(**values)
+
+
+def test_production_requires_distributed_rate_limit_store() -> None:
+    values = {
+        **BASE,
+        "environment": "production",
+        "secret_key": "production-secret-that-is-at-least-32-characters",
+        "provider_encryption_key": "independent-provider-key-that-is-at-least-32-characters",
+        "cors_origins": "https://app.example.com",
+        "database_role": "promptvault_app",
+    }
+
+    with pytest.raises(ValidationError, match="RATE_LIMIT_REDIS_URL"):
         Settings(**values)

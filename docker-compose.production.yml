@@ -1,0 +1,249 @@
+name: promptvault-production
+
+x-api-image: &api-image
+  image: promptvault-api:${IMAGE_TAG:-local}
+  build:
+    context: .
+    dockerfile: api/Dockerfile
+    target: runtime
+
+services:
+  db:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-promptvault}
+      POSTGRES_USER: ${POSTGRES_USER:-promptvault_owner}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_owner_password
+    secrets:
+      - source: postgres_owner_password
+        target: postgres_owner_password
+    volumes:
+      - production-db:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-promptvault_owner} -d ${POSTGRES_DB:-promptvault}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.10.1-alpine
+    user: "0:0"
+    command:
+      - sh
+      - -ec
+      - |
+        chown redis:redis /data
+        exec setpriv --reuid=999 --regid=1000 --clear-groups redis-server --appendonly yes --requirepass "$$(cat /run/secrets/redis_password)"
+    secrets:
+      - source: redis_password
+        target: redis_password
+    volumes:
+      - production-redis:/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$(cat /run/secrets/redis_password) redis-cli --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  migrate:
+    <<: *api-image
+    user: "0:0"
+    command:
+      - sh
+      - -ec
+      - export DATABASE_URL="$$(cat /run/secrets/migration_database_url)"; exec setpriv --reuid=999 --regid=999 --clear-groups python scripts/run-migrations.py
+    secrets:
+      - source: migration_database_url
+        target: migration_database_url
+    networks: [backend]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  provision:
+    <<: *api-image
+    user: "0:0"
+    entrypoint:
+      - sh
+      - -ec
+      - |
+        export MIGRATION_DATABASE_URL="$$(cat /run/secrets/migration_database_url)"
+        export RUNTIME_DATABASE_PASSWORD="$$(cat /run/secrets/runtime_database_password)"
+        exec setpriv --reuid=999 --regid=999 --clear-groups python scripts/provision-production-role.py
+    secrets:
+      - source: migration_database_url
+        target: migration_database_url
+      - source: runtime_database_password
+        target: runtime_database_password
+    networks: [backend]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  api:
+    <<: *api-image
+    user: "0:0"
+    command:
+      - sh
+      - -ec
+      - |
+        export DATABASE_URL="$$(cat /run/secrets/runtime_database_url)"
+        export SECRET_KEY="$$(cat /run/secrets/secret_key)"
+        export PROVIDER_ENCRYPTION_KEY="$$(cat /run/secrets/provider_encryption_key)"
+        export RATE_LIMIT_REDIS_URL="$$(cat /run/secrets/rate_limit_redis_url)"
+        export SMTP_PASSWORD="$$(cat /run/secrets/smtp_password)"
+        # The API is not published and the backend network is internal, so only
+        # Caddy can reach it. Trust its forwarded client address for per-client
+        # throttling and request metadata.
+        exec setpriv --reuid=999 --regid=999 --clear-groups uvicorn api.app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'
+    environment:
+      ENVIRONMENT: production
+      DATABASE_ROLE: promptvault_app
+      CORS_ORIGINS: https://${DOMAIN:?DOMAIN is required}
+      PASSWORD_RESET_URL: https://${DOMAIN:?DOMAIN is required}/reset-password
+      GEMINI_API_BASE_URL: https://generativelanguage.googleapis.com/v1beta
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-30}
+      AUTH_RATE_LIMIT_REQUESTS: ${AUTH_RATE_LIMIT_REQUESTS:-10}
+      AUTH_RATE_LIMIT_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:-60}
+      PASSWORD_RESET_RATE_LIMIT_REQUESTS: ${PASSWORD_RESET_RATE_LIMIT_REQUESTS:-5}
+      PASSWORD_RESET_RATE_LIMIT_WINDOW_SECONDS: ${PASSWORD_RESET_RATE_LIMIT_WINDOW_SECONDS:-300}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      SMTP_SSL: ${SMTP_SSL:-false}
+    secrets:
+      - source: runtime_database_url
+        target: runtime_database_url
+      - source: secret_key
+        target: secret_key
+      - source: provider_encryption_key
+        target: provider_encryption_key
+      - source: rate_limit_redis_url
+        target: rate_limit_redis_url
+      - source: smtp_password
+        target: smtp_password
+    networks: [backend]
+    depends_on:
+      provision:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  web:
+    image: promptvault-web:${IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        VITE_API_URL: https://${DOMAIN:?DOMAIN is required}
+    networks: [backend]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.11.7-alpine
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is required}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [backend, edge]
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    networks: [backend]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backup:
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    profiles: [operations]
+    command:
+      - sh
+      - -ec
+      - |
+        umask 077
+        pg_dump --dbname="$$(cat /run/secrets/migration_database_url)" --format=custom --no-owner --no-privileges --file="/backups/promptvault-$$(date -u +%Y%m%dT%H%M%SZ).dump"
+        find /backups -type f -name 'promptvault-*.dump' -mtime +"$${BACKUP_RETENTION_DAYS:-14}" -delete
+    environment:
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    secrets:
+      - source: migration_database_url
+        target: migration_database_url
+    volumes:
+      - production-backups:/backups
+    networks: [backend]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+secrets:
+  postgres_owner_password:
+    file: ${SECRET_DIR:-./secrets}/postgres_owner_password
+  migration_database_url:
+    file: ${SECRET_DIR:-./secrets}/migration_database_url
+  runtime_database_password:
+    file: ${SECRET_DIR:-./secrets}/runtime_database_password
+  runtime_database_url:
+    file: ${SECRET_DIR:-./secrets}/runtime_database_url
+  secret_key:
+    file: ${SECRET_DIR:-./secrets}/secret_key
+  provider_encryption_key:
+    file: ${SECRET_DIR:-./secrets}/provider_encryption_key
+  redis_password:
+    file: ${SECRET_DIR:-./secrets}/redis_password
+  rate_limit_redis_url:
+    file: ${SECRET_DIR:-./secrets}/rate_limit_redis_url
+  smtp_password:
+    file: ${SECRET_DIR:-./secrets}/smtp_password
+
+volumes:
+  production-db:
+  production-redis:
+  production-backups:
+  prometheus-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  edge:
+  backend:
+    internal: true
