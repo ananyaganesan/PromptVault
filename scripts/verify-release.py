@@ -46,6 +46,11 @@ def redact(value: str) -> str:
     return redacted
 
 
+def normalize_evidence(value: str) -> str:
+    """Remove transport whitespace without changing transcript line structure."""
+    return "\n".join(line.rstrip() for line in value.split("\n"))
+
+
 def repository_is_clean(repository: Path) -> bool:
     result = subprocess.run(
         ["git", "status", "--porcelain", "--untracked-files=all"],
@@ -107,7 +112,7 @@ class Verification:
         self.lines: list[str] = []
 
     def record(self, value: str) -> None:
-        safe_value = redact(value)
+        safe_value = normalize_evidence(redact(value))
         print(safe_value)
         self.lines.append(safe_value)
 

@@ -38,6 +38,12 @@ def test_redact_removes_runtime_jwt_database_and_json_secrets() -> None:
         assert secret not in redacted
 
 
+def test_normalize_evidence_removes_trailing_whitespace() -> None:
+    verifier = load_verifier()
+
+    assert verifier.normalize_evidence("first  \nsecond\t\n") == "first\nsecond\n"
+
+
 @pytest.mark.skipif(shutil.which("git") is None, reason="Git CLI is not installed")
 def test_clean_worktree_detection_uses_committed_state(tmp_path: Path) -> None:
     verifier = load_verifier()

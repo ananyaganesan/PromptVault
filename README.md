@@ -13,11 +13,11 @@ PromptVault is a full-stack prompt versioning, execution, deployment, and govern
 
 The implementation sequence and acceptance criteria are tracked in [docs/working-prototype-plan.md](docs/working-prototype-plan.md).
 
-## Current status and next changes
+## Current status and remaining boundaries
 
-Database-backed login, JWT session restoration, the FastAPI domain routes, and the PostgreSQL schema are implemented. Normal web builds now use the API for workspace data; bundled example data is an explicit local/test mode. Project creation, settings, and member loading no longer switch to browser-only behavior based on demo-shaped IDs. Project creation, settings updates, and member addition were verified across browser reloads against the local FastAPI/PostgreSQL stack; focused frontend and backend tests also pass. The migration runner includes a narrowly scoped recovery for an older password-reset migration recorded as version 011, and development seed commands are restricted to development/test environments. Migration reconciliation and seed restrictions still need clean-stack and existing-database verification.
+The working-prototype scope is implemented across the React client, FastAPI service, and PostgreSQL schema. A clean detached checkout builds the production-target containers, applies migrations and deterministic seeds, passes lint and strict type checking, runs the complete backend/database/security/concurrency/performance suite, verifies OpenAPI drift, starts a healthy stack, exercises seeded login and race demonstrations, loads 2,000 representative runs, and executes the showcase queries. The latest redacted transcript is in [`evidence/release/latest.txt`](evidence/release/latest.txt); connected cross-browser acceptance is recorded in [`docs/browser-smoke.md`](docs/browser-smoke.md).
 
-The prompt editor now derives variable names from `{{placeholders}}`, matching the backend version contract; name validation runs before save and the editor no longer offers variable metadata that the API cannot persist. The next implementation work is to complete live run, deployment, and admin browser workflows. Password recovery has the reset route and SMTP configuration, while Gmail delivery needs a sender address and Google App Password before it can be activated and verified. Full backend type checking, database integration tests, and live browser regression must pass before claiming release readiness.
+The remaining boundaries are deployment-specific rather than unfinished prototype workflows: Gmail password-reset delivery requires a real sender address and Google App Password; the bundled deterministic model provider is not an external LLM integration; production needs managed TLS, secret rotation, backups, monitoring, and a distributed edge rate limiter. Safari/WebKit, physical-device, screen-reader, and manual accessibility certification are also outside the automated acceptance boundary.
 
 ## Quick start
 

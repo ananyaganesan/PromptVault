@@ -4,4 +4,6 @@ Run `python3 scripts/verify-release.py` from the repository root to replace `lat
 
 Evidence is valid only for the commit hash recorded in the transcript. Runtime tokens, JWTs, database passwords, and provider secrets must never be copied here.
 
-The checked-in transcript verifies commit `51b8cadd5ba7758767f70b97ff165e07209257b7`, tagged locally as `v0.1.0-backend`. It is backend/container evidence only; frontend storyboard and cross-browser acceptance remain separate.
+The checked-in transcript verifies commit `0477034b2dfa85e709307a090f03ee3fad38de19`. It covers the API, PostgreSQL, production-target frontend build, packaged stack, and HTTP smoke boundary. Connected cross-browser acceptance remains separately recorded in `docs/browser-smoke.md`.
+
+Known acceptance limits: SMTP delivery is not exercised without deployment credentials; the mock provider is deterministic and does not certify an external LLM; browser automation does not cover Safari/WebKit, physical devices, screen readers, or manual accessibility review; and local process rate limiting does not replace a distributed production edge limiter.
