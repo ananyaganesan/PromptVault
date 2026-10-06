@@ -103,6 +103,26 @@ const listeners = new Set<() => void>()
 function notify() { revision += 1; listeners.forEach((listener) => listener()) }
 function replaceArray<T>(target: T[], values: T[]) { target.splice(0, target.length, ...values) }
 
+export async function collectPages<T>(
+  loadPage: (page: number, pageSize: number) => Promise<Page<T>>,
+  pageSize = 100,
+): Promise<T[]> {
+  const items: T[] = []
+  let page = 1
+  while (true) {
+    const result = await loadPage(page, pageSize)
+    items.push(...result.items)
+    if (result.items.length === 0 || items.length >= result.total) return items
+    page += 1
+  }
+}
+
+function fetchAllPages<T>(path: string): Promise<T[]> {
+  return collectPages((page, pageSize) => apiClient.request<Page<T>>(path, {
+    query: { page, page_size: pageSize },
+  }))
+}
+
 function adaptProject(project: BackendProject, userId: string): Project {
   return {
     id: project.id,
@@ -190,16 +210,16 @@ export const workspaceStore = {
 export const workspaceService = {
   async load(userId: string) {
     if (useDemoData) { notify(); return }
-    const projects = await apiClient.request<Page<BackendProject>>('/projects', { query: { page: 1, page_size: 100 } })
-    const nextProjects = projects.items.map((project) => adaptProject(project, userId))
+    const projects = await fetchAllPages<BackendProject>('/projects')
+    const nextProjects = projects.map((project) => adaptProject(project, userId))
     const nextPrompts: Prompt[] = []
     const nextVersions: Record<string, PromptVersion[]> = {}
     for (const project of nextProjects) {
-      const prompts = await apiClient.request<Page<BackendPrompt>>(`/projects/${project.id}/prompts`, { query: { page: 1, page_size: 100 } })
-      for (const prompt of prompts.items) {
+      const prompts = await fetchAllPages<BackendPrompt>(`/projects/${project.id}/prompts`)
+      for (const prompt of prompts) {
         nextPrompts.push(adaptPrompt(prompt))
-        const versions = await apiClient.request<Page<BackendVersion>>(`/prompts/${prompt.id}/versions`, { query: { page: 1, page_size: 100 } })
-        nextVersions[prompt.id] = versions.items.map(adaptVersion)
+        const versions = await fetchAllPages<BackendVersion>(`/prompts/${prompt.id}/versions`)
+        nextVersions[prompt.id] = versions.map(adaptVersion)
       }
     }
     replaceArray(projectStore, nextProjects)
@@ -250,8 +270,8 @@ export const workspaceService = {
   },
   async loadMembers(projectId: string) {
     if (useDemoData) return memberStore[projectId] ?? []
-    const page = await apiClient.request<Page<BackendMember>>(`/projects/${projectId}/members`, { query: { page: 1, page_size: 100 } })
-    const members = page.items.map(adaptMember)
+    const page = await fetchAllPages<BackendMember>(`/projects/${projectId}/members`)
+    const members = page.map(adaptMember)
     memberStore[projectId] = members
     notify()
     return members

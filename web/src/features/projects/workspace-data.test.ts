@@ -1,11 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { memberStore, projectStore, promptStore, versionStore, workspaceService } from './workspace-data'
+import { collectPages, memberStore, projectStore, promptStore, versionStore, workspaceService } from './workspace-data'
 
 vi.mock('../../lib/runtime', () => ({ useDemoData: false }))
 
 function json(payload: unknown) {
   return new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } })
 }
+
+describe('collectPages', () => {
+  it('loads every API page instead of truncating workspace data at 100 rows', async () => {
+    const first = Array.from({ length: 100 }, (_, index) => ({ id: `item-${index}` }))
+    const loadPage = vi.fn()
+      .mockResolvedValueOnce({ items: first, total: 101, page: 1, page_size: 100 })
+      .mockResolvedValueOnce({ items: [{ id: 'item-100' }], total: 101, page: 2, page_size: 100 })
+
+    await expect(collectPages(loadPage)).resolves.toHaveLength(101)
+    expect(loadPage).toHaveBeenNthCalledWith(1, 1, 100)
+    expect(loadPage).toHaveBeenNthCalledWith(2, 2, 100)
+  })
+
+  it('stops safely when an API returns an empty page before its advertised total', async () => {
+    const loadPage = vi.fn()
+      .mockResolvedValueOnce({ items: [{ id: 'item-0' }], total: 2, page: 1, page_size: 100 })
+      .mockResolvedValueOnce({ items: [], total: 2, page: 2, page_size: 100 })
+
+    await expect(collectPages(loadPage)).resolves.toEqual([{ id: 'item-0' }])
+    expect(loadPage).toHaveBeenCalledTimes(2)
+  })
+})
 
 describe('workspaceService', () => {
   beforeEach(() => {
