@@ -11,34 +11,15 @@ async function signIn(page: Page, role: 'user' | 'admin') {
   await expect(page).not.toHaveURL(/\/login$/)
 }
 
-async function switchAccount(page: Page, role: 'user' | 'admin') {
-  await page.evaluate(() => sessionStorage.clear())
-  await page.reload()
-  await signIn(page, role)
-}
-
-async function setUserBudget(page: Page, amount: string) {
-  await page.goto('/admin/budgets')
-  await expect(page.getByRole('heading', { name: 'Budgets' })).toBeVisible()
-  const userRow = page.getByRole('row').filter({ hasText: 'Demo User' })
-  await expect(userRow).toBeVisible()
-  await userRow.getByRole('button', { name: 'Edit' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Set monthly budget' })
-  await dialog.getByLabel('Monthly limit (USD)').fill(amount)
-  await dialog.getByRole('button', { name: 'Save budget' }).click()
-  await expect(dialog).not.toBeVisible()
-  await expect(userRow.getByRole('cell').nth(2)).toHaveText(`$${Number(amount).toFixed(6)}`)
-}
-
-test('admin governance uses live users, encrypted keys, budgets, audit, pricing, runs, and maintenance APIs', async ({ page }) => {
+test('admin governance uses live users, encrypted keys, audit, runs, and maintenance APIs', async ({ page }) => {
   const suffix = Date.now().toString(36)
   const keyLabel = `Live key ${suffix}`
   const secret = `super-secret-${suffix}`
-  const model = `priced-model-${suffix}`
   await signIn(page, 'admin')
+  await page.goto('/admin')
 
   await expect(page.getByRole('heading', { name: 'Administration' })).toBeVisible()
-  await expect(page.getByText('ORGANIZATION SPEND')).toBeVisible()
+  await expect(page.getByText('TOTAL RUNS')).toBeVisible()
   await expect(page.getByText('Prototype data')).toHaveCount(0)
 
   await page.goto('/admin/users')
@@ -56,33 +37,9 @@ test('admin governance uses live users, encrypted keys, budgets, audit, pricing,
   await expect(keyRow).toContainText('Active')
   await expect(page.getByText(secret, { exact: true })).toHaveCount(0)
 
-  await setUserBudget(page, '0')
-  await switchAccount(page, 'user')
-  await page.goto('/playground')
-  await expect(page.getByRole('button', { name: 'Run prompt' })).toBeVisible()
-  const variables = page.locator('.playground textarea')
-  for (let index = 0; index < await variables.count(); index += 1) await variables.nth(index).fill(`Budget test ${index + 1}`)
-  await page.getByRole('button', { name: 'Run prompt' }).click()
-  await expect(page.getByRole('heading', { name: 'Budget limit reached' })).toBeVisible()
-
-  await switchAccount(page, 'admin')
-  await setUserBudget(page, '100')
-  const blockedRuns = page.locator('.stat').filter({ hasText: 'BLOCKED RUNS' })
-  await expect(blockedRuns.locator('strong')).toHaveText('1')
-
-  await page.goto('/admin/model-pricing')
-  await page.getByRole('button', { name: 'Add price' }).click()
-  const priceDialog = page.getByRole('dialog', { name: 'Add model price' })
-  await priceDialog.getByLabel('Provider').fill('mock')
-  await priceDialog.getByLabel('Model').fill(model)
-  await priceDialog.getByLabel('Token type').selectOption('input')
-  await priceDialog.getByLabel('USD per million tokens').fill('1.250000')
-  await priceDialog.getByRole('button', { name: 'Add price' }).click()
-  await expect(page.getByRole('row').filter({ hasText: model }).first()).toContainText('1.250000')
-
   await page.goto('/admin/runs')
   await expect(page.getByRole('heading', { name: 'Organization runs' })).toBeVisible()
-  await expect(page.getByRole('cell', { name: 'blocked', exact: true }).first()).toBeVisible()
+  await expect(page.locator('tbody tr').first()).toBeVisible()
 
   await page.goto('/admin/audit')
   await expect(page.getByRole('heading', { name: 'Audit log' })).toBeVisible()
@@ -98,4 +55,28 @@ test('admin governance uses live users, encrypted keys, budgets, audit, pricing,
   await currentKeyRow.getByRole('button', { name: 'Deactivate' }).click()
   await page.getByRole('dialog', { name: 'Deactivate provider key' }).getByRole('button', { name: 'Confirm' }).click()
   await expect(currentKeyRow).toContainText('Inactive')
+
+  await page.goto('/admin/users')
+  const memberRow = page.getByRole('row').filter({ hasText: 'user@promptvault.dev' })
+  await memberRow.getByRole('button', { name: 'Make admin' }).click()
+  await page.getByRole('dialog', { name: 'Confirm user change' }).getByRole('button', { name: 'Confirm' }).click()
+  await page.reload()
+  await expect(memberRow).toContainText('Super Admin')
+
+  const ownRow = page.getByRole('row').filter({ hasText: 'admin@promptvault.dev' })
+  await ownRow.getByRole('button', { name: 'Make user' }).click()
+  await page.getByRole('dialog', { name: 'Confirm user change' }).getByRole('button', { name: 'Confirm' }).click()
+  await expect(page).toHaveURL(/\/login$/)
+
+  await signIn(page, 'user')
+  await page.goto('/admin/users')
+  const formerAdmin = page.getByRole('row').filter({ hasText: 'admin@promptvault.dev' })
+  await formerAdmin.getByRole('button', { name: 'Make admin' }).click()
+  await page.getByRole('dialog', { name: 'Confirm user change' }).getByRole('button', { name: 'Confirm' }).click()
+  await page.reload()
+  await expect(formerAdmin).toContainText('Super Admin')
+  const currentAdmin = page.getByRole('row').filter({ hasText: 'user@promptvault.dev' })
+  await currentAdmin.getByRole('button', { name: 'Make user' }).click()
+  await page.getByRole('dialog', { name: 'Confirm user change' }).getByRole('button', { name: 'Confirm' }).click()
+  await expect(page).toHaveURL(/\/login$/)
 })

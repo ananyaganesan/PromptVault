@@ -13,7 +13,7 @@ cp web/.env.example web/.env.local
 npm run dev --prefix web
 ```
 
-`VITE_API_BASE_URL` defaults to `http://localhost:8000`; the client appends `/api/v1`. Keep `VITE_USE_DEMO_DATA=false` to use persisted workspace data. Login always calls `/api/v1/auth/login`, and saved tokens are checked with `/api/v1/auth/me` before a user is restored. The packaged full stack is available with `docker compose up -d --build --wait` and serves the web application at `http://localhost:5173`.
+`VITE_API_BASE_URL` defaults to `http://localhost:8000`; the client appends `/api/v1`. Keep `VITE_USE_DEMO_DATA=false` to use persisted workspace data. Login always calls `/api/v1/auth/login`, and saved tokens are checked with `/api/v1/auth/me` before a user is restored. The packaged full stack is available with `docker compose up -d --build --wait` and serves the web application at `http://localhost:5173`. Docker excludes local Vite override files and uses its `VITE_API_URL` build argument for the packaged API address.
 
 Development accounts:
 
@@ -26,12 +26,12 @@ These accounts are local fixtures. JWTs are stored in tab-scoped `sessionStorage
 
 ## Routes
 
-- `/dashboard`, `/projects`, `/prompts`, `/playground`, `/runs`, `/costs`, `/deployments`, and `/api-tokens` are authenticated User experiences.
+- `/dashboard`, `/projects`, `/prompts`, `/playground`, `/runs`, `/deployments`, and `/api-tokens` are authenticated User experiences.
 - `/admin/*` contains approval and governance experiences and requires the Super Admin role.
 - `/403` is the authenticated forbidden-state recovery route.
 - Unknown resources display explicit not-found states.
 
-Password-recovery email delivery is intentionally unavailable in this prototype. The mock provider is deterministic, but run, cost, budget, deployment, and audit records are persisted by the backend.
+Password-recovery email delivery works when SMTP is configured; without SMTP, the API reports that delivery is unavailable. The mock provider is deterministic. Runs, deployments, and audit records persist through the backend. The web interface omits monetary reporting and administration; the backend ledger remains available for execution safeguards.
 
 ## Verification
 

@@ -69,7 +69,7 @@ export function createApiClient({ baseUrl = defaultBaseUrl, getAccessToken = () 
         body: body === undefined ? undefined : JSON.stringify(body),
       })
       const payload = await readJson(response)
-      if (response.status === 401 && auth) onUnauthorized()
+      if (response.status === 401 && auth && token && getAccessToken() === token) onUnauthorized()
       if (!response.ok) throw new ApiClientError(response.status, isErrorEnvelope(payload) ? payload : fallbackError(response.status))
       return payload as T
     },

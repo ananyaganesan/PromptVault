@@ -21,7 +21,7 @@ The token role is informational, not authoritative. Every protected request load
 - Scoped mutations lock the relevant membership row so removal cannot race between authorization and the write.
 - Prompt/version direct lookups deliberately collapse unknown and inaccessible identifiers to the same `404 not_found` result, preventing object-existence probing.
 - Registration rejects unknown fields, so clients cannot supply a role or active status.
-- Every governance route requires the current database user to be an active Super Admin. Direct application-role updates to users are revoked; role/status changes run through a serialized database function that rejects self-demotion/deactivation and prevents concurrent requests from removing the final active Super Admin.
+- Every governance route requires the current database user to be an active Super Admin. Direct application-role updates to users are revoked; role/status changes run through a serialized database function that prevents concurrent requests from removing the final active Super Admin. An admin may change their own access when another active admin remains; the web client signs them out immediately.
 
 ## Stored and logged secrets
 

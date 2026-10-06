@@ -27,6 +27,8 @@ Failure-path API tests verify that provider errors and budget rejection return a
 
 The representative ledger is idempotent and can be loaded manually with `python3 scripts/simulate-traffic.py --runs 2000`. Cross-layer API fixtures recreate and reseed only a database whose name ends in `_test`, giving every security/E2E case an isolated schema; their assertions use per-test identities and exact owned-state counts. Release verification executes the entire suite against a fresh disposable database rather than relying on accumulated local state.
 
+`tests/database/test_migration_upgrade.py` creates temporary databases to verify both a fresh migration chain and the legacy password-reset migration recorded as 011. It checks migration checksums, preserves existing user/reset-token rows, and verifies the project, membership, prompt, version, and reset-token foreign keys.
+
 ## Containerized release verification
 
 `python3 scripts/verify-release.py` is the clean-checkout acceptance command. It builds the production-target images, runs the `verification` Compose profile with lint, strict mypy, branch-aware coverage, dependency checks and OpenAPI drift detection, then performs stack smoke tests, concurrency demos, representative-data loading, and showcase queries. The timestamped command transcript is written below `evidence/release/`; test tooling is absent from the runtime image.
@@ -34,6 +36,16 @@ The representative ledger is idempotent and can be loaded manually with `python3
 `tests/delivery/` validates the Compose service/dependency contract and the executable demo clients. The web image build runs both TypeScript type checking and the Vite production build. Docker-backed Playwright suites then exercise the connected React/FastAPI/PostgreSQL workflows in desktop Chrome, mobile Chrome emulation, and desktop Firefox; see `docs/browser-smoke.md` for the recorded acceptance boundary.
 
 Run a browser project against the healthy stack with `E2E_LIVE=1 npm --prefix web run test:e2e -- --project=<project>`. Live tests are serial because budget, deployment, and governance cases intentionally mutate shared seeded state. Reset and restart the API between complete browser-project runs for deterministic evidence.
+
+For isolated workspace and admin browser checks, start a separate Compose project from the repository root:
+
+```bash
+COMPOSE_PROJECT_NAME=promptvault-ananya-check POSTGRES_PORT=5543 API_PORT=8001 WEB_PORT=5174 VITE_API_URL=http://localhost:8001 CORS_ORIGINS=http://localhost:5174 PASSWORD_RESET_URL=http://localhost:5174/reset-password docker compose up -d --build --wait
+E2E_BASE_URL=http://localhost:5174 npm --prefix web run test:e2e:live -- e2e/live-workspace.spec.ts e2e/live-admin.spec.ts --project=desktop-chrome --project=mobile-chrome
+COMPOSE_PROJECT_NAME=promptvault-ananya-check POSTGRES_PORT=5543 API_PORT=8001 WEB_PORT=5174 VITE_API_URL=http://localhost:8001 CORS_ORIGINS=http://localhost:5174 docker compose down -v
+```
+
+The separate Compose project gives these tests their own PostgreSQL volume. `E2E_BASE_URL` selects its packaged web address; the usual stack remains available on ports 5173 and 8000.
 
 ## Deployment and Serve coverage
 
@@ -44,7 +56,7 @@ Run a browser project against the healthy stack with `E2E_LIVE=1 npm --prefix we
 
 ## Administration and governance coverage
 
-- `api/tests/integration/test_admin_governance.py` exercises every governance route against PostgreSQL, including role/status and self-lockout safeguards, organization aggregate reconciliation, all organization-run/audit filters, timezone validation, budget validation/rollback, exact encrypted provider-key persistence, effective-dated pricing conflicts, audit attribution/redaction, missing resources, maintenance/job status, view refresh, partition idempotence, and read/write non-admin denial.
+- `api/tests/integration/test_admin_governance.py` exercises every governance route against PostgreSQL, including role/status changes and the last-active-admin safeguard, organization aggregate reconciliation, all organization-run/audit filters, timezone validation, budget validation/rollback, exact encrypted provider-key persistence, effective-dated pricing conflicts, audit attribution/redaction, missing resources, maintenance/job status, view refresh, partition idempotence, and read/write non-admin denial.
 - `api/tests/unit/test_provider_key_encryption.py` proves provider secrets use randomized authenticated ciphertext and round-trip only with the configured server key.
 - `tests/concurrency/test_admin_role_race.py` submits reciprocal concurrent deactivations and proves database serialization leaves exactly one active administrator.
 - `tests/database/test_roles.py` verifies secret-column denial, revoked direct user updates, and the narrow application-role function privileges required for atomic, audited governance operations.

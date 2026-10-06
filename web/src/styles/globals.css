@@ -43,3 +43,22 @@
 .table-panel[aria-label="Organization runs table"] table{min-width:650px}.table-panel[aria-label="Organization runs table"] th:first-child,.table-panel[aria-label="Organization runs table"] td:first-child{width:190px;white-space:nowrap}.table-panel[aria-label="Organization runs table"] td:first-child code{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
 .table-panel[aria-label="Audit log table"] table{min-width:850px}.table-panel[aria-label="Audit log table"] th:nth-child(3),.table-panel[aria-label="Audit log table"] td:nth-child(3){min-width:150px}.table-panel[aria-label="Audit log table"] th:nth-child(4),.table-panel[aria-label="Audit log table"] td:nth-child(4){min-width:220px}
 .deployment-impact-link{display:inline-block;margin-top:16px;font-size:10px;font-weight:500;line-height:1.4}
+
+/* Keep headers and values in the same intrinsic-width table on every workspace screen. */
+.app-content, .app-content main, .panel, .detail-layout > * { min-width: 0; }
+.table-panel { overflow-x: auto; }
+.table-panel table, .maintenance-table table { width: max-content; min-width: 100%; table-layout: auto; }
+.table-panel th, .table-panel td, .maintenance-table th, .maintenance-table td { white-space: nowrap; vertical-align: middle; }
+.table-panel td code { overflow-wrap: anywhere; }
+.table-panel[aria-label="Organization runs table"] td:first-child code { max-width: none; overflow: visible; text-overflow: clip; }
+.table-panel[aria-label="Users table"] th:first-child, .table-panel[aria-label="Users table"] td:first-child { min-width: 220px; }
+.table-panel[aria-label="Users table"] th:last-child, .table-panel[aria-label="Users table"] td:last-child { min-width: 165px; }
+.deployment-table th:first-child, .deployment-table td:first-child { min-width: 265px; }
+.deployment-table th:nth-child(2), .deployment-table td:nth-child(2) { min-width: 180px; }
+.deployment-table th:nth-child(4), .deployment-table td:nth-child(4) { min-width: 155px; }
+.deployment-table th:nth-child(5), .deployment-table td:nth-child(5) { min-width: 180px; }
+.deployment-table th:last-child, .deployment-table td:last-child { min-width: 175px; }
+.deployment-impact-layout { grid-template-columns: minmax(0, 1fr) minmax(410px, 1fr); }
+.deployment-impact-layout .health-row { display: grid; grid-template-columns: minmax(130px, 42%) minmax(0, 1fr); gap: 18px; align-items: start; }
+.deployment-impact-layout .health-row b { min-width: 0; overflow-wrap: anywhere; text-align: right; }
+@media (max-width: 1000px) { .deployment-impact-layout { grid-template-columns: 1fr; } }

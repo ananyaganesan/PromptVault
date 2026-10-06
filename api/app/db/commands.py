@@ -75,8 +75,11 @@ def database_url(explicit: str | None = None) -> str:
 
 
 def seed_database(url: str, seeds_directory: Path) -> list[SeedFile]:
-    require_development_seed(environment=os.getenv("ENVIRONMENT", "development"))
+    environment = os.getenv("ENVIRONMENT", "development")
+    require_development_seed(environment=environment)
     seeds = discover_seed_files(seeds_directory)
+    if environment == "test":
+        seeds = [seed for seed in seeds if seed.path.name != "004_recent_runs.sql"]
     with psycopg.connect(url) as connection:
         apply_seed_files(connection, seeds)
     return seeds

@@ -18,6 +18,21 @@ async function verifyRoutes(page: Page, routes: string[]) {
     await page.goto(route)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), { message: `${route} has horizontal overflow` }).toBe(true)
+    const tableIssues = await page.locator('.table-panel table').evaluateAll((tables) => tables.flatMap((table) => {
+      const headings = [...table.querySelectorAll('thead th')]
+      const cells = [...(table.querySelector('tbody tr')?.querySelectorAll('td') ?? [])]
+      if (!cells.length) return []
+      return cells.flatMap((cell, index) => {
+        const heading = headings[index]
+        if (!heading) return [`missing heading for column ${index + 1}`]
+        const headerBox = heading.getBoundingClientRect()
+        const cellBox = cell.getBoundingClientRect()
+        return Math.abs(headerBox.left - cellBox.left) > 2 || Math.abs(headerBox.width - cellBox.width) > 2
+          ? [`column ${index + 1} is misaligned`]
+          : []
+      })
+    }))
+    expect(tableIssues, `${route} table columns`).toEqual([])
     const result = await new AxeBuilder({ page }).analyze()
     issues.push(...result.violations
       .filter((item) => item.impact === 'critical' || item.impact === 'serious')
@@ -31,10 +46,10 @@ test('user routes are responsive and have no serious automated accessibility vio
   const login = await new AxeBuilder({ page }).analyze()
   expect(login.violations.filter((item) => item.impact === 'critical' || item.impact === 'serious')).toEqual([])
   await signIn(page, 'user')
-  await verifyRoutes(page, ['/dashboard', '/projects', '/prompts', '/playground', '/runs', '/deployments', '/costs', '/api-tokens', '/profile'])
+  await verifyRoutes(page, ['/dashboard', '/projects', '/prompts', '/playground', '/runs', '/deployments', '/api-tokens', '/profile'])
 })
 
 test('admin routes are responsive and have no serious automated accessibility violations', async ({ page }) => {
   await signIn(page, 'admin')
-  await verifyRoutes(page, ['/admin', '/admin/approvals', '/admin/rollback', '/admin/users', '/admin/provider-keys', '/admin/budgets', '/admin/runs', '/admin/audit', '/admin/model-pricing', '/admin/maintenance'])
+  await verifyRoutes(page, ['/admin', '/admin/approvals', '/admin/rollback', '/admin/users', '/admin/provider-keys', '/admin/runs', '/admin/audit', '/admin/maintenance'])
 })

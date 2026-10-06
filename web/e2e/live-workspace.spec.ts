@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test.skip(process.env.E2E_LIVE !== '1', 'Runs only against the Docker-backed live stack.')
+test.setTimeout(90_000)
 
 async function signIn(page: import('@playwright/test').Page) {
   await page.goto('/login')
@@ -16,6 +17,14 @@ test('project, member, prompt, and immutable versions survive reloads through Fa
   const projectKey = `live-workspace-${suffix}`
   const promptName = `Live Reply ${suffix}`
   const promptKey = `live-reply-${suffix}`
+  const memberEmail = `member-${suffix}@example.com`
+  const memberPage = await page.context().newPage()
+  await memberPage.goto('/register')
+  await memberPage.getByLabel('Display name').fill(`Member ${suffix}`)
+  await memberPage.getByLabel('Email address').fill(memberEmail)
+  await memberPage.getByLabel('Password', { exact: true }).fill('MemberPassword2026!')
+  await memberPage.getByRole('button', { name: 'Create account' }).click()
+  await expect(memberPage).toHaveURL(/\/dashboard$/)
   await signIn(page)
 
   await page.goto('/projects/new')
@@ -23,6 +32,7 @@ test('project, member, prompt, and immutable versions survive reloads through Fa
   await page.getByLabel('Project key').fill(projectKey)
   await page.getByRole('button', { name: 'Create project' }).click()
   await expect(page.getByRole('heading', { name: projectName })).toBeVisible()
+  const projectUrl = page.url()
   await page.reload()
   await expect(page.getByRole('heading', { name: projectName })).toBeVisible()
 
@@ -39,20 +49,27 @@ test('project, member, prompt, and immutable versions survive reloads through Fa
   await page.getByLabel('Member email').fill('admin@promptvault.dev')
   await page.getByRole('button', { name: 'Add member' }).click()
   await expect(page.getByText('admin@promptvault.dev was added to the project.')).toBeVisible()
+  await page.getByLabel('Member email').fill(memberEmail)
+  await page.getByRole('button', { name: 'Add member' }).click()
+  await expect(page.getByText(`${memberEmail} was added to the project.`)).toBeVisible()
   await page.reload()
   await page.getByRole('button', { name: /Members/ }).click()
   await expect(page.locator('.member-row').filter({ hasText: 'admin@promptvault.dev' })).toBeVisible()
+  await expect(page.locator('.member-row').filter({ hasText: memberEmail })).toBeVisible()
+  await memberPage.goto('/projects')
+  await expect(memberPage.getByRole('heading', { name: updatedProjectName })).toBeVisible()
 
   await page.getByRole('link', { name: 'New prompt' }).first().click()
   await page.getByLabel('Prompt key').fill(promptKey)
   await page.getByLabel('Prompt name').fill(promptName)
-  await page.getByLabel('Template').fill('Answer {{customer_message}} for order {{order_id}}.')
+  await page.getByRole('textbox', { name: 'Template', exact: true }).fill('Answer {{customer_message}} for order {{order_id}}.')
   await page.getByRole('button', { name: 'Create prompt' }).click()
   await expect(page.getByRole('heading', { name: promptName })).toBeVisible()
   await page.reload()
   await expect(page.getByRole('heading', { name: promptName })).toBeVisible()
 
   for (const [index, commit] of ['Clarify response', 'Add escalation guidance'].entries()) {
+    await page.getByRole('textbox', { name: 'Prompt template' }).fill(`Answer {{customer_message}} for order {{order_id}}. ${commit}.`)
     await page.getByLabel('Commit message').fill(commit)
     await page.getByRole('button', { name: 'Save new version' }).click()
     await expect(page.getByText(`Version ${index + 2} was saved as an immutable snapshot.`)).toBeVisible()
@@ -61,6 +78,7 @@ test('project, member, prompt, and immutable versions survive reloads through Fa
   await expect(page.getByText('v3 Current')).toBeVisible()
   await page.getByRole('link', { name: /v3 Current/ }).click()
   await expect(page.getByRole('heading', { name: 'Version 3' })).toBeVisible()
+  await expect(page.getByLabel('Template snapshot')).toHaveValue('Answer {{customer_message}} for order {{order_id}}. Add escalation guidance.')
   await page.getByRole('button', { name: 'Compare versions' }).click()
   await expect(page.getByRole('heading', { name: 'Compare versions' })).toBeVisible()
   await expect(page.getByText('v2 base')).toBeVisible()
@@ -69,4 +87,12 @@ test('project, member, prompt, and immutable versions survive reloads through Fa
   await page.getByRole('link', { name: 'View lineage' }).click()
   await expect(page.getByRole('heading', { name: 'Version lineage' })).toBeVisible()
   await expect(page.getByText(/descends through 2 earlier versions/)).toBeVisible()
+
+  await page.goto(projectUrl)
+  await page.getByRole('button', { name: /Members/ }).click()
+  await page.locator('.member-row').filter({ hasText: memberEmail }).getByRole('button', { name: 'Remove' }).click()
+  await expect(page.getByText(`Member ${suffix} was removed.`)).toBeVisible()
+  await memberPage.reload()
+  await expect(memberPage.getByRole('heading', { name: updatedProjectName })).toHaveCount(0)
+  await memberPage.close()
 })

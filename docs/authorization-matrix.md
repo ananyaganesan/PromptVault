@@ -20,7 +20,7 @@ Stored roles are `user` and `admin`; the UI label for `admin` is Super Admin. In
 | Deployment create/list/detail | Deny | Member | Allow | Version-project member or admin |
 | Cancel deployment | Deny | Requester | Allow | Requester plus pending status, or admin |
 | Admin queue/review/rollback | Deny | Deny | Allow | Active admin only |
-| User dashboard/costs | Deny | Allow | Allow | Current user's permitted records |
+| User dashboard | Deny | Allow | Allow | Current user's permitted records |
 | API-token list/create/revoke | Deny | Owner | Allow | Project owner/admin; project-scoped token |
 | `/serve/v1/prompts/{key}` | Serve token | Serve token | Serve token | Valid active token, project and environment |
 | Admin dashboard/users/budgets | Deny | Deny | Allow | Active admin only |
@@ -31,7 +31,7 @@ Stored roles are `user` and `admin`; the UI label for `admin` is Super Admin. In
 
 - Admin access to shared project capabilities is deliberate and significant writes are audited.
 - An admin cannot demote or deactivate the last active admin.
-- Self-demotion/deactivation is rejected when it would lock out administration.
+- Self-demotion/deactivation requires another active admin and ends the current browser session.
 - A project owner cannot be removed while still owning the project.
 - Users cannot approve, reject, or activate production requests; only the admin procedure can transition them.
 - A Serve token cannot list data or cross its project scope.

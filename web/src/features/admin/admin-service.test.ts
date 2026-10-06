@@ -13,9 +13,16 @@ describe('admin governance prototype', () => {
     expect(Number(dashboard.monthly_spend)).toBeCloseTo(runs.items.filter((run) => run.created_at.startsWith(new Date().toISOString().slice(0, 7))).reduce((sum, run) => sum + Number(run.cost), 0), 4)
   })
 
-  it('prevents self-demotion and self-deactivation', async () => {
-    await expect(adminService.updateUser(admin.id, { role: 'user' }, admin)).rejects.toThrow('cannot remove your own')
-    await expect(adminService.updateUser(admin.id, { is_active: false }, admin)).rejects.toThrow('cannot remove your own')
+  it('allows a Super Admin to change their own access when another remains active', async () => {
+    await expect(adminService.updateUser(admin.id, { role: 'user' }, admin)).rejects.toThrow('last active Super Admin')
+    const secondAdmin = { ...sampleUserProfiles[0], role: 'super_admin' as const }
+    await adminService.updateUser(secondAdmin.id, { role: 'super_admin' }, admin)
+    try {
+      expect((await adminService.updateUser(admin.id, { role: 'user' }, admin)).role).toBe('user')
+    } finally {
+      await adminService.updateUser(admin.id, { role: 'super_admin' }, secondAdmin)
+      await adminService.updateUser(secondAdmin.id, { role: 'user' }, admin)
+    }
   })
 
   it('keeps provider secrets out of list results and records changes', async () => {
@@ -38,8 +45,8 @@ describe('admin governance prototype', () => {
 
   it('preserves price history and reports prototype maintenance honestly', async () => {
     const before = await adminService.listModelPrices(admin)
-    await adminService.addModelPrice({ provider: 'gemini', model: 'gemini-2.0-flash', token_type: 'input', price_per_million_tokens: '0.200000', effective_from: '2026-10-01T00:00:00Z' }, admin)
-    expect((await adminService.listModelPrices(admin)).length).toBe(before.length + 1)
+    await adminService.addModelPrice({ provider: 'gemini', model: 'gemini-2.0-flash', input_price_per_million: '0.200000', output_price_per_million: '0.500000', effective_from: '2026-10-01T00:00:00Z' }, admin)
+    expect((await adminService.listModelPrices(admin)).length).toBe(before.length + 2)
     expect((await adminService.maintenance(admin)).database_status).toBe('unavailable')
     expect((await adminService.refreshViews(admin)).last_view_refresh_at).not.toBeNull()
   })

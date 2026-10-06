@@ -39,6 +39,21 @@ function pageOf<T>(items: T[], page = 1, pageSize = 25): Page<T> { return { item
 function monthSpend(runs: PromptRun[], target: 'user' | 'project', targetId: string) { const month = now().slice(0, 7); return runs.filter((run) => run.status === 'completed' && run.created_at.startsWith(month) && (target === 'user' ? run.user_id : run.project_id) === targetId).reduce((total, run) => total + Number(run.cost), 0) }
 function record(action: string, resource: string, resourceId: string, actor: UserSummary) { auditStore.record(action, resource, resourceId, actor); notify() }
 
+async function fetchAllPages<T>(load: (query: { page: number; page_size: number }) => Promise<Page<T>>): Promise<T[]> {
+  const items: T[] = []
+  let page = 1
+  while (true) {
+    const result = await load({ page, page_size: 100 })
+    items.push(...result.items)
+    if (items.length >= result.total || result.items.length === 0) return items
+    page += 1
+  }
+}
+
+export async function listAllAdminUsers(actor: UserSummary | null): Promise<AdminUser[]> {
+  return fetchAllPages((query) => adminService.listUsers(query, actor))
+}
+
 export async function fetchAllAdminRuns(
   load: (query: AdminRunListQuery) => Promise<Page<BackendPromptRun>> = adminApi.listRuns,
 ): Promise<BackendPromptRun[]> {
@@ -160,7 +175,6 @@ export const adminService = {
   },
   async updateUser(userId: string, request: UpdateUserRequest, actor: UserSummary | null): Promise<AdminUser> {
     const admin = requireAdmin(actor)
-    if (userId === admin.id && (request.role === 'user' || request.is_active === false)) throw new Error('You cannot remove your own Super Admin access or deactivate your account.')
     if (!demo) {
       const updated = adaptAdminUser(await adminApi.updateUser(userId, { ...request, role: request.role === 'super_admin' ? 'admin' : request.role }))
       notify()
@@ -169,11 +183,12 @@ export const adminService = {
     const current = users.find((user) => user.id === userId)
     if (!current) throw new Error('User not found.')
     const updated = { ...current, ...request }
+    if (current.role === 'super_admin' && current.is_active && (updated.role !== 'super_admin' || !updated.is_active) && !users.some((item) => item.id !== userId && item.role === 'super_admin' && item.is_active)) throw new Error('The last active Super Admin cannot be changed.')
     users = users.map((user) => user.id === userId ? updated : user)
     record('user.updated', 'user', userId, admin)
     return updated
   },
-  async listProviderKeys(actor: UserSummary | null): Promise<ProviderKeyMetadata[]> { requireAdmin(actor); return demo ? [...providerKeys] : (await adminApi.listProviderKeys()).items.map(adaptProviderKey) },
+  async listProviderKeys(actor: UserSummary | null): Promise<ProviderKeyMetadata[]> { requireAdmin(actor); return demo ? [...providerKeys] : (await fetchAllPages(adminApi.listProviderKeys)).map(adaptProviderKey) },
   async addProviderKey(request: CreateProviderKeyRequest, actor: UserSummary | null): Promise<ProviderKeyMetadata> {
     const admin = requireAdmin(actor)
     if (!request.provider.trim() || !request.label.trim() || !request.secret.trim()) throw new Error('Provider, label, and secret are required.')
@@ -188,7 +203,7 @@ export const adminService = {
   async deactivateProviderKey(keyId: string, actor: UserSummary | null): Promise<ProviderKeyMetadata> {
     const admin = requireAdmin(actor)
     if (!demo) {
-      const current = (await adminApi.listProviderKeys()).items.find((item) => item.id === keyId)
+      const current = (await fetchAllPages(adminApi.listProviderKeys)).find((item) => item.id === keyId)
       await adminApi.deactivateProviderKey(keyId)
       notify()
       if (!current) throw new Error('Active provider key not found.')
@@ -202,14 +217,14 @@ export const adminService = {
   async listBudgets(actor: UserSummary | null): Promise<Budget[]> {
     requireAdmin(actor)
     if (!demo) {
-      const [budgetPage, userPage, runs] = await Promise.all([
-        adminApi.listBudgets(),
-        adminApi.listUsers({ page: 1, page_size: 100 }),
+      const [budgets, adminUsers, runs] = await Promise.all([
+        fetchAllPages(adminApi.listBudgets),
+        fetchAllPages(adminApi.listUsers),
         fetchAllAdminRuns(),
       ])
-      const userNames = new Map(userPage.items.map((item) => [item.id, item.display_name]))
+      const userNames = new Map(adminUsers.map((item) => [item.id, item.display_name]))
       const month = now().slice(0, 7)
-      return budgetPage.items.map((item) => {
+      return budgets.map((item) => {
         const targetId = item.user_id ?? item.project_id!
         const spend = runs
           .filter((run) => run.status === 'completed' && run.created_at.startsWith(month) && (item.user_id ? run.user_id === targetId : run.project_id === targetId))
@@ -228,14 +243,14 @@ export const adminService = {
     const amount = Number(request.monthly_limit)
     if (!request.monthly_limit.trim() || !Number.isFinite(amount) || amount < 0) throw new Error('Enter a valid non-negative monthly limit.')
     if (!demo) {
-      const page = await adminApi.listBudgets()
-      const existing = page.items.find((item) => request.target_type === 'user' ? item.user_id === request.target_id : item.project_id === request.target_id)
+      const budgets = await fetchAllPages(adminApi.listBudgets)
+      const existing = budgets.find((item) => request.target_type === 'user' ? item.user_id === request.target_id : item.project_id === request.target_id)
       const payload = { monthly_limit: request.monthly_limit, timezone: 'UTC' }
       const result = existing
         ? await adminApi.updateBudget(existing.id, payload)
         : await adminApi.createBudget({ ...payload, ...(request.target_type === 'user' ? { user_id: request.target_id } : { project_id: request.target_id }) })
       const targetName = request.target_type === 'user'
-        ? (await adminApi.listUsers({ page: 1, page_size: 100 })).items.find((item) => item.id === request.target_id)?.display_name ?? request.target_id
+        ? (await fetchAllPages(adminApi.listUsers)).find((item) => item.id === request.target_id)?.display_name ?? request.target_id
         : projectStore.find((project) => project.id === request.target_id)?.name ?? request.target_id
       notify()
       return adaptBudget(result, targetName)
@@ -246,35 +261,42 @@ export const adminService = {
     const item: Budget = { id: previous?.id ?? id('budget'), target_type: request.target_type, target_id: request.target_id, target_name: request.target_type === 'user' ? (target as AdminUser).display_name : (target as typeof projectStore[number]).name, monthly_limit: amount.toFixed(4), monthly_spend: monthSpend(runStore.getRuns(), request.target_type, request.target_id).toFixed(4), period_start: previous?.period_start ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(), period_end: previous?.period_end ?? new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString() }
     budgetStore.upsert(item); record('budget.updated', 'budget', item.id, admin); return item
   },
-  async listModelPrices(actor: UserSummary | null): Promise<ModelPrice[]> { requireAdmin(actor); return demo ? [...modelPrices] : (await adminApi.listModelPrices()).items.flatMap(adaptModelPricing) },
-  async addModelPrice(request: CreateModelPriceRequest, actor: UserSummary | null): Promise<ModelPrice> {
+  async listModelPrices(actor: UserSummary | null): Promise<ModelPrice[]> { requireAdmin(actor); return demo ? [...modelPrices] : (await fetchAllPages(adminApi.listModelPrices)).flatMap(adaptModelPricing) },
+  async addModelPrice(request: CreateModelPriceRequest, actor: UserSummary | null): Promise<ModelPrice[]> {
     const admin = requireAdmin(actor)
-    if (!request.provider.trim() || !request.model.trim() || !request.price_per_million_tokens.trim() || !Number.isFinite(Number(request.price_per_million_tokens)) || Number(request.price_per_million_tokens) < 0 || Number.isNaN(Date.parse(request.effective_from))) throw new Error('Enter a provider, model, non-negative price, and valid effective date.')
+    const validPrice = (price: string) => price.trim() !== '' && Number.isFinite(Number(price)) && Number(price) >= 0
+    if (!request.provider.trim() || !request.model.trim() || !validPrice(request.input_price_per_million) || !validPrice(request.output_price_per_million) || Number.isNaN(Date.parse(request.effective_from))) throw new Error('Enter a provider, model, non-negative input and output prices, and a valid effective date.')
     if (!demo) {
-      const input = request.token_type === 'output' ? '0' : request.price_per_million_tokens
-      const output = request.token_type === 'input' ? '0' : request.price_per_million_tokens
       const rows = adaptModelPricing(await adminApi.createModelPrice({
         provider: request.provider,
         model: request.model,
-        input_price_per_million: input,
-        output_price_per_million: output,
+        input_price_per_million: request.input_price_per_million,
+        output_price_per_million: request.output_price_per_million,
         effective_from: request.effective_from,
       }))
       notify()
-      return request.token_type === 'output' ? rows[1] : rows[0]
+      return rows
     }
-    const sameSeries = modelPrices.filter((price) => price.provider === request.provider.trim() && price.model === request.model.trim() && price.token_type === request.token_type)
-    if (sameSeries.some((price) => price.effective_from === request.effective_from)) throw new Error('A price already starts on that date for this model and token type.')
+    const sameSeries = modelPrices.filter((price) => price.provider === request.provider.trim() && price.model === request.model.trim())
+    if (sameSeries.some((price) => price.effective_from === request.effective_from)) throw new Error('A price already starts on that date for this model.')
     const next = sameSeries.filter((price) => price.effective_from > request.effective_from).sort((a, b) => a.effective_from.localeCompare(b.effective_from))[0]
     const previous = sameSeries.filter((price) => price.effective_from < request.effective_from).sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0]
-    const item: ModelPrice = { id: id('price'), provider: request.provider.trim(), model: request.model.trim(), token_type: request.token_type, price_per_million_tokens: Number(request.price_per_million_tokens).toFixed(6), effective_from: request.effective_from, effective_to: next?.effective_from ?? null }
-    modelPrices = [item, ...modelPrices.map((price) => price.id === previous?.id ? { ...price, effective_to: item.effective_from } : price)]; record('model_price.created', 'model_price', item.id, admin); return item
+    const priceId = id('price')
+    const rows: ModelPrice[] = (['input', 'output'] as const).map((tokenType) => ({
+      id: `${priceId}:${tokenType}`, provider: request.provider.trim(), model: request.model.trim(),
+      token_type: tokenType,
+      price_per_million_tokens: Number(tokenType === 'input' ? request.input_price_per_million : request.output_price_per_million).toFixed(6),
+      effective_from: request.effective_from, effective_to: next?.effective_from ?? null,
+    }))
+    modelPrices = [...rows, ...modelPrices.map((price) => previous && price.provider === previous.provider && price.model === previous.model && price.effective_from === previous.effective_from ? { ...price, effective_to: request.effective_from } : price)]
+    record('model_price.created', 'model_price', priceId, admin)
+    return rows
   },
   async listAudit(query: AuditListQuery = {}, actor: UserSummary | null): Promise<Page<AuditEvent>> {
     requireAdmin(actor)
     if (!demo) {
-      const [page, userPage] = await Promise.all([adminApi.listAudit(query), adminApi.listUsers({ page: 1, page_size: 100 })])
-      const names = new Map(userPage.items.map((item) => [item.id, item.display_name]))
+      const [page, adminUsers] = await Promise.all([adminApi.listAudit(query), fetchAllPages(adminApi.listUsers)])
+      const names = new Map(adminUsers.map((item) => [item.id, item.display_name]))
       return { ...page, items: page.items.map((item) => adaptAudit(item, item.actor_user_id ? names.get(item.actor_user_id) : undefined)) }
     }
     const rows = auditStore.getEvents().filter((event) => (!query.action || event.action.startsWith(query.action)) && (!query.actor_id || event.actor_id === query.actor_id) && (!query.from || event.created_at >= query.from) && (!query.to || event.created_at <= query.to))

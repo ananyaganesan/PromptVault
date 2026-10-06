@@ -42,8 +42,8 @@ export interface ModelPrice {
 export interface CreateModelPriceRequest {
   provider: string
   model: string
-  token_type: ModelPrice['token_type']
-  price_per_million_tokens: Money
+  input_price_per_million: Money
+  output_price_per_million: Money
   effective_from: IsoDateString
 }
 
