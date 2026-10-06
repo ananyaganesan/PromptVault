@@ -4,6 +4,8 @@ This document is the shared frontend/backend contract. Application paths below a
 
 The currently implemented FastAPI surface is exported deterministically to `docs/openapi.json`. Frontend types and clients should be generated from that file; regenerate it with `python3 scripts/export-openapi.py` whenever response models or routes change. This narrative contract includes planned endpoints until their implementation reaches the OpenAPI artifact.
 
+Runnable login, deployment approval, runtime-token, and Serve requests are in `docs/api-examples.md`.
+
 ## Transport and representation
 
 - JSON over HTTPS in deployed environments.
@@ -11,6 +13,7 @@ The currently implemented FastAPI surface is exported deterministically to `docs
 - Dates are ISO-8601 UTC strings such as `2026-09-23T10:30:00Z`.
 - Money is a decimal string with two-to-six fractional digits, never a JSON float.
 - Unknown JSON fields and unsupported query filters are rejected.
+- Request bodies are capped by `MAX_REQUEST_BODY_BYTES` (1 MiB by default); larger bodies return `413 request_too_large`.
 
 ## Authentication
 
@@ -31,7 +34,7 @@ Clients may send `X-Request-ID` using 1-128 visible ASCII characters; otherwise 
 }
 ```
 
-`field_errors` is `null` for non-field errors. Stable codes include `bad_request`, `invalid_filter`, `invalid_variables`, `unauthorized`, `email_not_found`, `invalid_password`, `invalid_token`, `token_expired`, `forbidden`, `inactive_user`, `not_found`, `no_active_deployment`, `conflict`, `duplicate_email`, `duplicate_key`, `already_reviewed`, `last_admin`, `validation_error`, `rate_limited`, `budget_exceeded`, `provider_error`, `provider_timeout`, `not_ready`, `missing_partition`, and `internal_error`.
+`field_errors` is `null` for non-field errors. Stable codes include `bad_request`, `invalid_filter`, `invalid_variables`, `request_too_large`, `unauthorized`, `invalid_token`, `token_expired`, `forbidden`, `inactive_user`, `not_found`, `no_active_deployment`, `conflict`, `invalid_state`, `invalid_rollback_target`, `duplicate_email`, `duplicate_key`, `already_reviewed`, `last_admin`, `validation_error`, `rate_limited`, `budget_exceeded`, `pricing_not_configured`, `provider_error`, `provider_timeout`, `not_ready`, `missing_partition`, and `internal_error`.
 
 Database constraint names, SQL text, stack traces, hashes, and encrypted values never appear in a response.
 
@@ -159,9 +162,12 @@ Environments are `dev`, `staging`, and `prod`. Statuses are `pending`, `active`,
 |---|---|---|
 | `POST /auth/register` | `email`, `password`, `display_name` | `201` with `access_token`, `token_type`, `expires_in`, and `user` |
 | `POST /auth/login` | `email`, `password` | `200` with the same session shape |
+| `POST /auth/password-reset` | `email` | `202`; sends a one-use link for an active account when SMTP is configured |
+| `POST /auth/password-reset/confirm` | `token`, `password` | `204`; consumes the token and changes the password |
 | `GET /auth/me` | None | `200` User |
 
 Passwords contain 12-128 characters. Register/login never accept a role. Email comparison is case-insensitive and normalized.
+Password-reset requests return `503 email_delivery_unavailable` when SMTP is not configured or delivery fails. Confirmation returns `400 invalid_reset_token` for an expired or used link.
 
 ## Project and member endpoints
 
@@ -247,7 +253,7 @@ Serve returns project ID, prompt key, environment, version, template, variables,
 | `POST /admin/maintenance/refresh-views` | None | `202` refresh result/job |
 | `POST /admin/maintenance/create-next-partition` | None | `200` idempotent result |
 
-Budgets require exactly one target. Prices are append-only; corrections create a new effective-dated row.
+Budgets require exactly one target. Prices are append-only; corrections create a new effective-dated row. Admin run/audit date filters require timezone offsets. Maintenance operations execute synchronously in v1, report their last completed status, and write attributed audit events.
 
 ## Universal acceptance rules
 

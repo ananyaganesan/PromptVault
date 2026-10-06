@@ -8,7 +8,7 @@ import { ApiClientError } from '../../lib/api/client'
 import type { PromptRun } from '../../types/runs'
 import { useAuth } from '../auth/auth-context'
 
-const demoMode = import.meta.env.VITE_USE_MOCK_RUNS !== 'false'
+const demoMode = import.meta.env.MODE === 'test' && import.meta.env.VITE_USE_MOCK_RUNS !== 'false'
 
 export function PlaygroundPage() {
   const { user } = useAuth()

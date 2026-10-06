@@ -1,36 +1,63 @@
-# PromptVault frontend
+# PromptVault web client
 
-This is a React/Vite frontend prototype with User and Super Admin screens. Login and registration use the PostgreSQL-backed FastAPI endpoints by default. Projects, prompts, runs, deployments, budgets, and administration remain in-memory demo workflows until their backend APIs are implemented.
+This React/Vite client authenticates through FastAPI and loads workspace data from PostgreSQL through the API by default. Example workspace data is used in isolated tests or when `VITE_USE_DEMO_DATA=true` is explicitly set for local development; it never accepts credentials or creates sessions. The Docker web build always uses the live API data path.
 
-## Start
+## Development
 
-```sh
-npm ci
-cp .env.example .env.local
-npm run dev
+Start the API and database from the repository root, then run the frontend:
+
+```bash
+docker compose up -d db migrate api --wait
+npm ci --prefix web
+cp web/.env.example web/.env.local
+npm run dev --prefix web
 ```
 
-Start the backend first using the [root README](../README.md), then sign in with one of the [seeded database accounts](../README.md#frontend-with-database-backed-login), including `user@promptvault.dev` / `UserDemo2026!` and `admin@promptvault.dev` / `AdminDemo2026!`. The seed also includes Alice and Bob accounts plus an inactive account for testing denied login. Registration sends `display_name`, `email`, and a password of at least 12 non-whitespace characters to FastAPI. The backend stores an Argon2 password hash and assigns the `user` role. Spaces are removed from the password field, and the registration API rejects whitespace. The browser keeps the returned JWT in tab session storage and validates it on refresh, so a valid session remains signed in within that tab. Signing out clears the token.
+`VITE_API_BASE_URL` defaults to `http://localhost:8000`; the client appends `/api/v1`. Keep `VITE_USE_DEMO_DATA=false` to use persisted workspace data. Login always calls `/api/v1/auth/login`, and saved tokens are checked with `/api/v1/auth/me` before a user is restored. The packaged full stack is available with `docker compose up -d --build --wait` and serves the web application at `http://localhost:5173`.
 
-For a standalone UI demo without FastAPI, set `VITE_USE_MOCK_AUTH=true` in `.env.local` and restart Vite. That mode uses browser-only copies of the same development credentials listed above. The other `VITE_USE_MOCK_*` flags stay enabled for the prototype workflows. See [the demo runbook](../docs/demo-runbook.md).
+Development accounts:
 
-## Quality checks
+| Role | Email | Password |
+|---|---|---|
+| User | `user@promptvault.dev` | `UserDemo2026!` |
+| Super Admin | `admin@promptvault.dev` | `AdminDemo2026!` |
 
-```sh
-npm run typecheck
-npm run lint
-npm test
-npm run coverage
-npm run build
-npm run test:e2e
+These accounts are local fixtures. JWTs are stored in tab-scoped `sessionStorage`, while authorization is enforced by FastAPI.
+
+## Routes
+
+- `/dashboard`, `/projects`, `/prompts`, `/playground`, `/runs`, `/costs`, `/deployments`, and `/api-tokens` are authenticated User experiences.
+- `/admin/*` contains approval and governance experiences and requires the Super Admin role.
+- `/403` is the authenticated forbidden-state recovery route.
+- Unknown resources display explicit not-found states.
+
+Password-recovery email delivery is intentionally unavailable in this prototype. The mock provider is deterministic, but run, cost, budget, deployment, and audit records are persisted by the backend.
+
+## Verification
+
+```bash
+npm run lint --prefix web
+npm run typecheck --prefix web
+npm test --prefix web
+npm run coverage --prefix web
+npm run build --prefix web
 ```
 
-`test:e2e` launches Vite and system Chrome, covering desktop and mobile viewports. Install Google Chrome locally for browser tests. `npm run screenshots` refreshes [demo images](../docs/screenshots/README.md). Browser traces and failure images appear under `test-results/`; these are generated artifacts, not source files.
+Run the live workflows against the Docker stack:
 
-## Frontend boundaries
+```bash
+npm exec --prefix web playwright install firefox
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-chrome
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=mobile-chrome
+E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-firefox
+```
 
-- FastAPI authenticates database users and enforces access for its implemented endpoints. UI route guards are presentation only; future application APIs must enforce their own permissions.
-- Project, prompt, run, deployment, budget, and admin records still live in browser memory and reset on reload. They are not persisted to PostgreSQL yet.
-- `VITE_USE_MOCK_AUTH=true` is only for the standalone demo and never writes users to PostgreSQL.
-- Password recovery is deliberately marked unavailable instead of claiming an email was sent.
-- Never use the demo accounts or mock token flow for production traffic.
+The live suites cover real persistence, authorization recovery, the version/run/deployment/governance workflows, responsive layout, and serious/critical axe-core accessibility checks. Generated traces and failure images are written below `web/test-results/`.
+
+Refresh the committed live-stack screenshots with:
+
+```bash
+npm run screenshots --prefix web
+```
+
+See the [demo runbook](../docs/demo-runbook.md) and [browser smoke record](../docs/browser-smoke.md).

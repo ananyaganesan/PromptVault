@@ -8,6 +8,7 @@ from api.app.security import (
     InvalidAccessToken,
     create_access_token,
     decode_access_token,
+    hash_one_time_token,
     hash_password,
     verify_password,
 )
@@ -26,6 +27,16 @@ def test_password_hash_uses_argon2id_and_verifies_only_the_original_password() -
 
 def test_invalid_password_hash_fails_closed() -> None:
     assert verify_password("not-an-argon2-hash", "CorrectHorse2026!") is False
+
+
+def test_one_time_token_hash_is_deterministic_and_does_not_expose_the_token() -> None:
+    token = "reset-token-value"
+
+    digest = hash_one_time_token(token)
+
+    assert digest == hash_one_time_token(token)
+    assert len(digest) == 64
+    assert token not in digest
 
 
 def test_access_token_round_trip_contains_required_identity_claims(

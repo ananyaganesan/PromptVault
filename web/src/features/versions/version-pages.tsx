@@ -1,11 +1,16 @@
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/page-header";
 import { Button, Status } from "../../components/ui/prototype";
 import { EmptyState } from "../../components/ui/empty-state";
 import {
   promptStore,
+  adaptVersion,
   versionsFor,
 } from "../projects/workspace-data";
+import { versionsApi, type BackendVersionDiff } from "./api";
+import type { PromptVersion } from "../../types/versions";
+import { useDemoData } from '../../lib/runtime';
 
 function getVersion(versionId?: string) {
   for (const prompt of promptStore) {
@@ -102,6 +107,18 @@ function CompareVersionContent({ result: { prompt, version, versions } }: { resu
     versions.find((item) => item.id === version.parent_version_id) ??
     versions[1] ??
     version;
+  const [diff, setDiff] = useState<BackendVersionDiff | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (useDemoData) return;
+    if (compare.id === version.id) return;
+    const controller = new AbortController();
+    versionsApi.diff(version.id, compare.id, controller.signal)
+      .then((value) => { setDiff(value); setError(""); })
+      .catch((cause) => { if (cause instanceof Error && cause.name !== "AbortError") setError(cause.message); });
+    return () => controller.abort();
+  }, [compare.id, version.id]);
+  const variableDelta = diff ? diff.variables.added.length - diff.variables.removed.length : version.variables.length - compare.variables.length;
   return (
     <>
       <PageHeader
@@ -114,10 +131,11 @@ function CompareVersionContent({ result: { prompt, version, versions } }: { resu
         <span>→</span>
         <Status tone="success">v{version.version_number} selected</Status>
         <span>
-          {version.variables.length - compare.variables.length >= 0 ? "+" : ""}
-          {version.variables.length - compare.variables.length} variables
+          {variableDelta >= 0 ? "+" : ""}
+          {variableDelta} variables
         </span>
       </div>
+      {error && <p className="form-error" role="alert">{error}</p>}
       <div className="detail-layout">
         <section className="panel editor">
           <div className="editor-top">
@@ -126,7 +144,7 @@ function CompareVersionContent({ result: { prompt, version, versions } }: { resu
           </div>
           <label className="field">
             <span>Template snapshot</span>
-            <textarea readOnly value={compare.template} />
+            <textarea readOnly value={diff?.template_body.before ?? compare.template} />
           </label>
         </section>
         <section className="panel editor">
@@ -136,7 +154,7 @@ function CompareVersionContent({ result: { prompt, version, versions } }: { resu
           </div>
           <label className="field">
             <span>Template snapshot</span>
-            <textarea readOnly value={version.template} />
+            <textarea readOnly value={diff?.template_body.after ?? version.template} />
           </label>
         </section>
       </div>
@@ -149,9 +167,20 @@ export function VersionLineagePage() {
   return result ? <VersionLineageContent result={result} /> : <VersionMissing />;
 }
 function VersionLineageContent({ result: { prompt, version, versions } }: { result: VersionResult }) {
-  const lineage = versions.filter(
-    (item) => item.version_number <= version.version_number,
-  );
+  const [lineage, setLineage] = useState<PromptVersion[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (useDemoData) return;
+    const controller = new AbortController();
+    versionsApi.lineage(version.id, controller.signal)
+      .then((value) => {
+        setLineage(value.items.map(adaptVersion));
+        setError(value.cycle_detected ? "A lineage cycle was detected." : "");
+      })
+      .catch((cause) => { if (cause instanceof Error && cause.name !== "AbortError") setError(cause.message); });
+    return () => controller.abort();
+  }, [version.id]);
+  const items = lineage ?? versions.filter((item) => item.version_number <= version.version_number);
   return (
     <>
       <PageHeader
@@ -165,12 +194,13 @@ function VersionLineageContent({ result: { prompt, version, versions } }: { resu
             <h2>{prompt.key}</h2>
             <p>
               v{version.version_number} descends through{" "}
-              {Math.max(lineage.length - 1, 0)} earlier version
-              {lineage.length === 2 ? "" : "s"}.
+              {Math.max(items.length - 1, 0)} earlier version
+              {items.length === 2 ? "" : "s"}.
             </p>
           </div>
         </div>
-        {lineage.map((item) => (
+        {error && <p className="form-error" role="alert">{error}</p>}
+        {items.map((item) => (
           <Link
             className="version-row"
             to={`/versions/${item.id}`}

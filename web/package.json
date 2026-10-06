@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "screenshots": "CAPTURE_SCREENSHOTS=1 playwright test e2e/screenshots.spec.ts --project=desktop-chrome --project=mobile-chrome",
+    "test:e2e:live": "E2E_LIVE=1 playwright test",
+    "screenshots": "CAPTURE_SCREENSHOTS=1 E2E_LIVE=1 playwright test e2e/screenshots.spec.ts --project=desktop-chrome --project=mobile-chrome",
     "coverage": "vitest run --coverage"
   },
   "dependencies": {

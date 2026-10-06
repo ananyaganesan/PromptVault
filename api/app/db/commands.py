@@ -21,6 +21,10 @@ class ResetRefusedError(DatabaseCommandError):
     """Raised when development-reset safeguards are not satisfied."""
 
 
+class SeedRefusedError(DatabaseCommandError):
+    """Raised when development seed data is requested outside a safe environment."""
+
+
 @dataclass(frozen=True, slots=True)
 class SeedFile:
     path: Path
@@ -58,6 +62,11 @@ def require_development_reset(*, environment: str, confirmed: bool) -> None:
         raise ResetRefusedError("reset requires explicit confirmation")
 
 
+def require_development_seed(*, environment: str) -> None:
+    if environment not in {"development", "test"}:
+        raise SeedRefusedError("development seeds are allowed only in development or test")
+
+
 def database_url(explicit: str | None = None) -> str:
     value = explicit or os.getenv("DATABASE_URL")
     if not value:
@@ -66,6 +75,7 @@ def database_url(explicit: str | None = None) -> str:
 
 
 def seed_database(url: str, seeds_directory: Path) -> list[SeedFile]:
+    require_development_seed(environment=os.getenv("ENVIRONMENT", "development"))
     seeds = discover_seed_files(seeds_directory)
     with psycopg.connect(url) as connection:
         apply_seed_files(connection, seeds)

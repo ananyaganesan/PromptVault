@@ -8,9 +8,9 @@ import { authApi } from './api'
 import { RequireAuth } from './guards'
 import { LoginPage, RegisterPage } from './pages'
 
-function Location() { return <output data-testid="location">{useLocation().pathname}</output> }
+function Location() { const location = useLocation(); return <output data-testid="location">{location.pathname}{location.search}{location.hash}</output> }
 function renderAuth(path: '/login' | '/register') {
-  render(<AuthProvider mode="api"><MemoryRouter initialEntries={[path]}><Routes>
+  render(<AuthProvider><MemoryRouter initialEntries={[path]}><Routes>
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/dashboard" element={<Location />} />
@@ -29,28 +29,42 @@ const backendUser = {
 
 afterEach(() => { vi.restoreAllMocks(); clearAccessToken(); sessionStorage.removeItem('promptvault.api.session') })
 
-describe('PostgreSQL-backed authentication mode', () => {
+describe('PostgreSQL-backed authentication', () => {
   it('uses the API response and bearer token for login', async () => {
     const login = vi.spyOn(authApi, 'login').mockResolvedValue({ user: { ...backendUser, role: 'admin' }, access_token: 'server-jwt', token_type: 'bearer', expires_in: 1800 })
     const user = userEvent.setup()
     renderAuth('/login')
     await user.type(screen.getByLabelText('Email address'), backendUser.email)
-    await user.type(screen.getByLabelText('Password'), 'User Demo 2026!')
+    await user.type(screen.getByLabelText('Password'), 'UserDemo2026!')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByTestId('location')).toHaveTextContent('/admin')
+    expect(await screen.findByTestId('location')).toHaveTextContent('/dashboard')
     expect(login).toHaveBeenCalledWith({ email: backendUser.email, password: 'UserDemo2026!' })
     const fetcher = vi.fn().mockResolvedValue(new Response('{}', { headers: { 'Content-Type': 'application/json' } }))
     await createApiClient({ fetcher }).request('/api/v1/auth/me')
     expect(fetcher).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer server-jwt' }) }))
-    expect(sessionStorage.getItem('promptvault.demo.session')).toBeNull()
     expect(sessionStorage.getItem('promptvault.api.session')).toBe('server-jwt')
+  })
+
+  it('returns to the requested page after login, including its query and hash', async () => {
+    vi.spyOn(authApi, 'login').mockResolvedValue({ user: backendUser, access_token: 'server-jwt', token_type: 'bearer', expires_in: 1800 })
+    const user = userEvent.setup()
+    render(<AuthProvider><MemoryRouter initialEntries={['/projects?search=checkout#results']}><Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<RequireAuth />}><Route path="/projects" element={<Location />} /></Route>
+    </Routes></MemoryRouter></AuthProvider>)
+
+    await user.type(await screen.findByLabelText('Email address'), backendUser.email)
+    await user.type(screen.getByLabelText('Password'), 'UserDemo2026!')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByTestId('location')).toHaveTextContent('/projects?search=checkout#results')
   })
 
   it('restores a saved session after a page refresh', async () => {
     sessionStorage.setItem('promptvault.api.session', 'saved-jwt')
     const me = vi.spyOn(authApi, 'me').mockResolvedValue(backendUser)
-    render(<AuthProvider mode="api"><MemoryRouter initialEntries={['/dashboard']}><Routes>
+    render(<AuthProvider><MemoryRouter initialEntries={['/dashboard']}><Routes>
       <Route path="/login" element={<Location />} />
       <Route element={<RequireAuth />}><Route path="/dashboard" element={<Location />} /></Route>
     </Routes></MemoryRouter></AuthProvider>)
@@ -65,7 +79,7 @@ describe('PostgreSQL-backed authentication mode', () => {
   it('clears an expired saved session', async () => {
     sessionStorage.setItem('promptvault.api.session', 'expired-jwt')
     vi.spyOn(authApi, 'me').mockRejectedValue(new ApiClientError(401, { code: 'token_expired', message: 'Token expired' }))
-    render(<AuthProvider mode="api"><MemoryRouter initialEntries={['/dashboard']}><Routes>
+    render(<AuthProvider><MemoryRouter initialEntries={['/dashboard']}><Routes>
       <Route path="/login" element={<Location />} />
       <Route element={<RequireAuth />}><Route path="/dashboard" element={<Location />} /></Route>
     </Routes></MemoryRouter></AuthProvider>)
@@ -75,26 +89,26 @@ describe('PostgreSQL-backed authentication mode', () => {
   })
 
   it('does not accept a demo-only password when the API rejects it', async () => {
-    vi.spyOn(authApi, 'login').mockRejectedValue(new ApiClientError(401, { code: 'invalid_password', message: 'Incorrect password.' }))
+    vi.spyOn(authApi, 'login').mockRejectedValue(new ApiClientError(401, { code: 'invalid_credentials', message: 'Invalid email or password.' }))
     const user = userEvent.setup()
     renderAuth('/login')
     await user.type(screen.getByLabelText('Email address'), backendUser.email)
     await user.type(screen.getByLabelText('Password'), 'User@123')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect password.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid email or password.')
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument()
   })
 
   it('shows when an email is absent from the database', async () => {
-    vi.spyOn(authApi, 'login').mockRejectedValue(new ApiClientError(401, { code: 'email_not_found', message: 'Email address not found.' }))
+    vi.spyOn(authApi, 'login').mockRejectedValue(new ApiClientError(401, { code: 'invalid_credentials', message: 'Invalid email or password.' }))
     const user = userEvent.setup()
     renderAuth('/login')
     await user.type(screen.getByLabelText('Email address'), 'missing@example.com')
     await user.type(screen.getByLabelText('Password'), 'SomePassword2026!')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Email address not found.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid email or password.')
   })
 
   it('submits registration attributes and uses the new database identity', async () => {

@@ -32,6 +32,17 @@ _INSERT_APPLIED_SQL = """
 INSERT INTO schema_migrations (version, name, checksum)
 VALUES (%s, %s, %s)
 """
+_RECORD_LEGACY_PASSWORD_RESET_SQL = """
+UPDATE schema_migrations
+SET version = %s
+WHERE version = %s
+  AND name = %s
+  AND checksum = %s
+  AND to_regclass('public.password_reset_tokens') IS NOT NULL
+"""
+_LEGACY_PASSWORD_RESET_VERSION = 11
+_PASSWORD_RESET_VERSION = 15
+_PASSWORD_RESET_NAME = "password_reset_tokens"
 
 
 class MigrationError(RuntimeError):
@@ -125,6 +136,52 @@ def _read_applied(connection: ConnectionLike) -> dict[int, AppliedMigration]:
     }
 
 
+def _reconcile_legacy_password_reset(
+    connection: ConnectionLike,
+    migrations: Sequence[Migration],
+    applied: dict[int, AppliedMigration],
+) -> dict[int, AppliedMigration]:
+    """Move the exact misnumbered reset record to 015 without rerunning its DDL."""
+
+    legacy = applied.get(_LEGACY_PASSWORD_RESET_VERSION)
+    if legacy is None or legacy.name != _PASSWORD_RESET_NAME:
+        return applied
+
+    current = next(
+        (item for item in migrations if item.version == _PASSWORD_RESET_VERSION),
+        None,
+    )
+    if current is None or current.name != _PASSWORD_RESET_NAME:
+        raise MigrationError("password-reset migration 015 is missing")
+    run_budget = next(
+        (item for item in migrations if item.version == _LEGACY_PASSWORD_RESET_VERSION),
+        None,
+    )
+    if run_budget is None or run_budget.name != "run_budget_boundary":
+        raise MigrationError("run-budget migration 011 is missing")
+    if legacy.checksum != current.checksum:
+        raise MigrationError("legacy password-reset migration checksum changed")
+    if _PASSWORD_RESET_VERSION in applied:
+        raise MigrationError("both legacy and current password-reset migrations are recorded")
+
+    with connection.transaction():
+        connection.execute(
+            _RECORD_LEGACY_PASSWORD_RESET_SQL,
+            (
+                _PASSWORD_RESET_VERSION,
+                _LEGACY_PASSWORD_RESET_VERSION,
+                _PASSWORD_RESET_NAME,
+                legacy.checksum,
+            ),
+        )
+    reconciled = _read_applied(connection)
+    if _LEGACY_PASSWORD_RESET_VERSION in reconciled:
+        raise MigrationError(
+            "legacy password-reset table is missing; migration history was not changed"
+        )
+    return reconciled
+
+
 def apply_migrations(
     connection: ConnectionLike,
     migrations: Iterable[Migration],
@@ -134,7 +191,8 @@ def apply_migrations(
     try:
         with connection.transaction():
             connection.execute(_CREATE_TRACKING_TABLE_SQL)
-        pending = plan_migrations(ordered, _read_applied(connection))
+        applied = _reconcile_legacy_password_reset(connection, ordered, _read_applied(connection))
+        pending = plan_migrations(ordered, applied)
         for migration in pending:
             with connection.transaction():
                 connection.execute(migration.sql)

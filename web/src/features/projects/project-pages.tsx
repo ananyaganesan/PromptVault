@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/page-header";
 import { Button, Field, Stat, Status } from "../../components/ui/prototype";
@@ -12,6 +12,8 @@ import {
   projectStore,
   promptStore,
   displayDate,
+  workspaceService,
+  workspaceStore,
 } from "./workspace-data";
 
 export function PromptRows({
@@ -58,15 +60,12 @@ export function PromptRows({
 }
 export function ProjectsPage() {
   const { user } = useAuth();
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const projects = useMemo(
-    () =>
-      projectStore.filter((project) =>
-        `${project.name} ${project.key}`.toLowerCase().includes(search.toLowerCase()) &&
-        (filter === "all" || (filter === "owned" ? project.owner_id === user?.id : project.owner_id !== user?.id)),
-      ),
-    [search, filter, user?.id],
+  const projects = projectStore.filter((project) =>
+    `${project.name} ${project.key}`.toLowerCase().includes(search.toLowerCase()) &&
+    (filter === "all" || (filter === "owned" ? project.owner_id === user?.id : project.owner_id !== user?.id)),
   );
   return (
     <>
@@ -105,7 +104,8 @@ export function ProjectsPage() {
               <span>⋯</span>
             </div>
             <code>{project.key}</code>
-            <p>
+            <p className="project-description">{project.description || "No description added."}</p>
+            <p className="project-meta">
               {project.prompt_count} prompts · Updated{" "}
               {displayDate(project.updated_at)}
             </p>
@@ -127,37 +127,17 @@ export function NewProjectPage() {
   const [key, setKey] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     const projectKey = key.trim().toLowerCase().replace(/\s+/g, "-");
     if (!name.trim() || !projectKey)
       return setError("Project name and key are required.");
-    if (projectStore.some((project) => project.key === projectKey))
-      return setError("That project key is already in use.");
-    const id = `${projectKey}-${Date.now()}`;
-    projectStore.unshift({
-      id,
-      key: projectKey,
-      name: name.trim(),
-      description: description.trim() || null,
-      prompt_count: 0,
-      member_count: 1,
-      monthly_spend: "$0.00",
-      updated_at: new Date().toISOString(),
-      is_owner: true,
-      created_at: new Date().toISOString(),
-      owner_id: user?.id ?? "",
-    });
-    memberStore[id] = [
-      {
-        user_id: user?.id ?? "",
-        display_name: user?.display_name ?? "Unknown user",
-        email: user?.email ?? "",
-        role: "owner",
-        joined_at: new Date().toISOString(),
-      },
-    ];
-    navigate(`/projects/${id}`);
+    try {
+      const project = await workspaceService.createProject({ name: name.trim(), key: projectKey, description: description.trim() || undefined }, user?.id ?? "");
+      navigate(`/projects/${project.id}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not create the project.");
+    }
   }
   return (
     <>
@@ -204,11 +184,13 @@ export function NewProjectPage() {
 }
 export function ProjectDetailPage() {
   const { projectId } = useParams();
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const project = projectFor(projectId);
   if (!project) return <EmptyState title="Project not found" description="This project does not exist or is no longer available." action={<Link to="/projects">Back to projects</Link>} />;
   return <ProjectDetailContent project={project} />;
 }
 function ProjectDetailContent({ project }: { project: Project }) {
+  const { user } = useAuth();
   useSyncExternalStore(runStore.subscribe, runStore.getSnapshot);
   const [tab, setTab] = useState<
     "overview" | "prompts" | "members" | "settings"
@@ -218,37 +200,39 @@ function ProjectDetailContent({ project }: { project: Project }) {
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
   const [notice, setNotice] = useState("");
+  useEffect(() => {
+    let active = true;
+    workspaceService.loadMembers(project.id)
+      .then((items) => { if (active) setMembers(items); })
+      .catch((cause) => { if (active) setNotice(cause instanceof Error ? cause.message : "Could not load project members."); });
+    return () => { active = false; };
+  }, [project.id]);
   const projectPrompts = promptStore.filter(
     (prompt) => prompt.project_id === project.id,
   );
-  function addMember(event: FormEvent) {
+  async function addMember(event: FormEvent) {
     event.preventDefault();
     const email = memberEmail.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email))
       return setNotice("Enter a valid email address.");
-    if (members.some((member) => member.email === email))
-      return setNotice("This person is already a member.");
-    const member = {
-      user_id: `member-${Date.now()}`,
-      display_name: email.split("@")[0],
-      email,
-      role: "member" as const,
-      joined_at: new Date().toISOString(),
-    };
-    const next = [...members, member];
-    setMembers(next);
-    memberStore[project.id] = next;
-    project.member_count = next.length;
-    setMemberEmail("");
-    setNotice(`${email} was added to the project.`);
+    try {
+      const member = await workspaceService.addMember(project.id, { email });
+      setMembers([...(memberStore[project.id] ?? []).filter((item) => item.user_id !== member.user_id), member]);
+      setMemberEmail("");
+      setNotice(`${email} was added to the project.`);
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Could not add the member.");
+    }
   }
-  function saveSettings(event: FormEvent) {
+  async function saveSettings(event: FormEvent) {
     event.preventDefault();
     if (!name.trim()) return setNotice("Project name is required.");
-    project.name = name.trim();
-    project.description = description.trim() || null;
-    project.updated_at = new Date().toISOString();
-    setNotice("Project settings saved.");
+    try {
+      await workspaceService.updateProject(project.id, { name: name.trim(), description: description.trim() || null }, user?.id ?? "");
+      setNotice("Project settings saved.");
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Could not save project settings.");
+    }
   }
   return (
     <>
@@ -372,14 +356,14 @@ function ProjectDetailContent({ project }: { project: Project }) {
                 {member.role !== "owner" && (
                   <button
                     className="text-button danger"
-                    onClick={() => {
-                      const next = members.filter(
-                        (item) => item.user_id !== member.user_id,
-                      );
-                      setMembers(next);
-                      memberStore[project.id] = next;
-                      project.member_count = next.length;
-                      setNotice(`${member.display_name} was removed.`);
+                    onClick={async () => {
+                      try {
+                        await workspaceService.removeMember(project.id, member.user_id);
+                        setMembers((items) => items.filter((item) => item.user_id !== member.user_id));
+                        setNotice(`${member.display_name} was removed.`);
+                      } catch (cause) {
+                        setNotice(cause instanceof Error ? cause.message : "Could not remove the member.");
+                      }
                     }}
                   >
                     Remove

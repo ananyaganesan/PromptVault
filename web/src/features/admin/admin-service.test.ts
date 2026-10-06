@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { demoUsers } from '../../mocks/users'
+import { sampleUserProfiles } from '../../mocks/users'
 import { runService } from '../runs/run-service'
 import { adminService } from './admin-service'
 
-const admin = demoUsers[1]
+const admin = sampleUserProfiles[1]
 
 describe('admin governance prototype', () => {
   it('reconciles dashboard totals with recorded runs', async () => {

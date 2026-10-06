@@ -123,6 +123,10 @@ def test_configured_origin_receives_cors_header(app_client: TestClient) -> None:
     )
 
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    actual = app_client.get(
+        "/health", headers={"Origin": "http://localhost:5173"}
+    )
+    assert actual.headers["access-control-expose-headers"] == "ETag, X-Request-ID"
 
 
 def test_unknown_origin_is_not_allowed(app_client: TestClient) -> None:

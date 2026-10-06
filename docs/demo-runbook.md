@@ -1,40 +1,60 @@
-# PromptVault frontend prototype demo
+# PromptVault live demo runbook
 
 ## Setup
 
-From `web/`, run `npm ci`, copy `.env.example` to `.env.local`, set `VITE_USE_MOCK_AUTH=true`, and run `npm run dev`. Open the URL printed by Vite. Leave the other `VITE_USE_MOCK_*` flags set to `true`; the backend is not required for this UI demo. Use a fresh browser tab if you want the seeded starting state. The mock stores live in memory, so reloading resets projects, prompts, runs, deployments, and tokens created during the demo. The signed-in demo account survives a reload within the same tab.
+From the repository root:
 
-Demo credentials:
+```bash
+cp .env.example .env
+docker compose up -d --build --wait
+```
 
-| Role | Email | Password | Landing page |
-| --- | --- | --- | --- |
-| User | `user@promptvault.dev` | `UserDemo2026!` | Dashboard |
-| Alice | `alice@promptvault.dev` | `AliceDemo2026!` | Dashboard |
-| Bob | `bob@promptvault.dev` | `BobDemo2026!` | Dashboard |
-| Super Admin | `admin@promptvault.dev` | `AdminDemo2026!` | Administration overview |
-| Inactive user | `inactive@promptvault.dev` | `InactiveDemo2026!` | Login denied |
+Open `http://localhost:5173`. Swagger UI is available at `http://localhost:8000/docs`.
 
-These credentials are public prototype fixtures. Never use them in a deployed environment.
+| Role | Email | Password |
+|---|---|---|
+| User | `user@promptvault.dev` | `UserDemo2026!` |
+| Super Admin | `admin@promptvault.dev` | `AdminDemo2026!` |
 
-## Suggested walkthrough (10–12 minutes)
+These are local-development fixtures. Use separate browser tabs when showing both roles because sessions are tab-scoped.
 
-1. Sign in as User. Show the live dashboard counts, run activity, spend trend, and responsive navigation. Reload to demonstrate session restore.
-2. Open Projects. Create a project, add a member, and show duplicate-member feedback. Create a prompt with a `{{customer_message}}` variable.
-3. Save a new prompt version. Open version detail, compare, and lineage. Explain that versions are immutable snapshots in the frontend store.
-4. Open Playground. Choose the checkout prompt, enter required variables, and execute a successful mock run. Repeat with Provider failure and Budget limit scenarios; show the run history and detail pages.
-5. Open Costs. Show recorded mock spend and budget utilization.
-6. Open Deployments. Create a staging deployment, then request a production deployment. Show the pending state. Issue an API token and explain that its secret is shown once; revoke it after copying is no longer needed.
-7. Sign out and sign in as Super Admin. Review the pending production request, inspect the evidence, and approve or reject it. Show rollback, user/role management, budgets, model pricing, provider-key metadata, audit log, and maintenance views.
-8. Sign out. Show that a User cannot open `/admin` and that unauthenticated visits to `/dashboard` return to login.
+## Presentation walkthrough (10–12 minutes)
 
-## Recovery and caveats
+1. **Authentication (1 minute).** Sign in as User, reload `/dashboard` to show session restoration, then briefly show that `/admin` resolves to the access-restricted screen.
+2. **Project and membership (1 minute).** Open Projects, create a uniquely named project, and add `admin@promptvault.dev` as a member. Re-adding the member demonstrates conflict feedback.
+3. **Prompt versions (1.5 minutes).** Create a prompt containing `{{customer_message}}`. Save v2 and v3 with commit messages, then open history, v3 detail, diff, and lineage. Reload to demonstrate persistence and immutable snapshots.
+4. **Run ledger and costs (1 minute).** Open Playground, provide every variable, and run the selected version. Show output, token counts, latency, status, and cost; then open its run detail, Runs, and Costs.
+5. **Staging and production (1.5 minutes).** Create a staging deployment and show immediate activation. Create a production deployment and show that it remains pending.
+6. **Runtime token (1 minute).** Open API Tokens, issue a project-scoped token, and call out that its secret is visible once. Keep it temporarily for the Serve check.
+7. **Atomic approval (1 minute).** In the Super Admin tab, open Approvals, inspect the pending release, add evidence, and approve it. A repeated decision is rejected as a conflict rather than rewriting history.
+8. **Serve and rollback (1 minute).** Fetch the active production prompt with the runtime token using the example in Swagger or `examples/production-deployment/`. Perform an admin rollback to the prior version and fetch again; the served version changes while deployment history remains append-only.
+9. **Budget enforcement (1 minute).** In Admin Budgets, temporarily set Demo User's monthly limit to `0`. A User playground execution is blocked at the database boundary and appears in organization runs. Restore the limit to `100` before continuing.
+10. **Governance (1 minute).** Show users, organization analytics/runs, encrypted provider-key metadata, pricing history, audit filters, and maintenance status. Provider and runtime secrets never appear in list views.
+11. **Revocation (30 seconds).** Revoke the runtime token and show that the same Serve request returns `401`.
+12. **Logout (30 seconds).** Sign out and show that an unauthenticated `/dashboard` visit returns to login.
 
-- Refresh to restore the seeded mock data if a demo action leaves an undesirable state. Sign out if you need to switch roles.
-- Mock registration creates a User account only in the current running tab. Password recovery does not send email.
-- The provider output, spending, approvals, and token flows are frontend simulations. They do **not** prove real provider calls, server-side budget enforcement, persistent storage, backend authorization, or secure token serving.
-- Real API login and registration are available when `VITE_USE_MOCK_AUTH=false` and FastAPI is running. The remaining application API mode flags depend on backend endpoints that are not implemented yet; keep those flags `true` for this walkthrough.
-- No production secrets should be entered into the prototype.
+## Expected evidence
 
-## Verification and visuals
+- Created records survive reloads and appear in PostgreSQL-backed lists.
+- A normal user cannot open Super Admin routes, and the API independently returns forbidden responses.
+- Version saves, production decisions, budget consumption, and rollback use transaction-safe database operations.
+- Run totals reconcile with personal costs; blocked runs remain visible without adding spend.
+- Provider-key plaintext and runtime-token plaintext are never returned by list endpoints.
 
-Run `npm run typecheck`, `npm run lint`, `npm test`, `npm run coverage`, `npm run build`, and `npm run test:e2e` from `web/`. The browser suite covers desktop Chrome and an iPhone-sized Chrome viewport. See the [browser smoke record](browser-smoke.md). Recreate the eight committed screenshots with `npm run screenshots`; see [screenshots](screenshots/README.md).
+## Recovery and fallback
+
+Reset to deterministic development data, then refresh the API connection pool:
+
+```bash
+docker compose run --rm migrate python scripts/reset-development.py --confirm-reset \
+  && docker compose restart api \
+  && docker compose up -d --wait
+```
+
+If the browser keeps an old identity, sign out or clear the tab's session storage. If a service is unhealthy, inspect `docker compose ps` and `docker compose logs api`. The deterministic mock provider does not require an external LLM key, so the core walkthrough remains reproducible offline after images and dependencies are present.
+
+Password-recovery email requires SMTP settings in `.env`; the core walkthrough does not depend on email delivery. Do not enter production secrets into the demo stack.
+
+## Verification
+
+The exact automated commands and coverage boundaries are documented in [testing.md](testing.md). Cross-browser results are recorded in [browser-smoke.md](browser-smoke.md), and committed visuals are listed in [screenshots/README.md](screenshots/README.md).

@@ -2,7 +2,7 @@ export type IsoDateString = string
 export type Money = string
 export type Id = string
 
-export type ApiErrorCode = 'validation_error' | 'unauthorized' | 'email_not_found' | 'invalid_password' | 'forbidden' | 'not_found' | 'conflict' | 'duplicate_email' | 'inactive_user' | 'invalid_token' | 'token_expired' | 'budget_exceeded' | 'provider_error' | 'internal_error'
+export type ApiErrorCode = 'validation_error' | 'unauthorized' | 'invalid_credentials' | 'invalid_reset_token' | 'email_delivery_unavailable' | 'forbidden' | 'not_found' | 'conflict' | 'duplicate_email' | 'inactive_user' | 'invalid_token' | 'token_expired' | 'budget_exceeded' | 'provider_error' | 'internal_error'
 
 export interface ApiErrorEnvelope {
   code: ApiErrorCode

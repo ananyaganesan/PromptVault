@@ -36,7 +36,6 @@ export interface CreatePromptRequest {
   name: string
   description?: string
   template: string
-  variables: PromptVariable[]
   model_config: ModelConfig
   commit_message: string
 }

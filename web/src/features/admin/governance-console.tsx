@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useState,
   useSyncExternalStore,
   type FormEvent,
@@ -43,6 +44,22 @@ export function BudgetManagementPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
   const [mutationError, setMutationError] = useState("");
+  const [userTargets, setUserTargets] = useState<Array<{ id: string; name: string }>>([]);
+  const [blockedRunCount, setBlockedRunCount] = useState(0);
+  useEffect(() => {
+    let active = true;
+    adminService.listUsers({ page_size: 100 }, user).then((page) => {
+      if (active) setUserTargets(page.items.map((item) => ({ id: item.id, name: item.display_name })));
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [user]);
+  useEffect(() => {
+    let active = true;
+    adminService.listRuns({ status: "blocked", page: 1, page_size: 1 }, user).then((page) => {
+      if (active) setBlockedRunCount(page.total);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [revision, runRevision, user]);
   const load = useCallback(() => adminService.listBudgets(user), [user]);
   const { data, loading, error, reload } = useAdminData<Budget[]>(
     load,
@@ -51,12 +68,7 @@ export function BudgetManagementPage() {
   const targets =
     targetType === "project"
       ? projectStore.map((item) => ({ id: item.id, name: item.name }))
-      : [
-          { id: "usr_demo_user", name: "Jamie Chen" },
-          { id: "usr_demo_admin", name: "Alex Morgan" },
-          { id: "usr_riley", name: "Riley Park" },
-          { id: "usr_taylor", name: "Taylor Reed" },
-        ];
+      : userTargets;
   const filtered =
     data?.filter(
       (item) =>
@@ -86,7 +98,7 @@ export function BudgetManagementPage() {
   function selectType(value: "user" | "project") {
     setTargetType(value);
     setTargetId(
-      value === "project" ? (projectStore[0]?.id ?? "") : "usr_demo_user",
+      value === "project" ? (projectStore[0]?.id ?? "") : (userTargets[0]?.id ?? ""),
     );
   }
   return (
@@ -130,11 +142,8 @@ export function BudgetManagementPage() {
             />
             <Stat
               label="BLOCKED RUNS"
-              value={String(
-                runStore.getRuns().filter((run) => run.status === "blocked")
-                  .length,
-              )}
-              note="Recorded in prototype"
+              value={String(blockedRunCount)}
+              note="Current live ledger"
             />
           </div>
           <div className="toolbar">

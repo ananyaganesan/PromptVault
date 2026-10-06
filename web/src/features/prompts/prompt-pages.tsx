@@ -8,16 +8,40 @@ import {
 import { PageHeader } from "../../components/layout/page-header";
 import { Button, Field, Status } from "../../components/ui/prototype";
 import { EmptyState } from "../../components/ui/empty-state";
-import { useAuth } from "../auth/auth-context";
 import type { Prompt } from "../../types/prompts";
 import {
   projectStore,
   promptFor,
   promptStore,
   versionsFor,
-  versionStore,
+  workspaceService,
 } from "../projects/workspace-data";
-import type { PromptVariable } from "../../types/prompts";
+
+const variableNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function templateVariables(template: string): { names: string[]; error: string | null } {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const match of template.matchAll(/\{\{(.*?)\}\}/g)) {
+    const name = match[1].trim();
+    if (!variableNamePattern.test(name)) {
+      return { names, error: `Invalid variable "${name}". Use letters, numbers, and underscores, starting with a letter or underscore.` };
+    }
+    if (!seen.has(name)) {
+      names.push(name);
+      seen.add(name);
+    }
+  }
+  return { names, error: null };
+}
+
+function TemplateVariablePreview({ names, error }: { names: string[]; error: string | null }) {
+  return <section className="variable-editor" aria-label="Template variables">
+    <div className="panel-head"><div><h2>Template variables</h2><p>Detected from placeholders in the template. Every variable needs a value when you run this version.</p></div></div>
+    {error && <p className="form-error" role="alert">{error}</p>}
+    {names.length ? <ul className="template-variable-list">{names.map((name) => <li key={name}><code>{name}</code></li>)}</ul> : <p className="template-variable-empty">No variables in this template.</p>}
+  </section>;
+}
 
 export function PromptsPage() {
   const [search, setSearch] = useState("");
@@ -114,62 +138,36 @@ export function PromptsPage() {
 }
 export function NewPromptPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [params] = useSearchParams();
   const [projectId, setProjectId] = useState(
-    params.get("project") ?? projectStore[0].id,
+    params.get("project") ?? projectStore[0]?.id ?? "",
   );
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [template, setTemplate] = useState("");
+  const parsedVariables = useMemo(() => templateVariables(template), [template]);
   const [commit, setCommit] = useState("Initial prompt version");
   const [error, setError] = useState("");
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     const promptKey = key.trim().toLowerCase().replace(/\s+/g, "-");
     if (!projectId || !promptKey || !name.trim() || !template.trim())
       return setError("Project, key, name, and template are required.");
-    if (promptStore.some((prompt) => prompt.key === promptKey))
-      return setError("That prompt key is already in use.");
-    const id = `${promptKey}-${Date.now()}`;
-    const variables = [
-      ...template.matchAll(/{{\s*([a-zA-Z_][\w-]*)\s*}}/g),
-    ].map((match) => ({ name: match[1], required: true }));
-    promptStore.unshift({
-      id,
-      project_id: projectId,
-      key: promptKey,
-      name: name.trim(),
-      description: description.trim() || null,
-      latest_version_number: 1,
-      active_environment: "draft",
-      updated_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-    });
-    versionStore[id] = [
-      {
-        id: `${id}-v1`,
-        prompt_id: id,
-        version_number: 1,
-        parent_version_id: null,
+    if (parsedVariables.error) return setError(parsedVariables.error);
+    try {
+      const prompt = await workspaceService.createPrompt(projectId, {
+        key: promptKey,
+        name: name.trim(),
+        description: description.trim() || undefined,
         template,
-        variables,
-        model_config: {
-          provider: "openai",
-          model: "gpt-4o-mini",
-          temperature: 0.3,
-          max_output_tokens: 300,
-        },
+        model_config: { provider: "mock", model: "deterministic-v1", temperature: 0, max_output_tokens: 500 },
         commit_message: commit || "Initial prompt version",
-        created_by: user?.id ?? "",
-        created_by_name: user?.display_name ?? "Unknown user",
-        created_at: new Date().toISOString(),
-      },
-    ];
-    const project = projectStore.find((item) => item.id === projectId);
-    if (project) project.prompt_count += 1;
-    navigate(`/prompts/${id}`);
+      });
+      navigate(`/prompts/${prompt.id}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not create the prompt.");
+    }
   }
   return (
     <>
@@ -217,10 +215,11 @@ export function NewPromptPage() {
           <span>Template</span>
           <textarea
             value={template}
-            onChange={(event) => setTemplate(event.target.value)}
+            onChange={(event) => { setTemplate(event.target.value); setError(""); }}
             placeholder="Write your prompt. Use {{variable_name}} for dynamic inputs."
           />
         </label>
+        <TemplateVariablePreview names={parsedVariables.names} error={parsedVariables.error} />
         <Field
           label="Commit message"
           placeholder="Initial prompt version"
@@ -244,39 +243,34 @@ export function PromptDetailPage() {
   return <PromptDetailContent prompt={prompt} />;
 }
 function PromptDetailContent({ prompt }: { prompt: Prompt }) {
-  const { user } = useAuth();
   const versions = versionsFor(prompt.id);
   const latest = versions[0];
   const [template, setTemplate] = useState(latest?.template ?? "");
-  const [variables, setVariables] = useState<PromptVariable[]>(
-    latest?.variables ?? [],
-  );
+  const parsedVariables = useMemo(() => templateVariables(template), [template]);
   const [commit, setCommit] = useState("");
   const [notice, setNotice] = useState("");
-  function addVariable() {
-    setVariables([...variables, { name: "", description: "", required: true }]);
-  }
-  function saveVersion() {
+  const [saving, setSaving] = useState(false);
+  async function saveVersion() {
     if (!template.trim() || !commit.trim())
       return setNotice("Add a template and a commit message before saving.");
-    const versionNumber = (versions[0]?.version_number ?? 0) + 1;
-    const version = {
-      ...latest,
-      id: `${prompt.id}-v${versionNumber}-${Date.now()}`,
-      version_number: versionNumber,
-      parent_version_id: latest?.id ?? null,
-      template,
-      variables: variables.filter((variable) => variable.name.trim()),
-      commit_message: commit.trim(),
-      created_at: new Date().toISOString(),
-      created_by: user?.id ?? "",
-      created_by_name: user?.display_name ?? "Unknown user",
-    };
-    versionStore[prompt.id] = [version, ...versions];
-    prompt.latest_version_number = versionNumber;
-    prompt.updated_at = version.created_at;
-    setCommit("");
-    setNotice(`Version ${versionNumber} was saved as an immutable snapshot.`);
+    if (parsedVariables.error) return setNotice(parsedVariables.error);
+    if (!latest) return setNotice("The current version could not be loaded.");
+    if (saving) return;
+    setSaving(true);
+    try {
+      const version = await workspaceService.createVersion(prompt.id, {
+        parent_version_id: latest.id,
+        template,
+        model_config: latest.model_config,
+        commit_message: commit.trim(),
+      });
+      setCommit("");
+      setNotice(`Version ${version.version_number} was saved as an immutable snapshot.`);
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Could not save the new version.");
+    } finally {
+      setSaving(false);
+    }
   }
   return (
     <>
@@ -284,10 +278,10 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
         title={prompt.name}
         eyebrow={`PROMPTS / ${prompt.key.toUpperCase()}`}
         description={prompt.description ?? "Reusable prompt template."}
-        action={<Button onClick={saveVersion}>Save new version</Button>}
+        action={<Button onClick={saveVersion} disabled={saving}>{saving ? "Saving…" : "Save new version"}</Button>}
       />
       {notice && (
-        <p className={/before saving|required/i.test(notice) ? "inline-feedback error" : "inline-feedback"} role={/before saving|required/i.test(notice) ? "alert" : "status"}>
+        <p className={/before saving|required|invalid variable|could not/i.test(notice) ? "inline-feedback error" : "inline-feedback"} role={/before saving|required|invalid variable|could not/i.test(notice) ? "alert" : "status"}>
           {notice}
         </p>
       )}
@@ -309,81 +303,10 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
             <span>Prompt template</span>
             <textarea
               value={template}
-              onChange={(event) => setTemplate(event.target.value)}
+              onChange={(event) => { setTemplate(event.target.value); setNotice(""); }}
             />
           </label>
-          <div className="variable-editor">
-            <div className="panel-head">
-              <div>
-                <h2>Template variables</h2>
-                <p>Values injected at run time.</p>
-              </div>
-              <button className="text-button" onClick={addVariable}>
-                Add variable
-              </button>
-            </div>
-            {variables.map((variable, index) => (
-              <div className="variable-row" key={`${variable.name}-${index}`}>
-                <input
-                  value={variable.name}
-                  onChange={(event) =>
-                    setVariables(
-                      variables.map((item, itemIndex) =>
-                        itemIndex === index
-                          ? {
-                              ...item,
-                              name: event.target.value.replace(/\s/g, ""),
-                            }
-                          : item,
-                      ),
-                    )
-                  }
-                  placeholder="variable_name"
-                  aria-label="Variable name"
-                />
-                <input
-                  value={variable.description ?? ""}
-                  onChange={(event) =>
-                    setVariables(
-                      variables.map((item, itemIndex) =>
-                        itemIndex === index
-                          ? { ...item, description: event.target.value }
-                          : item,
-                      ),
-                    )
-                  }
-                  placeholder="Description"
-                  aria-label="Variable description"
-                />
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={variable.required}
-                    onChange={(event) =>
-                      setVariables(
-                        variables.map((item, itemIndex) =>
-                          itemIndex === index
-                            ? { ...item, required: event.target.checked }
-                            : item,
-                        ),
-                      )
-                    }
-                  />
-                  <span>Required</span>
-                </label>
-                <button
-                  className="text-button danger"
-                  onClick={() =>
-                    setVariables(
-                      variables.filter((_, itemIndex) => itemIndex !== index),
-                    )
-                  }
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
+          <TemplateVariablePreview names={parsedVariables.names} error={parsedVariables.error} />
           <Field
             label="Commit message"
             placeholder="Explain this change"

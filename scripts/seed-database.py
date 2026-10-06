@@ -2,6 +2,7 @@
 """Apply idempotent PromptVault seed SQL files."""
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -26,12 +27,21 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=REPOSITORY_ROOT / "db" / "seeds",
     )
+    parser.add_argument(
+        "--only-development",
+        action="store_true",
+        help="Skip seeding unless ENVIRONMENT is development (for Compose startup)",
+    )
     return parser
 
 
 def main() -> int:
     load_dotenv(REPOSITORY_ROOT / ".env")
     args = build_parser().parse_args()
+    environment = os.getenv("ENVIRONMENT", "development")
+    if args.only_development and environment != "development":
+        print(f"Skipping development seeds for {environment}.")
+        return 0
     try:
         applied = seed_database(database_url(args.database_url), args.seeds_dir)
     except (DatabaseCommandError, OSError, psycopg.Error) as exc:

@@ -6,7 +6,7 @@ import psycopg
 import pytest
 from api.app.config import Settings
 from api.app.main import create_app
-from api.app.security import create_access_token
+from api.app.security import create_access_token, hash_password
 from fastapi.testclient import TestClient
 
 SEEDED_USER_ID = UUID("11111111-1111-4111-8111-111111111111")
@@ -17,7 +17,13 @@ def auth_client(
     test_settings: Settings,
     seeded_database_url: str,
 ) -> Iterator[TestClient]:
-    settings = test_settings.model_copy(update={"database_url": seeded_database_url})
+    settings = test_settings.model_copy(
+        update={
+            "database_url": seeded_database_url,
+            "smtp_host": "smtp.test",
+            "smtp_from_email": "no-reply@promptvault.dev",
+        }
+    )
     app = create_app(settings)
     with TestClient(app) as client:
         yield client
@@ -108,25 +114,72 @@ def test_login_accepts_seeded_credentials(auth_client: TestClient) -> None:
 
 
 @pytest.mark.database
+def test_password_reset_delivers_a_one_time_link_and_updates_the_password(
+    auth_client: TestClient,
+    seeded_database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    delivered_tokens: list[tuple[str, str]] = []
+
+    def capture_reset_email(_settings: Settings, recipient: str, token: str) -> None:
+        delivered_tokens.append((recipient, token))
+
+    monkeypatch.setattr("api.app.services.auth.send_password_reset_email", capture_reset_email)
+    requested = auth_client.post(
+        "/api/v1/auth/password-reset",
+        json={"email": "user@promptvault.dev"},
+    )
+
+    assert requested.status_code == 202
+    assert delivered_tokens[0][0] == "user@promptvault.dev"
+
+    try:
+        confirmed = auth_client.post(
+            "/api/v1/auth/password-reset/confirm",
+            json={"token": delivered_tokens[0][1], "password": "NewPassword2026!"},
+        )
+        assert confirmed.status_code == 204
+
+        login = auth_client.post(
+            "/api/v1/auth/login",
+            json={"email": "user@promptvault.dev", "password": "NewPassword2026!"},
+        )
+        assert login.status_code == 200
+
+        reused = auth_client.post(
+            "/api/v1/auth/password-reset/confirm",
+            json={"token": delivered_tokens[0][1], "password": "AnotherPassword2026!"},
+        )
+        assert reused.status_code == 400
+        assert reused.json()["code"] == "invalid_reset_token"
+    finally:
+        with psycopg.connect(seeded_database_url, autocommit=True) as connection:
+            connection.execute(
+                "UPDATE users SET password_hash = %s WHERE id = %s",
+                (hash_password("UserDemo2026!"), SEEDED_USER_ID),
+            )
+
+
+@pytest.mark.database
 @pytest.mark.parametrize(
     ("email", "password", "code", "message"),
     [
         (
             "user@promptvault.dev",
             "WrongPassword2026!",
-            "invalid_password",
-            "Incorrect password.",
+            "invalid_credentials",
+            "Invalid email or password.",
         ),
-        ("user@promptvault.dev", "User@123", "invalid_password", "Incorrect password."),
+        ("user@promptvault.dev", "User@123", "invalid_credentials", "Invalid email or password."),
         (
             "missing-user@example.com",
             "WrongPassword2026!",
-            "email_not_found",
-            "Email address not found.",
+            "invalid_credentials",
+            "Invalid email or password.",
         ),
     ],
 )
-def test_login_identifies_invalid_credential_and_challenges_bearer(
+def test_login_rejects_invalid_credentials_without_disclosing_which_field(
     auth_client: TestClient,
     email: str,
     password: str,
