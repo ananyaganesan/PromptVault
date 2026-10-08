@@ -4,7 +4,6 @@ import { PageHeader } from "../../components/layout/page-header";
 import { Button, Field, Stat, Status } from "../../components/ui/prototype";
 import { EmptyState } from "../../components/ui/empty-state";
 import { useAuth } from "../auth/auth-context";
-import { runStore } from "../runs/run-service";
 import type { Project } from "../../types/projects";
 import {
   memberStore,
@@ -191,7 +190,6 @@ export function ProjectDetailPage() {
 }
 function ProjectDetailContent({ project }: { project: Project }) {
   const { user } = useAuth();
-  useSyncExternalStore(runStore.subscribe, runStore.getSnapshot);
   const [tab, setTab] = useState<
     "overview" | "prompts" | "members" | "settings"
   >("overview");
@@ -290,9 +288,9 @@ function ProjectDetailContent({ project }: { project: Project }) {
               note="All versions immutable"
             />
             <Stat
-              label="MONTHLY SPEND"
-              value={`$${runStore.getRuns().filter((run) => run.project_id === project.id && run.status === "completed" && run.created_at.startsWith(new Date().toISOString().slice(0, 7))).reduce((total, run) => total + Number(run.cost), 0).toFixed(4)}`}
-              note="Recorded runs this month"
+              label="MEMBERS"
+              value={String(members.length)}
+              note="People with project access"
             />
           </div>
           <section className="panel">

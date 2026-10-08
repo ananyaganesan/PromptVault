@@ -109,7 +109,7 @@ test('administration routes render without a blank page or horizontal overflow',
   await page.getByLabel('Email address').fill('admin@promptvault.dev')
   await page.getByLabel('Password', { exact: true }).fill('AdminDemo2026!')
   await page.getByRole('button', { name: 'Sign in' }).click()
-  for (const path of ['/admin', '/admin/approvals', '/admin/rollback', '/admin/users', '/admin/provider-keys', '/admin/budgets', '/admin/runs', '/admin/audit', '/admin/model-pricing', '/admin/maintenance']) {
+  for (const path of ['/admin', '/admin/approvals', '/admin/rollback', '/admin/users', '/admin/provider-keys', '/admin/runs', '/admin/audit', '/admin/maintenance']) {
     await page.goto(path)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), { message: `${path} has horizontal overflow` }).toBe(true)
@@ -139,7 +139,7 @@ test('top-level admin screens have no serious accessibility violations', async (
   await page.getByLabel('Password', { exact: true }).fill('AdminDemo2026!')
   await page.getByRole('button', { name: 'Sign in' }).click()
   const issues: string[] = []
-  for (const path of ['/admin', '/admin/approvals', '/admin/rollback', '/admin/users', '/admin/provider-keys', '/admin/budgets', '/admin/runs', '/admin/audit', '/admin/model-pricing', '/admin/maintenance']) {
+  for (const path of ['/admin', '/admin/approvals', '/admin/rollback', '/admin/users', '/admin/provider-keys', '/admin/runs', '/admin/audit', '/admin/maintenance']) {
     await page.goto(path)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     const audit = await new AxeBuilder({ page }).analyze()

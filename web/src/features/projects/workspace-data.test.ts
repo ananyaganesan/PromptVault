@@ -61,6 +61,44 @@ describe('workspaceService', () => {
     ])
   })
 
+  it('loads projects and immutable versions beyond the first API page', async () => {
+    const owner = { id: 'user-1', display_name: 'Owner' }
+    const project = (index: number) => ({
+      id: `project-${index}`, name: `Project ${index}`, key: `project-${index}`,
+      description: null, owner, member_count: 1, prompt_count: index === 0 ? 1 : 0,
+      created_at: '2026-09-27T00:00:00Z', updated_at: '2026-09-27T00:00:00Z',
+    })
+    const version = (index: number) => ({
+      id: `version-${index}`, prompt_id: 'prompt-0', version_number: index + 1,
+      parent_version_id: index ? `version-${index - 1}` : null,
+      template_body: `Version ${index}`, variables: [],
+      model_config: { provider: 'mock', model: 'deterministic', temperature: 0, max_output_tokens: 128 },
+      commit_message: `Save ${index}`, created_by: owner, created_at: '2026-09-27T00:00:00Z',
+    })
+    const fetcher = vi.fn().mockImplementation((url: string) => {
+      const request = new URL(url)
+      const page = Number(request.searchParams.get('page'))
+      if (request.pathname.endsWith('/projects')) {
+        return Promise.resolve(json({ items: page === 1 ? Array.from({ length: 100 }, (_, index) => project(index)) : [project(100)], page, page_size: 100, total: 101 }))
+      }
+      if (request.pathname.endsWith('/project-0/prompts')) {
+        return Promise.resolve(json({ items: [{ id: 'prompt-0', project_id: 'project-0', key: 'prompt-0', name: 'Prompt', description: null, latest_version_number: 101, created_at: '2026-09-27T00:00:00Z', updated_at: '2026-09-27T00:00:00Z' }], page, page_size: 100, total: 1 }))
+      }
+      if (request.pathname.endsWith('/prompt-0/versions')) {
+        return Promise.resolve(json({ items: page === 1 ? Array.from({ length: 100 }, (_, index) => version(index)) : [version(100)], page, page_size: 100, total: 101 }))
+      }
+      return Promise.resolve(json({ items: [], page, page_size: 100, total: 0 }))
+    })
+    vi.stubGlobal('fetch', fetcher)
+
+    await workspaceService.load(owner.id)
+
+    expect(projectStore).toHaveLength(101)
+    expect(versionStore['prompt-0']).toHaveLength(101)
+    expect(fetcher.mock.calls.map(([url]) => url)).toContain('http://localhost:8000/api/v1/projects?page=2&page_size=100')
+    expect(fetcher.mock.calls.map(([url]) => url)).toContain('http://localhost:8000/api/v1/prompts/prompt-0/versions?page=2&page_size=100')
+  })
+
   it('creates and updates a project through the API even with demo-shaped IDs', async () => {
     const owner = { id: 'usr_demo_owner', display_name: 'Owner' }
     const base = { id: 'project-123', key: 'live-project', description: null, owner, member_count: 1, prompt_count: 0, created_at: '2026-09-27T00:00:00Z', updated_at: '2026-09-27T00:00:00Z' }

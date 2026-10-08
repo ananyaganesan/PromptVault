@@ -3,7 +3,8 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 test.skip(process.env.E2E_LIVE !== '1', 'Runs only against the Docker-backed live stack.')
 test.setTimeout(90_000)
 
-const apiBase = 'http://localhost:8000/api/v1'
+const apiBase = process.env.E2E_API_BASE_URL ?? 'http://localhost:8000/api/v1'
+const serveBase = apiBase.replace(/\/api\/v1$/, '')
 
 async function signIn(page: Page, role: 'user' | 'admin') {
   await page.goto('/login')
@@ -75,6 +76,10 @@ test('production approval, Serve token, rollback, and revocation use the live co
   await expect(page.getByText('Active', { exact: true }).first()).toBeVisible()
   await page.reload()
   await expect(page.getByText('Staging', { exact: true }).first()).toBeVisible()
+  await page.goto('/deployments')
+  await page.getByLabel('Deployment project').selectOption(fixture.project.id)
+  await expect(page.getByRole('row').filter({ hasText: fixture.prompt.key })).toBeVisible()
+  await expect(page.locator('tbody tr')).toHaveCount(1)
 
   await page.goto('/deployments/new')
   await page.getByLabel('Prompt version').selectOption(fixture.version.id)
@@ -103,7 +108,7 @@ test('production approval, Serve token, rollback, and revocation use the live co
   await page.getByRole('dialog', { name: 'Approve production deployment' }).getByRole('button', { name: 'Confirm' }).click()
   await expect(page.getByText('Active', { exact: true }).first()).toBeVisible()
 
-  const servedV3 = await request.get(`http://localhost:8000/serve/v1/prompts/${fixture.prompt.key}?env=prod`, {
+  const servedV3 = await request.get(`${serveBase}/serve/v1/prompts/${fixture.prompt.key}?env=prod`, {
     headers: { Authorization: `Bearer ${runtimeToken}` },
   })
   expect(servedV3.ok()).toBeTruthy()
@@ -122,7 +127,7 @@ test('production approval, Serve token, rollback, and revocation use the live co
   await expect(page).toHaveURL(/\/deployments\/[0-9a-f-]+$/)
   await expect(page.getByText('v2', { exact: true }).first()).toBeVisible()
 
-  const servedV2 = await request.get(`http://localhost:8000/serve/v1/prompts/${fixture.prompt.key}?env=prod`, {
+  const servedV2 = await request.get(`${serveBase}/serve/v1/prompts/${fixture.prompt.key}?env=prod`, {
     headers: { Authorization: `Bearer ${runtimeToken}` },
   })
   expect(servedV2.ok()).toBeTruthy()
@@ -134,7 +139,7 @@ test('production approval, Serve token, rollback, and revocation use the live co
   await tokenRow.getByRole('button', { name: 'Revoke' }).click()
   await page.getByRole('dialog', { name: 'Revoke API token' }).getByRole('button', { name: 'Confirm' }).click()
   await expect(tokenRow.getByText('Revoked', { exact: true })).toBeVisible()
-  const revoked = await request.get(`http://localhost:8000/serve/v1/prompts/${fixture.prompt.key}?env=prod`, {
+  const revoked = await request.get(`${serveBase}/serve/v1/prompts/${fixture.prompt.key}?env=prod`, {
     headers: { Authorization: `Bearer ${runtimeToken}` },
   })
   expect(revoked.status()).toBe(401)

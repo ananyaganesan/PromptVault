@@ -10,9 +10,11 @@ import pytest
 from api.app.db.commands import (
     DatabaseCommandError,
     ResetRefusedError,
+    SeedRefusedError,
     apply_seed_files,
     discover_seed_files,
     require_development_reset,
+    require_development_seed,
 )
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -89,6 +91,11 @@ def test_reset_requires_development_and_confirmation(
 
 def test_reset_allows_confirmed_development() -> None:
     require_development_reset(environment="development", confirmed=True)
+
+
+def test_development_seeds_are_refused_in_production() -> None:
+    with pytest.raises(SeedRefusedError, match="development or test"):
+        require_development_seed(environment="production")
 
 
 @pytest.mark.parametrize(

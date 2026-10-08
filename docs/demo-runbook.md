@@ -23,13 +23,13 @@ These are local-development fixtures. Use separate browser tabs when showing bot
 1. **Authentication (1 minute).** Sign in as User, reload `/dashboard` to show session restoration, then briefly show that `/admin` resolves to the access-restricted screen.
 2. **Project and membership (1 minute).** Open Projects, create a uniquely named project, and add `admin@promptvault.dev` as a member. Re-adding the member demonstrates conflict feedback.
 3. **Prompt versions (1.5 minutes).** Create a prompt containing `{{customer_message}}`. Save v2 and v3 with commit messages, then open history, v3 detail, diff, and lineage. Reload to demonstrate persistence and immutable snapshots.
-4. **Run ledger and costs (1 minute).** Open Playground, provide every variable, and run the selected version. Show output, token counts, latency, status, and cost; then open its run detail, Runs, and Costs.
+4. **Run history (1 minute).** Open Playground, provide every variable, and run the selected version. Show output, token counts, latency, and status; then open its run detail and Runs.
 5. **Staging and production (1.5 minutes).** Create a staging deployment and show immediate activation. Create a production deployment and show that it remains pending.
 6. **Runtime token (1 minute).** Open API Tokens, issue a project-scoped token, and call out that its secret is visible once. Keep it temporarily for the Serve check.
 7. **Atomic approval (1 minute).** In the Super Admin tab, open Approvals, inspect the pending release, add evidence, and approve it. A repeated decision is rejected as a conflict rather than rewriting history.
 8. **Serve and rollback (1 minute).** Fetch the active production prompt with the runtime token using the example in Swagger or `examples/production-deployment/`. Perform an admin rollback to the prior version and fetch again; the served version changes while deployment history remains append-only.
-9. **Budget enforcement (1 minute).** In Admin Budgets, temporarily set Demo User's monthly limit to `0`. A User playground execution is blocked at the database boundary and appears in organization runs. Restore the limit to `100` before continuing.
-10. **Governance (1 minute).** Show users, organization analytics/runs, encrypted provider-key metadata, pricing history, audit filters, and maintenance status. Provider and runtime secrets never appear in list views.
+9. **Recent activity (1 minute).** Open the User dashboard and show four persisted runs in Recent activity. Filter Deployments by project, then clear the filter.
+10. **Governance (1 minute).** Show users, organization runs, encrypted provider-key metadata, audit filters, and maintenance status. Provider and runtime secrets never appear in list views.
 11. **Revocation (30 seconds).** Revoke the runtime token and show that the same Serve request returns `401`.
 12. **Logout (30 seconds).** Sign out and show that an unauthenticated `/dashboard` visit returns to login.
 

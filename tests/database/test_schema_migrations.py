@@ -17,7 +17,7 @@ def migration_sql(version: int) -> str:
 def test_complete_migration_chain_is_discoverable() -> None:
     migrations = discover_migrations(MIGRATIONS_DIRECTORY)
 
-    assert [migration.version for migration in migrations] == list(range(1, 17))
+    assert [migration.version for migration in migrations] == list(range(1, 18))
 
 
 @pytest.mark.parametrize("path", sorted(MIGRATIONS_DIRECTORY.glob("*.sql")), ids=lambda p: p.name)
@@ -105,6 +105,14 @@ def test_password_reset_uses_a_restricted_database_function() -> None:
     assert "grant execute on function" in boundary
 
 
+def test_admin_self_transition_preserves_last_admin_guard() -> None:
+    boundary = migration_sql(17)
+
+    assert "admin_update_user" in boundary
+    assert "last_admin" in boundary
+    assert "for update" in boundary
+
+
 def test_seed_files_define_deterministic_demo_identities() -> None:
     seeds_directory = REPOSITORY_ROOT / "db" / "seeds"
     seed_names = [path.name for path in sorted(seeds_directory.glob("*.sql"))]
@@ -112,6 +120,7 @@ def test_seed_files_define_deterministic_demo_identities() -> None:
         "001_development.sql",
         "002_demo.sql",
         "003_auth_test_users.sql",
+        "004_recent_runs.sql",
     ]
 
     development = (seeds_directory / "001_development.sql").read_text(

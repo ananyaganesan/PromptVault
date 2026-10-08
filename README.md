@@ -19,6 +19,8 @@ The working-prototype scope is implemented across the React client, FastAPI serv
 
 The remaining boundaries require real infrastructure or human certification rather than more repository code: Gmail password-reset delivery needs a sender account and App Password; Gemini execution needs an active encrypted provider key and effective model pricing; a production host needs DNS, operator-managed secrets, an Alertmanager webhook, an off-site restic repository, and a log destination. The repository now supplies scheduled atomic dumps, encrypted restic replication, Alertmanager routing, and a DNS/TLS/secret preflight. Automated WebKit coverage is included, while physical Safari/device, screen-reader, and manual accessibility certification remain outside the automated acceptance boundary.
 
+The live web client follows all API pages for workspace and administration data, persists project, member, prompt, and version changes, and derives editor variables from `{{placeholders}}` to match the database contract. The migration runner also reconciles the legacy password-reset migration recorded as version 011 with the current version 015 by exact checksum; PostgreSQL tests cover both fresh installation and data-preserving legacy upgrades. Development seeds are refused outside development and test environments.
+
 ## Quick start
 
 Docker Engine with the Compose plugin is the only prerequisite for the packaged stack:
@@ -110,7 +112,7 @@ E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-firefox
 E2E_LIVE=1 npm --prefix web run test:e2e -- --project=desktop-webkit
 ```
 
-The live suites cover authentication/session recovery, forbidden routes, project/member/prompt/version persistence, real diff/lineage, runs/costs, database budget rejection, deployments/approval, one-time runtime tokens, Serve, rollback, governance, responsive layouts, and axe-core serious/critical accessibility checks. Mocks remain only in isolated Vitest service/component tests.
+The live suites cover authentication/session recovery, forbidden routes, project/member/prompt/version persistence, real diff/lineage, runs, deployments/approval, one-time runtime tokens, Serve, rollback, governance, responsive layouts, and axe-core serious/critical accessibility checks. Mocks remain only in isolated Vitest service/component tests.
 
 ## API development
 

@@ -7,7 +7,7 @@ export default defineConfig({
   timeout: 30_000,
   workers: liveStack ? 1 : undefined,
   reporter: 'list',
-  use: { baseURL: liveStack ? 'http://localhost:5173' : 'http://127.0.0.1:4173', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+  use: { baseURL: liveStack ? process.env.E2E_BASE_URL ?? 'http://localhost:5173' : 'http://127.0.0.1:4173', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [
     { name: 'desktop-chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
     { name: 'desktop-firefox', use: { ...devices['Desktop Firefox'] } },

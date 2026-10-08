@@ -1,5 +1,7 @@
 .git
 .env
+web/.env.local
+web/.env.*.local
 .venv
 **/__pycache__
 **/.pytest_cache

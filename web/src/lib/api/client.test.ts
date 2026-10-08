@@ -36,4 +36,21 @@ describe('api client', () => {
     await expect(client.request('/auth/login', { method: 'POST', auth: false })).rejects.toMatchObject({ status: 401 })
     expect(onUnauthorized).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps a newer session when an older request returns 401', async () => {
+    let resolveRequest!: (response: Response) => void
+    const fetcher = vi.fn().mockReturnValue(new Promise<Response>((resolve) => { resolveRequest = resolve }))
+    let token = 'old-token'
+    const onUnauthorized = vi.fn()
+    const client = createApiClient({ getAccessToken: () => token, fetcher, onUnauthorized })
+
+    const request = client.request('/projects')
+    token = 'new-token'
+    resolveRequest(new Response(JSON.stringify({ code: 'unauthorized', message: 'Expired' }), {
+      status: 401, headers: { 'Content-Type': 'application/json' },
+    }))
+
+    await expect(request).rejects.toMatchObject({ status: 401 })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
 })

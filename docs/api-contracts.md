@@ -243,19 +243,19 @@ Serve returns project ID, prompt key, environment, version, template, variables,
 | `GET /dashboard/me` | Optional month `YYYY-MM` | `200` personal counts, spend, budgets, trend, recent runs, freshness/timezone |
 | `GET /admin/dashboard` | Optional month | `200` organization metrics, trends, spenders, models, errors, blocked runs |
 | `GET /admin/users` | Search/role/status/paging | `200` user page |
-| `PATCH /admin/users/{user_id}` | `role?`, `is_active?` | `200` User with last-admin/self-lockout guards |
+| `PATCH /admin/users/{user_id}` | `role?`, `is_active?` | `200` User; the last active admin remains protected, and an admin changing their own access must sign in again |
 | `GET/POST /admin/budgets` | Filters or scope, one target, monthly limit, timezone | List or `201` budget |
 | `PATCH/DELETE /admin/budgets/{budget_id}` | Update or none | `200` budget or `204` |
 | `GET/POST /admin/provider-keys` | List or `provider: gemini`, alias, secret | Metadata list or `201`; no existing plaintext |
 | `DELETE /admin/provider-keys/{key_id}` | None | `204` |
-| `GET/POST /admin/model-pricing` | List or effective-dated prices | History or `201` immutable price row |
+| `GET/POST /admin/model-pricing` | List or `provider`, `model`, `input_price_per_million`, `output_price_per_million`, `effective_from` | History or `201` immutable price row |
 | `GET /admin/runs` | Literal prompt-key/run-ID search, user/project/prompt/model/status/date filters, and paging | Organization run page; filtering occurs before pagination |
 | `GET /admin/audit` | Actor/action/entity/date filters | Redacted audit page |
 | `GET /admin/maintenance` | None | View/partition/provider/job status without secrets |
 | `POST /admin/maintenance/refresh-views` | None | `202` refresh result/job |
 | `POST /admin/maintenance/create-next-partition` | None | `200` idempotent result |
 
-Budgets require exactly one target. Prices are append-only; corrections create a new effective-dated row. Admin run/audit date filters require timezone offsets. Maintenance operations execute synchronously in v1, report their last completed status, and write attributed audit events.
+Budgets require exactly one target. Model prices require both input and output amounts; the admin form collects both and never substitutes zero for an omitted amount. Prices are append-only; corrections create a new effective-dated row. Admin run/audit date filters require timezone offsets. Maintenance operations execute synchronously in v1, report their last completed status, and write attributed audit events.
 
 ## Universal acceptance rules
 

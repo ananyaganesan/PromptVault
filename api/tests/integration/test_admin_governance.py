@@ -120,14 +120,33 @@ def test_admin_users_dashboard_and_organization_runs(
     )
     assert promoted.status_code == 200
     assert promoted.json()["role"] == "admin"
-    self_lockout = admin_client.patch(
+    self_deactivated = admin_client.patch(
         f"/api/v1/admin/users/{user['id']}",
         headers=user_headers,
         json={"is_active": False},
     )
-    assert self_lockout.status_code == 409
-    assert self_lockout.json()["code"] == "conflict"
-    assert admin_client.get("/api/v1/auth/me", headers=user_headers).status_code == 200
+    assert self_deactivated.status_code == 200
+    assert self_deactivated.json()["is_active"] is False
+    assert admin_client.get("/api/v1/auth/me", headers=user_headers).status_code == 403
+    reactivated = admin_client.patch(
+        f"/api/v1/admin/users/{user['id']}",
+        headers=admin_headers,
+        json={"is_active": True},
+    )
+    assert reactivated.status_code == 200
+    self_demoted = admin_client.patch(
+        f"/api/v1/admin/users/{user['id']}",
+        headers=user_headers,
+        json={"role": "user"},
+    )
+    assert self_demoted.status_code == 200
+    assert self_demoted.json()["role"] == "user"
+    assert admin_client.get("/api/v1/auth/me", headers=user_headers).json()["role"] == "user"
+    assert admin_client.patch(
+        f"/api/v1/admin/users/{user['id']}",
+        headers=admin_headers,
+        json={"role": "admin"},
+    ).status_code == 200
     deactivated = admin_client.patch(
         f"/api/v1/admin/users/{user['id']}",
         headers=admin_headers,

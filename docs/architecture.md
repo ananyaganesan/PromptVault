@@ -101,7 +101,7 @@ Operational, authentication, project/member, prompt/version, run, dashboards, de
 ### Administer governance controls
 
 1. The reusable Super Admin dependency reloads the active database user and rejects stale roles or inactive accounts.
-2. User role/status transitions execute exclusively through a serialized database function that blocks self-lockout and preserves at least one active Super Admin.
+2. User role/status transitions execute exclusively through a serialized database function that preserves at least one active Super Admin. A self-demotion or self-deactivation ends the browser session.
 3. Provider secrets are encrypted before persistence; API responses contain metadata only.
 4. Budget, pricing, provider-key, and user changes set actor/request context so audit triggers capture attributable, redacted events.
 5. Analytics reconcile directly from the run ledger, while least-privilege security-definer maintenance functions refresh views or create partitions and append attributed audit events.

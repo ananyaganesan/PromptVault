@@ -13,9 +13,16 @@ describe('admin governance prototype', () => {
     expect(Number(dashboard.monthly_spend)).toBeCloseTo(runs.items.filter((run) => run.created_at.startsWith(new Date().toISOString().slice(0, 7))).reduce((sum, run) => sum + Number(run.cost), 0), 4)
   })
 
-  it('prevents self-demotion and self-deactivation', async () => {
-    await expect(adminService.updateUser(admin.id, { role: 'user' }, admin)).rejects.toThrow('cannot remove your own')
-    await expect(adminService.updateUser(admin.id, { is_active: false }, admin)).rejects.toThrow('cannot remove your own')
+  it('allows a Super Admin to change their own access when another remains active', async () => {
+    await expect(adminService.updateUser(admin.id, { role: 'user' }, admin)).rejects.toThrow('last active Super Admin')
+    const secondAdmin = { ...sampleUserProfiles[0], role: 'super_admin' as const }
+    await adminService.updateUser(secondAdmin.id, { role: 'super_admin' }, admin)
+    try {
+      expect((await adminService.updateUser(admin.id, { role: 'user' }, admin)).role).toBe('user')
+    } finally {
+      await adminService.updateUser(admin.id, { role: 'super_admin' }, secondAdmin)
+      await adminService.updateUser(secondAdmin.id, { role: 'user' }, admin)
+    }
   })
 
   it('keeps provider secrets out of list results and records changes', async () => {
