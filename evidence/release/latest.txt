@@ -1,8 +1,8 @@
 PromptVault release verification
-UTC started: 2026-10-06T10:21:20.013597+00:00
-Commit: 1f2ad68695f2e76d23448e59236e6585b5b46f51
+UTC started: 2026-10-08T11:55:57.200534+00:00
+Commit: 43552103e1aa5f5c84cc5f63cfcf9be83d7fe407
 Source: clean detached Git worktree
-Compose project: promptvault-verify-1f2ad686
+Compose project: promptvault-verify-43552103
 
 $ docker compose config --quiet
 
@@ -11,138 +11,137 @@ $ docker compose build --pull
 #1 reading from stdin 2.07kB done
 #1 DONE 0.0s
 
-#2 [api internal] load build definition from Dockerfile
-#2 transferring dockerfile: 1.51kB done
+#2 [web internal] load build definition from web.Dockerfile
+#2 transferring dockerfile: 734B done
 #2 DONE 0.0s
 
-#3 [web internal] load build definition from web.Dockerfile
-#3 transferring dockerfile: 734B done
+#3 [api internal] load build definition from Dockerfile
+#3 transferring dockerfile: 1.51kB done
 #3 DONE 0.0s
 
-#4 [api internal] load metadata for docker.io/library/python:3.11-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e
-#4 DONE 0.0s
+#4 [migrate internal] load metadata for docker.io/library/python:3.11-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e
+#4 ...
 
-#5 [web internal] load metadata for docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
-#5 DONE 0.0s
+#5 [web internal] load metadata for docker.io/nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0
+#5 DONE 2.9s
 
-#6 [migrate internal] load .dockerignore
-#6 transferring context: 155B done
-#6 DONE 0.0s
+#6 [web internal] load metadata for docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+#6 DONE 2.9s
 
-#7 [migrate base 1/5] FROM docker.io/library/python:3.11-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e
-#7 resolve docker.io/library/python:3.11-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e 0.0s done
+#4 [migrate internal] load metadata for docker.io/library/python:3.11-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e
+#4 DONE 2.9s
+
+#7 [migrate internal] load .dockerignore
+#7 transferring context: 155B done
 #7 DONE 0.0s
 
-#8 [migrate internal] load build context
-#8 transferring context: 609.22kB 0.0s done
+#8 [migrate base 1/5] FROM docker.io/library/python:3.11-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e
+#8 resolve docker.io/library/python:3.11-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e 0.0s done
 #8 DONE 0.0s
 
-#9 [migrate base 2/5] WORKDIR /srv/promptvault
-#9 CACHED
+#9 [web stage-1 1/3] FROM docker.io/nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0
+#9 resolve docker.io/nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0 0.0s done
+#9 DONE 0.0s
 
-#10 [migrate base 3/5] RUN groupadd --system promptvault     && useradd --system --gid promptvault --home-dir /srv/promptvault promptvault
-#10 CACHED
+#10 [web build 1/7] FROM docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+#10 resolve docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 0.0s done
+#10 DONE 0.0s
 
-#11 [migrate base 5/5] RUN python -m pip install --no-cache-dir -r /tmp/requirements.lock
-#11 CACHED
+#11 [api internal] load build context
+#11 transferring context: 609.35kB 0.0s done
+#11 DONE 0.0s
 
-#12 [migrate base 4/5] COPY api/requirements.lock /tmp/requirements.lock
+#12 [api base 4/5] COPY api/requirements.lock /tmp/requirements.lock
 #12 CACHED
 
-#13 [migrate runtime 1/3] COPY --chown=promptvault:promptvault api ./api
+#13 [api base 2/5] WORKDIR /srv/promptvault
 #13 CACHED
 
-#14 [migrate runtime 2/3] COPY --chown=promptvault:promptvault db ./db
+#14 [api base 3/5] RUN groupadd --system promptvault     && useradd --system --gid promptvault --home-dir /srv/promptvault promptvault
 #14 CACHED
 
-#15 [migrate runtime 3/3] COPY --chown=promptvault:promptvault scripts ./scripts
-#15 DONE 0.0s
+#15 [api base 5/5] RUN python -m pip install --no-cache-dir -r /tmp/requirements.lock
+#15 CACHED
 
-#16 [migrate] exporting to image
-#16 exporting layers 0.0s done
-#16 exporting manifest sha256:baeb56557b375cc03ed46444984a35c83670b3f540b56b435d1ff5b56ad7ac1d done
-#16 exporting config sha256:7ca394dc84c47a399ce7510146060530fe148bde53a1225c02bec91ac6af51db done
-#16 exporting attestation manifest sha256:46fb7eb5ceb5bd2b28aab87f2099af17aebad76033ae5db6f75c5e7234e25aec done
-#16 exporting manifest list sha256:47c648a55ed30ef4fd810326a3fbb06751830ab4c04c49f7ccc6cb3469d09098
-#16 exporting manifest list sha256:47c648a55ed30ef4fd810326a3fbb06751830ab4c04c49f7ccc6cb3469d09098 done
-#16 naming to docker.io/library/promptvault-verify-1f2ad686-api:local done
-#16 unpacking to docker.io/library/promptvault-verify-1f2ad686-api:local 0.0s done
-#16 DONE 0.1s
+#16 [web internal] load build context
+#16 transferring context: 563.97kB 0.0s done
+#16 DONE 0.0s
 
-#17 [api] exporting to image
-#17 exporting layers 0.0s done
-#17 exporting manifest sha256:7fe854c80a9718e739a25e0d0db2a86fea9e28474e6258609ba9edbc52b0d47c done
-#17 exporting config sha256:389fc5235d400b7160f5e10d804fed9e2e55a44b97b0e8b3779420a04ba7ae5e done
-#17 exporting attestation manifest sha256:870c0efb56b8f28ecec5023e4ec0493d0b5ab332db19659ef322a2857e472a0a done
-#17 exporting manifest list sha256:cb7613437e93293668b4f7b8258ea72773340ad0ffa5c30cb35b4b1ffbb61fda done
-#17 naming to docker.io/library/promptvault-verify-1f2ad686-api:local done
-#17 unpacking to docker.io/library/promptvault-verify-1f2ad686-api:local 0.0s done
-#17 DONE 0.1s
+#17 [web build 2/7] WORKDIR /app
+#17 CACHED
 
-#18 [api] resolving provenance for metadata file
-#18 DONE 0.0s
+#18 [web build 3/7] COPY web/package.json web/package-lock.json ./
+#18 CACHED
 
-#19 [migrate] resolving provenance for metadata file
-#19 DONE 0.0s
+#19 [web build 4/7] RUN npm ci
+#19 CACHED
 
-#20 [web internal] load metadata for docker.io/nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0
-#20 DONE 2.0s
+#20 [api runtime 1/3] COPY --chown=promptvault:promptvault api ./api
+#20 DONE 0.0s
 
-#6 [web internal] load .dockerignore
-#6 CACHED
-
-#21 [web build 1/7] FROM docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
-#21 resolve docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 0.0s done
+#21 [web build 5/7] COPY web/ ./
 #21 DONE 0.0s
 
-#22 [web stage-1 1/3] FROM docker.io/nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0
-#22 resolve docker.io/nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0 0.0s done
+#22 [migrate runtime 2/3] COPY --chown=promptvault:promptvault db ./db
 #22 DONE 0.0s
 
-#23 [web internal] load build context
-#23 transferring context: 562.93kB 0.0s done
+#23 [api runtime 3/3] COPY --chown=promptvault:promptvault scripts ./scripts
 #23 DONE 0.0s
 
-#24 [web build 2/7] WORKDIR /app
-#24 CACHED
+#24 [api] exporting to image
+#24 exporting layers 0.0s done
+#24 exporting manifest sha256:4e332fb4a376af33d16fdcf6ef59b60dad7824882fabfdeb844b28daf2ec32c3 done
+#24 exporting config sha256:0fd16d9d89f8c7e365db9758e0dccc9684b882c91a03f49431b89dbc0387b0a6 0.0s done
+#24 exporting attestation manifest sha256:f9f40a0a19d4dd587afd1317edb3d99a63c9aa57c24d5dab2c2a1a6b365e886d done
+#24 exporting manifest list sha256:2da1b7127ad22fc5ae9def416cc86c5bd99b789208f1272961829bdebc294891 done
+#24 naming to docker.io/library/promptvault-verify-43552103-api:local done
+#24 unpacking to docker.io/library/promptvault-verify-43552103-api:local 0.0s done
+#24 DONE 0.1s
 
-#25 [web build 3/7] COPY web/package.json web/package-lock.json ./
-#25 CACHED
+#25 [migrate] exporting to image
+#25 exporting layers 0.0s done
+#25 exporting manifest sha256:fe5e09e5188b0ab6691f13f64b98d4644f5f6ee27431bb5fce1fa66d132156f9 done
+#25 exporting config sha256:8312a1f74a372e115f1efc9345c24c5f7c83ef6cf854a14102bc6dcb3282dcf0 0.0s done
+#25 exporting attestation manifest sha256:d8802b58a53dcbfbb39c021530357435cba6c300d5eafc938df81aef5b16e39f 0.0s done
+#25 exporting manifest list sha256:91339038a79fad47a9f3f61cfe46e502abcd8db611ea9a70bc339192bf944bca done
+#25 naming to docker.io/library/promptvault-verify-43552103-api:local done
+#25 unpacking to docker.io/library/promptvault-verify-43552103-api:local 0.0s done
+#25 DONE 0.1s
 
-#26 [web build 4/7] RUN npm ci
-#26 CACHED
+#26 [api] resolving provenance for metadata file
+#26 DONE 0.0s
 
-#27 [web build 5/7] COPY web/ ./
+#27 [migrate] resolving provenance for metadata file
 #27 DONE 0.0s
 
 #28 [web build 6/7] RUN npm run typecheck
-#28 0.165
-#28 0.165 > promptvault-web@0.1.0 typecheck
-#28 0.165 > tsc --noEmit
-#28 0.165
-#28 1.978 npm notice
-#28 1.978 npm notice New major version of npm available! 10.9.9 -> 12.2.0
-#28 1.978 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
-#28 1.978 npm notice To update run: npm install -g npm@12.2.0
-#28 1.978 npm notice
-#28 DONE 2.0s
+#28 0.538
+#28 0.538 > promptvault-web@0.1.0 typecheck
+#28 0.538 > tsc --noEmit
+#28 0.538
+#28 2.591 npm notice
+#28 2.591 npm notice New major version of npm available! 10.9.9 -> 12.2.0
+#28 2.591 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+#28 2.591 npm notice To update run: npm install -g npm@12.2.0
+#28 2.591 npm notice
+#28 DONE 2.6s
 
 #29 [web build 7/7] RUN npm run build
-#29 0.112
-#29 0.112 > promptvault-web@0.1.0 build
-#29 0.112 > vite build
-#29 0.112
-#29 0.218 vite v8.2.2 building client environment for production...
-#29 0.223 transforming...
-#29 0.259 ✓ 68 modules transformed.
-#29 0.282 rendering chunks...
-#29 0.312 computing gzip size...
-#29 0.316 dist/index.html                   0.44 kB │ gzip:   0.28 kB
-#29 0.316 dist/assets/index-Dd782rwk.css   28.60 kB │ gzip:   6.77 kB
-#29 0.316 dist/assets/index-Bm-i8jAi.js   370.61 kB │ gzip: 103.70 kB
-#29 0.316
-#29 0.316 ✓ built in 97ms
-#29 DONE 0.3s
+#29 0.157
+#29 0.157 > promptvault-web@0.1.0 build
+#29 0.157 > vite build
+#29 0.157
+#29 0.344 vite v8.2.2 building client environment for production...
+#29 0.351 transforming...
+#29 0.405 ✓ 68 modules transformed.
+#29 0.450 rendering chunks...
+#29 0.483 computing gzip size...
+#29 0.487 dist/index.html                   0.44 kB │ gzip:   0.28 kB
+#29 0.487 dist/assets/index-Dd782rwk.css   28.60 kB │ gzip:   6.77 kB
+#29 0.487 dist/assets/index-Curi0Mf3.js   370.64 kB │ gzip: 103.72 kB
+#29 0.487
+#29 0.487 ✓ built in 143ms
+#29 DONE 0.5s
 
 #30 [web stage-1 2/3] COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 #30 CACHED
@@ -152,62 +151,62 @@ $ docker compose build --pull
 
 #32 [web] exporting to image
 #32 exporting layers 0.0s done
-#32 exporting manifest sha256:1ac8179dd1c307fe38ea6483a99a7c40b932809f4e6fbb1a841853e29a4e38dc done
-#32 exporting config sha256:51d9eea579cc80eefe751b48fa7e6184df85a109b4cce61046d874bae9e5f9d7 done
-#32 exporting attestation manifest sha256:eff80086b163bf22f9dc2fe4327b7e576d35de777cd21fa601acf5a2f9014fab done
-#32 exporting manifest list sha256:1e1a20fb883f19013dddd23d1a81c6ce2f4f2323941af5a8ec0727dce2851976 done
-#32 naming to docker.io/library/promptvault-verify-1f2ad686-web:local done
-#32 unpacking to docker.io/library/promptvault-verify-1f2ad686-web:local done
+#32 exporting manifest sha256:6f35f0193703275488a5a10ae6864d895efea437eeea0b0fd65da9d00aba1912 done
+#32 exporting config sha256:cc6f0d2925c232f5f6613a9ab01f61e1999af7f78c2c3f639310eb39462d3518 done
+#32 exporting attestation manifest sha256:a1e4c3781d11a15d7d686292d9a214abbc4e8ea45ce5cda3da4de207e132e91d done
+#32 exporting manifest list sha256:d231673dc797af36130317ee13a84260f587c0b5e37a8920ca35df338046244b done
+#32 naming to docker.io/library/promptvault-verify-43552103-web:local done
+#32 unpacking to docker.io/library/promptvault-verify-43552103-web:local done
 #32 DONE 0.1s
 
 #33 [web] resolving provenance for metadata file
 #33 DONE 0.0s
- Image promptvault-verify-1f2ad686-api:local Building
- Image promptvault-verify-1f2ad686-api:local Building
- Image promptvault-verify-1f2ad686-web:local Building
- Image promptvault-verify-1f2ad686-api:local Built
- Image promptvault-verify-1f2ad686-api:local Built
- Image promptvault-verify-1f2ad686-web:local Built
+ Image promptvault-verify-43552103-web:local Building
+ Image promptvault-verify-43552103-api:local Building
+ Image promptvault-verify-43552103-api:local Building
+ Image promptvault-verify-43552103-api:local Built
+ Image promptvault-verify-43552103-web:local Built
+ Image promptvault-verify-43552103-api:local Built
 
 $ docker compose up -d --wait
- Network promptvault-verify-1f2ad686_default Creating
- Volume promptvault-verify-1f2ad686_promptvault-data Creating
- Volume promptvault-verify-1f2ad686_promptvault-data Creating
- Network promptvault-verify-1f2ad686_default Creating
- Volume promptvault-verify-1f2ad686_promptvault-data Created
- Volume promptvault-verify-1f2ad686_promptvault-data Created
- Network promptvault-verify-1f2ad686_default Created
- Network promptvault-verify-1f2ad686_default Created
- Container promptvault-verify-1f2ad686-db-1 Creating
- Container promptvault-verify-1f2ad686-db-1 Created
- Container promptvault-verify-1f2ad686-migrate-1 Creating
- Container promptvault-verify-1f2ad686-migrate-1 Created
- Container promptvault-verify-1f2ad686-api-1 Creating
- Container promptvault-verify-1f2ad686-api-1 Created
- Container promptvault-verify-1f2ad686-web-1 Creating
- Container promptvault-verify-1f2ad686-web-1 Created
- Container promptvault-verify-1f2ad686-db-1 Starting
- Container promptvault-verify-1f2ad686-db-1 Started
- Container promptvault-verify-1f2ad686-db-1 Waiting
- Container promptvault-verify-1f2ad686-db-1 Healthy
- Container promptvault-verify-1f2ad686-migrate-1 Starting
- Container promptvault-verify-1f2ad686-migrate-1 Started
- Container promptvault-verify-1f2ad686-migrate-1 Waiting
- Container promptvault-verify-1f2ad686-migrate-1 Exited
- Container promptvault-verify-1f2ad686-api-1 Starting
- Container promptvault-verify-1f2ad686-api-1 Started
- Container promptvault-verify-1f2ad686-api-1 Waiting
- Container promptvault-verify-1f2ad686-api-1 Healthy
- Container promptvault-verify-1f2ad686-web-1 Starting
- Container promptvault-verify-1f2ad686-web-1 Started
- Container promptvault-verify-1f2ad686-db-1 Waiting
- Container promptvault-verify-1f2ad686-migrate-1 Waiting
- Container promptvault-verify-1f2ad686-api-1 Waiting
- Container promptvault-verify-1f2ad686-web-1 Waiting
- Container promptvault-verify-1f2ad686-db-1 Healthy
- Container promptvault-verify-1f2ad686-migrate-1 Exited
- Container promptvault-verify-1f2ad686-api-1 Healthy
- Container promptvault-verify-1f2ad686-web-1 Healthy
+ Network promptvault-verify-43552103_default Creating
+ Volume promptvault-verify-43552103_promptvault-data Creating
+ Volume promptvault-verify-43552103_promptvault-data Creating
+ Network promptvault-verify-43552103_default Creating
+ Volume promptvault-verify-43552103_promptvault-data Created
+ Volume promptvault-verify-43552103_promptvault-data Created
+ Network promptvault-verify-43552103_default Created
+ Network promptvault-verify-43552103_default Created
+ Container promptvault-verify-43552103-db-1 Creating
+ Container promptvault-verify-43552103-db-1 Created
+ Container promptvault-verify-43552103-migrate-1 Creating
+ Container promptvault-verify-43552103-migrate-1 Created
+ Container promptvault-verify-43552103-api-1 Creating
+ Container promptvault-verify-43552103-api-1 Created
+ Container promptvault-verify-43552103-web-1 Creating
+ Container promptvault-verify-43552103-web-1 Created
+ Container promptvault-verify-43552103-db-1 Starting
+ Container promptvault-verify-43552103-db-1 Started
+ Container promptvault-verify-43552103-db-1 Waiting
+ Container promptvault-verify-43552103-db-1 Healthy
+ Container promptvault-verify-43552103-migrate-1 Starting
+ Container promptvault-verify-43552103-migrate-1 Started
+ Container promptvault-verify-43552103-migrate-1 Waiting
+ Container promptvault-verify-43552103-migrate-1 Exited
+ Container promptvault-verify-43552103-api-1 Starting
+ Container promptvault-verify-43552103-api-1 Started
+ Container promptvault-verify-43552103-api-1 Waiting
+ Container promptvault-verify-43552103-api-1 Healthy
+ Container promptvault-verify-43552103-web-1 Starting
+ Container promptvault-verify-43552103-web-1 Started
+ Container promptvault-verify-43552103-migrate-1 Waiting
+ Container promptvault-verify-43552103-api-1 Waiting
+ Container promptvault-verify-43552103-web-1 Waiting
+ Container promptvault-verify-43552103-db-1 Waiting
+ Container promptvault-verify-43552103-migrate-1 Exited
+ Container promptvault-verify-43552103-api-1 Healthy
+ Container promptvault-verify-43552103-db-1 Healthy
+ Container promptvault-verify-43552103-web-1 Healthy
 
 $ docker compose exec -T db psql -U promptvault -d postgres -tAc SELECT 1 FROM pg_database WHERE datname = 'promptvault_test'
 1
@@ -233,35 +232,35 @@ $ docker compose --profile verification run --rm verify
 #5 DONE 0.0s
 
 #6 [internal] load build context
-#6 transferring context: 1.88MB 0.0s done
+#6 transferring context: 1.28MB 0.0s done
 #6 DONE 0.0s
 
-#7 [test 3/8] COPY --chown=promptvault:promptvault pyproject.toml ./pyproject.toml
+#7 [base 4/5] COPY api/requirements.lock /tmp/requirements.lock
 #7 CACHED
 
-#8 [test 2/8] RUN python -m pip install --no-cache-dir -r /tmp/requirements-dev.lock
+#8 [base 2/5] WORKDIR /srv/promptvault
 #8 CACHED
 
 #9 [test 1/8] COPY api/requirements-dev.lock /tmp/requirements-dev.lock
 #9 CACHED
 
-#10 [base 5/5] RUN python -m pip install --no-cache-dir -r /tmp/requirements.lock
+#10 [base 3/5] RUN groupadd --system promptvault     && useradd --system --gid promptvault --home-dir /srv/promptvault promptvault
 #10 CACHED
 
-#11 [test 4/8] COPY --chown=promptvault:promptvault api ./api
+#11 [base 5/5] RUN python -m pip install --no-cache-dir -r /tmp/requirements.lock
 #11 CACHED
 
-#12 [base 4/5] COPY api/requirements.lock /tmp/requirements.lock
+#12 [test 2/8] RUN python -m pip install --no-cache-dir -r /tmp/requirements-dev.lock
 #12 CACHED
 
-#13 [base 2/5] WORKDIR /srv/promptvault
+#13 [test 3/8] COPY --chown=promptvault:promptvault pyproject.toml ./pyproject.toml
 #13 CACHED
 
-#14 [base 3/5] RUN groupadd --system promptvault     && useradd --system --gid promptvault --home-dir /srv/promptvault promptvault
-#14 CACHED
+#14 [test 4/8] COPY --chown=promptvault:promptvault api ./api
+#14 DONE 0.0s
 
 #15 [test 5/8] COPY --chown=promptvault:promptvault db ./db
-#15 CACHED
+#15 DONE 0.0s
 
 #16 [test 6/8] COPY --chown=promptvault:promptvault docs ./docs
 #16 DONE 0.0s
@@ -274,12 +273,12 @@ $ docker compose --profile verification run --rm verify
 
 #19 exporting to image
 #19 exporting layers 0.0s done
-#19 exporting manifest sha256:ef29fb1e7bc1663703c0825510fdb1c638758e8a4077257dbb6f3f9aa0402972 done
-#19 exporting config sha256:7ea5827620b3fbd3fb54c645fc2922fa37bb019e20cffcc3bdb397e48c645cad done
-#19 exporting attestation manifest sha256:0f6769982ee281f32ab3883e4fc2e3046cc11ffeb24fd91000e570e8b0dea6fa done
-#19 exporting manifest list sha256:5c5ea2a04916995cc748f2f6f00f443cb90e0023d2e71fef6e0b3aba35da31e0 done
-#19 naming to docker.io/library/promptvault-verify-1f2ad686-api-test:local done
-#19 unpacking to docker.io/library/promptvault-verify-1f2ad686-api-test:local 0.0s done
+#19 exporting manifest sha256:3824c8182a0a1984bfb4084d5e0b0fdaaf16ad9e0e4cf1be8fc6abfb729cc165 done
+#19 exporting config sha256:35a51d3e0d3c7fbd7fccb2e4354458cd99daa83283827ccccb8155d80229f805 done
+#19 exporting attestation manifest sha256:99d74679e2923ed59783d8ed2ebdea9a727e039bc0fc557059a37b7aea7e76b1 done
+#19 exporting manifest list sha256:a5c4c243a743594805c32689c89b5d555680a797b46363c213c1ff4e24d5f004 done
+#19 naming to docker.io/library/promptvault-verify-43552103-api-test:local done
+#19 unpacking to docker.io/library/promptvault-verify-43552103-api-test:local 0.0s done
 #19 DONE 0.1s
 
 #20 resolving provenance for metadata file
@@ -331,7 +330,7 @@ api/app/security.py                        69      5      8      3    90%   65-6
 api/app/services/admin.py                 115      8     16      2    89%   50-55, 125, 204
 api/app/services/analytics.py              38      4      8      3    85%   29-30, 39, 41->44, 46
 api/app/services/auth.py                   53      3     12      1    94%   81, 101-102
-api/app/services/deployments.py            74     15     20      3    77%   55-56, 89-92, 101, 139, 181-189
+api/app/services/deployments.py            74     16     20      4    74%   55-56, 89-92, 101, 109, 139, 181-189
 api/app/services/playground.py            125      7     26      3    93%   107-108, 183, 202, 211-212, 304
 api/app/services/projects.py               69      7     22      7    85%   66, 75, 82, 92, 108, 119, 126
 api/app/services/prompt_versioning.py      97      4     26      4    93%   76, 87, 153, 189
@@ -339,37 +338,37 @@ api/app/services/rollback.py               23      2      4      2    85%   32, 
 api/app/services/serve.py                  56      5     16      4    88%   53-54, 65->67, 79, 83, 92
 api/app/services/time_filters.py           11      1      6      1    88%   23
 -----------------------------------------------------------------------------------
-TOTAL                                    3512    242    610    160    90%
+TOTAL                                    3512    243    610    161    90%
 
 34 files skipped due to complete coverage.
-Required test coverage of 85.0% reached. Total coverage: 89.62%
-336 passed, 7 skipped in 17.55s
+Required test coverage of 85.0% reached. Total coverage: 89.57%
+336 passed, 7 skipped in 18.40s
 No broken requirements found.
 Wrote OpenAPI contract to /tmp/promptvault-openapi.json
 cost-analytics.sql: 1 statement(s), 0 row(s)
 deployment-history.sql: 1 statement(s), 0 row(s)
 query-plans.sql: 2 statement(s), 21 row(s)
-{"QUERY PLAN": "Limit  (cost=0.28..16.33 rows=2 width=564) (actual time=0.005..0.005 rows=0 loops=1)"}
+{"QUERY PLAN": "Limit  (cost=0.28..16.33 rows=2 width=564) (actual time=0.005..0.006 rows=0 loops=1)"}
 {"QUERY PLAN": "  Buffers: shared hit=4"}
 version-lineage.sql: 1 statement(s), 1 row(s)
 {"cycle_detected": false, "depth": 0, "descendant_version_id": "55555555-5555-4555-8555-555555555555", "parent_version_id": null, "version_id": "55555555-5555-4555-8555-555555555555"}
- Container promptvault-verify-1f2ad686-db-1 Running
- Image promptvault-verify-1f2ad686-api-test:local Pulling
- Image promptvault-verify-1f2ad686-api-test:local pull access denied for promptvault-verify-1f2ad686-api-test, repository does not exist or may require 'docker login'
- Image promptvault-verify-1f2ad686-api-test:local Building
- Image promptvault-verify-1f2ad686-api-test:local Built
- Container promptvault-verify-1f2ad686-db-1 Waiting
- Container promptvault-verify-1f2ad686-db-1 Healthy
- Container promptvault-verify-1f2ad686-verify-run-1b0b724f59c9 Creating
- Container promptvault-verify-1f2ad686-verify-run-1b0b724f59c9 Created
+ Container promptvault-verify-43552103-db-1 Running
+ Image promptvault-verify-43552103-api-test:local Pulling
+ Image promptvault-verify-43552103-api-test:local pull access denied for promptvault-verify-43552103-api-test, repository does not exist or may require 'docker login'
+ Image promptvault-verify-43552103-api-test:local Building
+ Image promptvault-verify-43552103-api-test:local Built
+ Container promptvault-verify-43552103-db-1 Waiting
+ Container promptvault-verify-43552103-db-1 Healthy
+ Container promptvault-verify-43552103-verify-run-314e301cb95e Creating
+ Container promptvault-verify-43552103-verify-run-314e301cb95e Created
 
-HTTP GET http://127.0.0.1:59739/health
+HTTP GET http://127.0.0.1:55131/health
 HTTP 200 {"status":"ok"}
 
-HTTP GET http://127.0.0.1:59739/ready
+HTTP GET http://127.0.0.1:55131/ready
 HTTP 200 {"status":"ready","database":"ok"}
 
-HTTP GET http://127.0.0.1:59740/
+HTTP GET http://127.0.0.1:55132/
 HTTP 200 <!doctype html>
 <html lang="en">
   <head>
@@ -377,7 +376,7 @@ HTTP 200 <!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#fbfaf8" />
     <title>PromptVault</title>
-    <script type="module" crossorigin src="/assets/index-Bm-i8jAi.js"></script>
+    <script type="module" crossorigin src="/assets/index-Curi0Mf3.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-Dd782rwk.css">
   </head>
   <body>
@@ -386,35 +385,35 @@ HTTP 200 <!doctype html>
 </html>
 
 
-HTTP POST http://127.0.0.1:59739/api/v1/auth/login (seeded User credentials redacted)
+HTTP POST http://127.0.0.1:55131/api/v1/auth/login (seeded User credentials redacted)
 HTTP 200 seeded User login succeeded; access token redacted
 
 $ docker compose run --rm migrate python scripts/version-race-demo.py --workers 4
 Concurrent version saves: 4
 Assigned versions: 2, 3, 4, 5
- Container promptvault-verify-1f2ad686-db-1 Running
- Container promptvault-verify-1f2ad686-db-1 Waiting
- Container promptvault-verify-1f2ad686-db-1 Healthy
- Container promptvault-verify-1f2ad686-migrate-run-7cd033f3371a Creating
- Container promptvault-verify-1f2ad686-migrate-run-7cd033f3371a Created
+ Container promptvault-verify-43552103-db-1 Running
+ Container promptvault-verify-43552103-db-1 Waiting
+ Container promptvault-verify-43552103-db-1 Healthy
+ Container promptvault-verify-43552103-migrate-run-09681193a166 Creating
+ Container promptvault-verify-43552103-migrate-run-09681193a166 Created
 
 $ docker compose run --rm migrate python scripts/approval-race-demo.py
 Successful decisions: 1
 Conflicting decisions: 1
 Winning status: rejected
- Container promptvault-verify-1f2ad686-db-1 Running
- Container promptvault-verify-1f2ad686-db-1 Waiting
- Container promptvault-verify-1f2ad686-db-1 Healthy
- Container promptvault-verify-1f2ad686-migrate-run-daca4f2cc12f Creating
- Container promptvault-verify-1f2ad686-migrate-run-daca4f2cc12f Created
+ Container promptvault-verify-43552103-db-1 Running
+ Container promptvault-verify-43552103-db-1 Waiting
+ Container promptvault-verify-43552103-db-1 Healthy
+ Container promptvault-verify-43552103-migrate-run-9227751256c9 Creating
+ Container promptvault-verify-43552103-migrate-run-9227751256c9 Created
 
 $ docker compose run --rm migrate python scripts/simulate-traffic.py --runs 2000
 Representative dataset ready: 2000 runs in runs_2026_10 for project 243b7f69-3aa9-5478-8382-fedeb6eef56c
- Container promptvault-verify-1f2ad686-db-1 Running
- Container promptvault-verify-1f2ad686-db-1 Waiting
- Container promptvault-verify-1f2ad686-db-1 Healthy
- Container promptvault-verify-1f2ad686-migrate-run-972166205b9e Creating
- Container promptvault-verify-1f2ad686-migrate-run-972166205b9e Created
+ Container promptvault-verify-43552103-db-1 Running
+ Container promptvault-verify-43552103-db-1 Waiting
+ Container promptvault-verify-43552103-db-1 Healthy
+ Container promptvault-verify-43552103-migrate-run-4ccec2a0e06d Creating
+ Container promptvault-verify-43552103-migrate-run-4ccec2a0e06d Created
 
 $ python3 scripts/verify-backup.py
 Backup restore verified in an isolated database: 16 migrations, 2000 runs
@@ -423,40 +422,40 @@ $ docker compose run --rm migrate python scripts/run-showcase.py --max-rows 2
 cost-analytics.sql: 1 statement(s), 1 row(s)
 {"completed_runs": "2000", "model": "deterministic-v1", "month": "2026-10-01 00:00:00+00:00", "provider": "mock", "total_cost": "0.246000"}
 deployment-history.sql: 1 statement(s), 1 row(s)
-{"activated_at": null, "environment": "prod", "prompt_id": "85b87390-ad2e-4a2a-8264-dac7555e0ee1", "requested_at": "2026-10-06 10:22:10.040001+00:00", "reviewed_at": "2026-10-06 10:22:10.049257+00:00", "rollback_of_id": null, "status": "rejected", "version_number": 1}
+{"activated_at": null, "environment": "prod", "prompt_id": "83d5ff25-8f75-4d4e-8fb0-d9e8027a1039", "requested_at": "2026-10-08 11:56:53.392801+00:00", "reviewed_at": "2026-10-08 11:56:53.403610+00:00", "rollback_of_id": null, "status": "rejected", "version_number": 1}
 query-plans.sql: 2 statement(s), 24 row(s)
-{"QUERY PLAN": "Limit  (cost=8.31..8.32 rows=2 width=312) (actual time=0.011..0.012 rows=0 loops=1)"}
+{"QUERY PLAN": "Limit  (cost=8.31..8.32 rows=2 width=312) (actual time=0.009..0.009 rows=0 loops=1)"}
 {"QUERY PLAN": "  Buffers: shared hit=2"}
 version-lineage.sql: 1 statement(s), 1 row(s)
 {"cycle_detected": false, "depth": 0, "descendant_version_id": "55555555-5555-4555-8555-555555555555", "parent_version_id": null, "version_id": "55555555-5555-4555-8555-555555555555"}
- Container promptvault-verify-1f2ad686-db-1 Running
- Container promptvault-verify-1f2ad686-db-1 Waiting
- Container promptvault-verify-1f2ad686-db-1 Healthy
- Container promptvault-verify-1f2ad686-migrate-run-32704ba50c96 Creating
- Container promptvault-verify-1f2ad686-migrate-run-32704ba50c96 Created
+ Container promptvault-verify-43552103-db-1 Running
+ Container promptvault-verify-43552103-db-1 Waiting
+ Container promptvault-verify-43552103-db-1 Healthy
+ Container promptvault-verify-43552103-migrate-run-e319bc55e69e Creating
+ Container promptvault-verify-43552103-migrate-run-e319bc55e69e Created
 
 $ docker compose down -v --remove-orphans
- Container promptvault-verify-1f2ad686-web-1 Stopping
- Container promptvault-verify-1f2ad686-web-1 Stopped
- Container promptvault-verify-1f2ad686-web-1 Removing
- Container promptvault-verify-1f2ad686-web-1 Removed
- Container promptvault-verify-1f2ad686-api-1 Stopping
- Container promptvault-verify-1f2ad686-api-1 Stopped
- Container promptvault-verify-1f2ad686-api-1 Removing
- Container promptvault-verify-1f2ad686-api-1 Removed
- Container promptvault-verify-1f2ad686-migrate-1 Stopping
- Container promptvault-verify-1f2ad686-migrate-1 Stopped
- Container promptvault-verify-1f2ad686-migrate-1 Removing
- Container promptvault-verify-1f2ad686-migrate-1 Removed
- Container promptvault-verify-1f2ad686-db-1 Stopping
- Container promptvault-verify-1f2ad686-db-1 Stopped
- Container promptvault-verify-1f2ad686-db-1 Removing
- Container promptvault-verify-1f2ad686-db-1 Removed
- Network promptvault-verify-1f2ad686_default Removing
- Volume promptvault-verify-1f2ad686_promptvault-data Removing
- Volume promptvault-verify-1f2ad686_promptvault-data Removed
- Network promptvault-verify-1f2ad686_default Removed
+ Container promptvault-verify-43552103-web-1 Stopping
+ Container promptvault-verify-43552103-web-1 Stopped
+ Container promptvault-verify-43552103-web-1 Removing
+ Container promptvault-verify-43552103-web-1 Removed
+ Container promptvault-verify-43552103-api-1 Stopping
+ Container promptvault-verify-43552103-api-1 Stopped
+ Container promptvault-verify-43552103-api-1 Removing
+ Container promptvault-verify-43552103-api-1 Removed
+ Container promptvault-verify-43552103-migrate-1 Stopping
+ Container promptvault-verify-43552103-migrate-1 Stopped
+ Container promptvault-verify-43552103-migrate-1 Removing
+ Container promptvault-verify-43552103-migrate-1 Removed
+ Container promptvault-verify-43552103-db-1 Stopping
+ Container promptvault-verify-43552103-db-1 Stopped
+ Container promptvault-verify-43552103-db-1 Removing
+ Container promptvault-verify-43552103-db-1 Removed
+ Network promptvault-verify-43552103_default Removing
+ Volume promptvault-verify-43552103_promptvault-data Removing
+ Volume promptvault-verify-43552103_promptvault-data Removed
+ Network promptvault-verify-43552103_default Removed
 
-UTC completed: 2026-10-06T10:22:13.919943+00:00
+UTC completed: 2026-10-08T11:56:57.362701+00:00
 
 RESULT: PASSED
