@@ -17,7 +17,13 @@ def auth_client(
     test_settings: Settings,
     seeded_database_url: str,
 ) -> Iterator[TestClient]:
-    settings = test_settings.model_copy(update={"database_url": seeded_database_url})
+    settings = test_settings.model_copy(
+        update={
+            "database_url": seeded_database_url,
+            "smtp_host": "smtp.test",
+            "smtp_from_email": "no-reply@promptvault.dev",
+        }
+    )
     app = create_app(settings)
     with TestClient(app) as client:
         yield client

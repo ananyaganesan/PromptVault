@@ -8,7 +8,7 @@ import { authApi } from './api'
 import { RequireAuth } from './guards'
 import { LoginPage, RegisterPage } from './pages'
 
-function Location() { return <output data-testid="location">{useLocation().pathname}</output> }
+function Location() { const location = useLocation(); return <output data-testid="location">{location.pathname}{location.search}{location.hash}</output> }
 function renderAuth(path: '/login' | '/register') {
   render(<AuthProvider><MemoryRouter initialEntries={[path]}><Routes>
     <Route path="/login" element={<LoginPage />} />
@@ -44,6 +44,21 @@ describe('PostgreSQL-backed authentication', () => {
     await createApiClient({ fetcher }).request('/api/v1/auth/me')
     expect(fetcher).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer server-jwt' }) }))
     expect(sessionStorage.getItem('promptvault.api.session')).toBe('server-jwt')
+  })
+
+  it('returns to the requested page after login, including its query and hash', async () => {
+    vi.spyOn(authApi, 'login').mockResolvedValue({ user: backendUser, access_token: 'server-jwt', token_type: 'bearer', expires_in: 1800 })
+    const user = userEvent.setup()
+    render(<AuthProvider><MemoryRouter initialEntries={['/projects?search=checkout#results']}><Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<RequireAuth />}><Route path="/projects" element={<Location />} /></Route>
+    </Routes></MemoryRouter></AuthProvider>)
+
+    await user.type(await screen.findByLabelText('Email address'), backendUser.email)
+    await user.type(screen.getByLabelText('Password'), 'UserDemo2026!')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByTestId('location')).toHaveTextContent('/projects?search=checkout#results')
   })
 
   it('restores a saved session after a page refresh', async () => {

@@ -31,12 +31,11 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     setBusy(true)
     try {
       const user = mode === 'register' ? await register({ display_name: displayName.trim(), email: email.trim(), password }) : await login({ email: email.trim(), password })
-      if (mode === 'login') {
-        navigate('/dashboard', { replace: true })
-        return
-      }
       const from = (location.state as { from?: string } | null)?.from
-      navigate(from && (user.role === 'super_admin' || !from.startsWith('/admin')) ? from : user.role === 'super_admin' ? '/admin' : '/dashboard', { replace: true })
+      const requestedRoute = from?.startsWith('/') && !from.startsWith('//') && (user.role === 'super_admin' || !from.startsWith('/admin'))
+        ? from
+        : null
+      navigate(requestedRoute ?? (mode === 'register' && user.role === 'super_admin' ? '/admin' : '/dashboard'), { replace: true })
     } catch (error) {
       if (error instanceof ApiClientError && error.fieldErrors) {
         const fields = error.fieldErrors
