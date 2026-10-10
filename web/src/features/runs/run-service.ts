@@ -4,6 +4,8 @@ import type { CreateRunRequest, PersonalDashboard, PromptRun, RunListQuery } fro
 import type { Page } from '../../types/api'
 import { budgetStore } from '../admin/budget-store'
 import { useDemoData } from '../../lib/runtime'
+import { ApiClientError } from '../../lib/api/client'
+import { refreshLiveData } from '../../lib/live-refresh'
 
 const useDemoRuns = useDemoData && import.meta.env.VITE_USE_MOCK_RUNS !== 'false'
 const currentMonth = new Date().toISOString().slice(0, 7)
@@ -18,7 +20,7 @@ const seedRuns: PromptRun[] = [
 let demoRuns = useDemoRuns ? seedRuns : []
 let revision = 0
 const listeners = new Set<() => void>()
-function notify() { revision += 1; listeners.forEach((listener) => listener()) }
+function notify() { revision += 1; listeners.forEach((listener) => listener()); refreshLiveData() }
 export const runStore = {
   subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener) },
   getSnapshot() { return revision },
@@ -54,10 +56,21 @@ export function adaptRun(run: BackendPromptRun): PromptRun {
 export const runService = {
   async create(request: CreateRunRequest, scenario: 'normal' | 'failed' | 'blocked' = 'normal', userId = 'usr_demo_user'): Promise<PromptRun> {
     if (!useDemoRuns) {
-      const run = adaptRun(await runsApi.create(request))
-      demoRuns = [run, ...demoRuns]
-      notify()
-      return run
+      try {
+        const run = adaptRun(await runsApi.create(request))
+        demoRuns = [run, ...demoRuns]
+        notify()
+        return run
+      } catch (cause) {
+        // These application errors are emitted only after ledger recording succeeds.
+        // Other failures (including connection loss) do not confirm a recorded run.
+        if (cause instanceof ApiClientError && (
+          (cause.status === 502 && cause.code === 'provider_error') ||
+          (cause.status === 504 && cause.code === 'provider_timeout') ||
+          (cause.status === 409 && cause.code === 'budget_exceeded')
+        )) notify()
+        throw cause
+      }
     }
     const version = Object.values(versionStore).flat().find((item) => item.id === request.version_id)
     if (!version) throw new Error('Select a valid prompt version.')
@@ -85,7 +98,7 @@ export const runService = {
       const page = await runsApi.list(query)
       return { ...page, items: page.items.map(adaptRun) }
     }
-    const rows = demoRuns.filter((run) => (!query.project_id || run.project_id === query.project_id) && (!query.prompt_id || run.prompt_id === query.prompt_id) && (!query.status || run.status === query.status) && (!query.from || run.created_at >= query.from) && (!query.to || run.created_at <= query.to))
+    const rows = demoRuns.filter((run) => (!query.project_id || run.project_id === query.project_id) && (!query.prompt_id || run.prompt_id === query.prompt_id) && (!query.version_id || run.version_id === query.version_id) && (!query.status || run.status === query.status) && (!query.model || run.model === query.model) && (!query.from || run.created_at >= query.from) && (!query.to || run.created_at < query.to))
     const page = query.page ?? 1; const pageSize = query.page_size ?? 20
     return { items: rows.slice((page - 1) * pageSize, page * pageSize), total: rows.length, page, page_size: pageSize }
   },
@@ -104,11 +117,12 @@ export const runService = {
         pending_approval_count: dashboard.pending_approval_count,
         run_count: dashboard.run_count,
         cost_trend: dashboard.cost_trend,
+        recent_runs: dashboard.recent_runs.map(adaptRun),
       }
     }
     const buckets = new Map<string, { cost: number; run_count: number }>()
     for (let index = 13; index >= 0; index -= 1) buckets.set(daysAgo(index).slice(0, 10), { cost: 0, run_count: 0 })
     for (const run of demoRuns.filter((item) => item.user_id === userId)) { const bucket = buckets.get(run.created_at.slice(0, 10)); if (bucket) { bucket.cost += Number(run.cost); bucket.run_count += 1 } }
-    return { project_count: projectStore.length, prompt_count: promptStore.length, monthly_spend: money(totalSpend(userId)), monthly_budget: budgetStore.getLimit('user', userId), pending_approval_count: 0, run_count: demoRuns.filter((run) => run.user_id === userId).length, cost_trend: [...buckets].map(([date, value]) => ({ date, cost: money(value.cost), run_count: value.run_count })) }
+    return { recent_runs: demoRuns.filter((run) => run.user_id === userId).slice(0, 4), project_count: projectStore.length, prompt_count: promptStore.length, monthly_spend: money(totalSpend(userId)), monthly_budget: budgetStore.getLimit('user', userId), pending_approval_count: 0, run_count: demoRuns.filter((run) => run.user_id === userId).length, cost_trend: [...buckets].map(([date, value]) => ({ date, cost: money(value.cost), run_count: value.run_count })) }
   },
 }

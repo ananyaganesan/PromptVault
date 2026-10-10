@@ -30,7 +30,9 @@ export interface CreateRunRequest {
 export interface RunListQuery extends PageQuery {
   project_id?: Id
   prompt_id?: Id
+  version_id?: Id
   status?: RunStatus
+  model?: string
   from?: IsoDateString
   to?: IsoDateString
 }
@@ -42,6 +44,7 @@ export interface CostTrendPoint {
 }
 
 export interface PersonalDashboard {
+  recent_runs?: PromptRun[]
   project_count: number
   prompt_count: number
   monthly_spend: Money

@@ -3,6 +3,16 @@ import type { Id, IsoDateString, PageQuery } from './api'
 export type DeploymentEnvironment = 'development' | 'staging' | 'production'
 export type DeploymentStatus = 'active' | 'pending_approval' | 'rejected' | 'cancelled' | 'superseded' | 'rolled_back'
 
+export interface DeploymentTimelineEvent {
+  id: Id
+  version_id: Id
+  version_number: number
+  status: DeploymentStatus
+  requested_at: IsoDateString
+  reviewed_at: IsoDateString | null
+  activated_at: IsoDateString | null
+}
+
 export interface Deployment {
   id: Id
   project_id: Id
@@ -20,6 +30,11 @@ export interface Deployment {
   reviewed_at: IsoDateString | null
   review_note: string | null
   created_at: IsoDateString
+  requested_at?: IsoDateString
+  activated_at?: IsoDateString | null
+  rollback_of_id?: Id | null
+  rollback_reason?: string | null
+  timeline?: DeploymentTimelineEvent[]
 }
 
 export interface CreateDeploymentRequest {

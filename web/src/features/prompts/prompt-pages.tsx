@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import {
   Link,
   useNavigate,
@@ -6,15 +6,21 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { PageHeader } from "../../components/layout/page-header";
-import { Button, Field, Status } from "../../components/ui/prototype";
+import { Button, Field } from "../../components/ui/prototype";
 import { EmptyState } from "../../components/ui/empty-state";
+import { refreshLiveData } from "../../lib/live-refresh";
+import { ApiClientError } from "../../lib/api/client";
+import type { PromptVersion } from "../../types/versions";
+import { VersionDeploymentStatus, PromptDeploymentStatus } from "../versions/version-pages";
 import type { Prompt } from "../../types/prompts";
 import {
   projectStore,
+  promptEnvironments,
   promptFor,
   promptStore,
   versionsFor,
   workspaceService,
+  workspaceStore,
 } from "../projects/workspace-data";
 
 const variableNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -44,20 +50,17 @@ function TemplateVariablePreview({ names, error }: { names: string[]; error: str
 }
 
 export function PromptsPage() {
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const [search, setSearch] = useState("");
   const [project, setProject] = useState("");
   const [environment, setEnvironment] = useState("");
-  const filtered = useMemo(
-    () =>
-      promptStore.filter(
+  const filtered = promptStore.filter(
         (prompt) =>
           (!project || prompt.project_id === project) &&
-          (!environment || prompt.active_environment === environment) &&
+          (!environment || (environment === 'draft' ? promptEnvironments(prompt.id)?.length === 0 : promptEnvironments(prompt.id)?.includes(environment))) &&
           `${prompt.name} ${prompt.key}`
             .toLowerCase()
             .includes(search.toLowerCase()),
-      ),
-    [search, project, environment],
   );
   return (
     <>
@@ -96,6 +99,7 @@ export function PromptsPage() {
         >
           <option value="">All environments</option>
           <option value="draft">Draft</option>
+          <option value="development">Development</option>
           <option value="staging">Staging</option>
           <option value="production">Production</option>
         </select>
@@ -116,15 +120,7 @@ export function PromptsPage() {
                 <code className="version-code">
                   v{prompt.latest_version_number}
                 </code>
-                <Status
-                  tone={
-                    prompt.active_environment === "production"
-                      ? "success"
-                      : "neutral"
-                  }
-                >
-                  {prompt.active_environment}
-                </Status>
+                <PromptDeploymentStatus promptId={prompt.id} />
                 <span className="row-arrow">→</span>
               </Link>
             ))
@@ -137,6 +133,7 @@ export function PromptsPage() {
   );
 }
 export function NewPromptPage() {
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [projectId, setProjectId] = useState(
@@ -237,38 +234,48 @@ export function NewPromptPage() {
   );
 }
 export function PromptDetailPage() {
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const { promptId } = useParams();
   const prompt = promptFor(promptId);
   if (!prompt) return <EmptyState title="Prompt not found" description="This prompt does not exist or is no longer available." action={<Link to="/prompts">Back to prompts</Link>} />;
-  return <PromptDetailContent prompt={prompt} />;
+  return <PromptDetailContent key={prompt.id} prompt={prompt} />;
 }
 function PromptDetailContent({ prompt }: { prompt: Prompt }) {
   const versions = versionsFor(prompt.id);
   const latest = versions[0];
-  const [template, setTemplate] = useState(latest?.template ?? "");
-  const parsedVariables = useMemo(() => templateVariables(template), [template]);
+  const [draft, setDraft] = useState<{ base: PromptVersion; template: string } | null>(null);
   const [commit, setCommit] = useState("");
+  const dirty = draft !== null && (draft.template !== draft.base.template || Boolean(commit.trim()));
+  const template = dirty ? draft.template : latest?.template ?? "";
+  const base = dirty ? draft.base : latest;
+  const stale = Boolean(base && latest && base.id !== latest.id);
+  const savingRef = useRef(false);
+  const parsedVariables = templateVariables(template);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   async function saveVersion() {
     if (!template.trim() || !commit.trim())
       return setNotice("Add a template and a commit message before saving.");
     if (parsedVariables.error) return setNotice(parsedVariables.error);
-    if (!latest) return setNotice("The current version could not be loaded.");
-    if (saving) return;
+    if (!base) return setNotice("The current version could not be loaded.");
+    if (stale || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const version = await workspaceService.createVersion(prompt.id, {
-        parent_version_id: latest.id,
+        parent_version_id: base.id,
         template,
-        model_config: latest.model_config,
+        model_config: base.model_config,
         commit_message: commit.trim(),
       });
+      setDraft({ base: version, template: version.template });
       setCommit("");
       setNotice(`Version ${version.version_number} was saved as an immutable snapshot.`);
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : "Could not save the new version.");
+      if (cause instanceof ApiClientError && cause.status === 409) refreshLiveData();
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -278,8 +285,13 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
         title={prompt.name}
         eyebrow={`PROMPTS / ${prompt.key.toUpperCase()}`}
         description={prompt.description ?? "Reusable prompt template."}
-        action={<Button onClick={saveVersion} disabled={saving}>{saving ? "Saving…" : "Save new version"}</Button>}
+        action={<Button onClick={saveVersion} disabled={saving || stale}>{saving ? "Saving…" : "Save new version"}</Button>}
       />
+      {stale && <div role="alert"><p>A newer version is available. Your draft and commit message are preserved; review the latest version before choosing a parent.</p>
+        <details><summary>View latest version {latest?.version_number}</summary><pre>{latest?.template}</pre><p>Model: {latest?.model_config.model}</p></details>
+        <Button secondary disabled={saving} onClick={() => latest && setDraft({ base: latest, template })}>Keep draft with latest parent</Button>
+        <Button secondary disabled={saving} onClick={() => latest && setDraft({ base: latest, template: latest.template })}>Replace draft with latest version</Button>
+      </div>}
       {notice && (
         <p className={/before saving|required|invalid variable|could not/i.test(notice) ? "inline-feedback error" : "inline-feedback"} role={/before saving|required|invalid variable|could not/i.test(notice) ? "alert" : "status"}>
           {notice}
@@ -289,21 +301,14 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
         <section className="panel editor">
           <div className="editor-top">
             <code>{prompt.key}</code>
-            <Status
-              tone={
-                prompt.active_environment === "production"
-                  ? "success"
-                  : "neutral"
-              }
-            >
-              {prompt.active_environment} v{prompt.latest_version_number}
-            </Status>
+            {base && <VersionDeploymentStatus promptId={prompt.id} versionId={base.id} />}
           </div>
           <label className="field">
             <span>Prompt template</span>
             <textarea
               value={template}
-              onChange={(event) => { setTemplate(event.target.value); setNotice(""); }}
+              disabled={saving}
+              onChange={(event) => { if (base) setDraft({ base, template: event.target.value }); setNotice(""); }}
             />
           </label>
           <TemplateVariablePreview names={parsedVariables.names} error={parsedVariables.error} />
@@ -311,7 +316,8 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
             label="Commit message"
             placeholder="Explain this change"
             value={commit}
-            onChange={(event) => setCommit(event.target.value)}
+            disabled={saving}
+            onChange={(event) => { if (base && !dirty) setDraft({ base, template }); setCommit(event.target.value); }}
           />
         </section>
         <section className="panel version-panel">

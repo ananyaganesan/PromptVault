@@ -8,7 +8,7 @@ export interface BackendPromptRun extends Omit<PromptRun, 'output' | 'error_mess
   error_code: string | null
 }
 
-export interface BackendPersonalDashboard extends PersonalDashboard {
+export interface BackendPersonalDashboard extends Omit<PersonalDashboard, 'recent_runs'> {
   month: string
   timezone: string
   completed_run_count: number

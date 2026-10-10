@@ -1,9 +1,12 @@
-import { adminDeploymentsApi, apiTokensApi, deploymentsApi, type BackendApiToken, type BackendDeployment, type BackendDeploymentEnvironment, type BackendDeploymentStatus } from './api'
-import { projectStore, promptStore, versionStore } from '../projects/workspace-data'
+import { refreshLiveData } from '../../lib/live-refresh'
+import { readAllPages } from '../../lib/api/pagination'
+import { adminDeploymentsApi, apiTokensApi, deploymentsApi, type BackendApiToken, type BackendDeployment, type BackendDeploymentDetail, type BackendDeploymentEnvironment, type BackendDeploymentStatus } from './api'
+import { projectStore, promptStore, versionStore, adaptVersion } from '../projects/workspace-data'
 import type { Id, Page } from '../../types/api'
 import type { ApiTokenMetadata, CreateApiTokenRequest, CreatedApiToken, CreateDeploymentRequest, Deployment, DeploymentListQuery, DeploymentStatus, ReviewDeploymentRequest } from '../../types/deployments'
 import type { UserSummary } from '../../types/auth'
 import { auditStore } from '../admin/audit-store'
+import { runService, adaptRun } from '../runs/run-service'
 import { useDemoData } from '../../lib/runtime'
 
 const useDemoDeployments = useDemoData
@@ -21,7 +24,7 @@ let tokens: ApiTokenMetadata[] = useDemoDeployments ? [
 ] : []
 let revision = 0
 const listeners = new Set<() => void>()
-const notify = () => { revision += 1; listeners.forEach((listener) => listener()) }
+const notify = () => { revision += 1; listeners.forEach((listener) => listener()); refreshLiveData() }
 export const deploymentStore = { subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener) }, getSnapshot() { return revision } }
 
 function requireUser(user: UserSummary | null): UserSummary { if (!user) throw new Error('Sign in to continue.'); return user }
@@ -44,7 +47,7 @@ const toBackendStatus = (status: DeploymentListQuery['status']): BackendDeployme
 const fromBackendStatus = (status: BackendDeploymentStatus): DeploymentStatus =>
   status === 'pending' ? 'pending_approval' : status
 
-export function adaptBackendDeployment(item: BackendDeployment): Deployment {
+export function adaptBackendDeployment(item: BackendDeployment | BackendDeploymentDetail): Deployment {
   return {
     id: item.id,
     project_id: item.project_id,
@@ -62,6 +65,11 @@ export function adaptBackendDeployment(item: BackendDeployment): Deployment {
     reviewed_at: item.reviewed_at,
     review_note: item.review_note,
     created_at: item.requested_at,
+    requested_at: item.requested_at,
+    activated_at: item.activated_at,
+    rollback_of_id: item.rollback_of_id,
+    rollback_reason: item.rollback_reason,
+    ...('timeline' in item ? { timeline: item.timeline.map((event) => ({ ...event, status: fromBackendStatus(event.status) })) } : {}),
   }
 }
 
@@ -78,6 +86,27 @@ export function adaptBackendToken(item: BackendApiToken, projectName?: string): 
 }
 
 export const deploymentService = {
+  async activeProduction(): Promise<Deployment[]> {
+    const items = await readAllPages((page) => deploymentService.list({ status: 'active', environment: 'production', page, page_size: 100 }))
+    return items.filter((item) => item.status === 'active' && item.environment === 'production')
+  },
+  async reviewDetail(id: Id, user: UserSummary | null, signal?: AbortSignal) {
+    requireAdmin(user)
+    if (!useDemoDeployments) {
+      const result = await adminDeploymentsApi.reviewDetail(id, signal)
+      return {
+        deployment: adaptBackendDeployment(result.deployment),
+        requested_version: adaptVersion(result.requested_version),
+        active_version: result.active_version ? adaptVersion(result.active_version) : null,
+        recent_runs: result.recent_runs.map(adaptRun),
+      }
+    }
+    const deployment = deployments.find((item) => item.id === id)
+    if (!deployment) throw new Error('Deployment not found.')
+    const requested = versionInfo(deployment.version_id).version
+    const active = deployments.find((item) => item.prompt_id === deployment.prompt_id && item.environment === 'production' && item.status === 'active')
+    return { deployment, requested_version: requested, active_version: active ? versionInfo(active.version_id).version : null, recent_runs: (await runService.list({ version_id: requested.id, page_size: 5 })).items }
+  },
   async list(query: DeploymentListQuery = {}): Promise<Page<Deployment>> {
     if (!useDemoDeployments) {
       const page = await deploymentsApi.list({ ...query, environment: toBackendEnvironment(query.environment), status: toBackendStatus(query.status) })
@@ -122,7 +151,7 @@ export const deploymentService = {
   async pending(user: UserSummary | null): Promise<Deployment[]> {
     requireAdmin(user)
     if (useDemoDeployments) return deployments.filter((item) => item.status === 'pending_approval')
-    return (await adminDeploymentsApi.pending()).items.map(adaptBackendDeployment)
+    return (await readAllPages((page) => adminDeploymentsApi.pending(page))).map(adaptBackendDeployment)
   },
   async review(id: Id, action: 'approve' | 'reject', request: ReviewDeploymentRequest, user: UserSummary | null): Promise<Deployment> {
     const actor = requireAdmin(user)
@@ -147,6 +176,8 @@ export const deploymentService = {
     if (!note.trim()) throw new Error('A rollback reason is required.')
     if (!useDemoDeployments) {
       const active = await deploymentsApi.get(activeId)
+      if (active.environment !== 'prod') throw new Error('Rollback is supported only for production deployments.')
+      if (active.status !== 'active') throw new Error('This deployment is no longer active. Refresh and select the current production deployment.')
       const item = adaptBackendDeployment(await adminDeploymentsApi.rollback(active.prompt_id, targetVersionId, note))
       notify()
       return item
@@ -154,16 +185,17 @@ export const deploymentService = {
     const active = deployments.find((item) => item.id === activeId)
     const { version } = versionInfo(targetVersionId)
     if (!active || active.status !== 'active') throw new Error('Select an active deployment.')
-    if (version.prompt_id !== active.prompt_id || version.id === active.version_id) throw new Error('Select an earlier version of this prompt.')
-    deployments = deployments.map((item) => item.id === activeId ? { ...item, status: 'superseded' } : item)
-    const item: Deployment = { ...active, id: uniqueId('rollback'), version_id: version.id, version_number: version.version_number, status: 'active', note: note.trim(), requested_by: actor.id, requested_by_name: actor.display_name, reviewed_by: actor.id, reviewed_at: now(), review_note: `Rollback from v${active.version_number}`, created_at: now() }
+    if (active.environment !== 'production') throw new Error('Rollback is supported only for production deployments.')
+    if (version.prompt_id !== active.prompt_id || version.version_number >= active.version_number) throw new Error('Select an earlier version of this prompt.')
+    deployments = deployments.map((item) => item.id === activeId ? { ...item, status: 'rolled_back' } : item)
+    const item: Deployment = { ...active, id: uniqueId('rollback'), version_id: version.id, version_number: version.version_number, status: 'active', note: note.trim(), requested_by: actor.id, requested_by_name: actor.display_name, reviewed_by: actor.id, reviewed_at: now(), review_note: `Rollback from v${active.version_number}`, rollback_of_id: active.id, rollback_reason: note.trim(), activated_at: now(), requested_at: now(), created_at: now() }
     deployments = [item, ...deployments]; notify(); auditStore.record('deployment.rolled_back', 'deployment', item.id, actor); return item
   },
 }
 
 function generateSecret(): string { const bytes = new Uint8Array(24); crypto.getRandomValues(bytes); return `pv_${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}` }
 export const tokenService = {
-  async list(): Promise<ApiTokenMetadata[]> { return useDemoDeployments ? [...tokens] : (await apiTokensApi.list()).items.map((item) => adaptBackendToken(item)) },
+  async list(): Promise<ApiTokenMetadata[]> { return useDemoDeployments ? [...tokens] : (await readAllPages((page) => apiTokensApi.list(page))).map((item) => adaptBackendToken(item)) },
   async issue(request: CreateApiTokenRequest, user: UserSummary | null): Promise<CreatedApiToken> {
     const actor = requireUser(user)
     if (!useDemoDeployments) {

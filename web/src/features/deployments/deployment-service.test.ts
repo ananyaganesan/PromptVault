@@ -23,11 +23,12 @@ describe('deployment workflow', () => {
   })
 
   it('preserves history when rolling an active deployment back', async () => {
-    const active = await deploymentService.create({ version_id: 'checkout-v3', environment: 'staging' }, member)
+    const request = await deploymentService.create({ version_id: 'checkout-v3', environment: 'production' }, member)
+    const active = await deploymentService.review(request.id, 'approve', {}, admin)
     const rollback = await deploymentService.rollback(active.id, 'checkout-v2', 'Restore stable tone', admin)
     expect(rollback.version_number).toBe(2)
     expect(rollback.status).toBe('active')
-    expect((await deploymentService.get(active.id))?.status).toBe('superseded')
+    expect((await deploymentService.get(active.id))?.status).toBe('rolled_back')
     await expect(deploymentService.rollback(rollback.id, 'checkout-v3', '', admin)).rejects.toThrow('reason is required')
   })
 })

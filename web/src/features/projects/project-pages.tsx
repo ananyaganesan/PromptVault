@@ -1,9 +1,11 @@
+import { useLiveRefresh } from '../../lib/live-refresh';
 import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/page-header";
 import { Button, Field, Stat, Status } from "../../components/ui/prototype";
 import { EmptyState } from "../../components/ui/empty-state";
 import { useAuth } from "../auth/auth-context";
+import { PromptDeploymentStatus } from "../versions/version-pages";
 import type { Project } from "../../types/projects";
 import {
   memberStore,
@@ -44,13 +46,7 @@ export function PromptRows({
             <b>{prompt.name}</b>
           </div>
           <code className="version-code">v{prompt.latest_version_number}</code>
-          <Status
-            tone={
-              prompt.active_environment === "production" ? "success" : "neutral"
-            }
-          >
-            {prompt.active_environment}
-          </Status>
+          <PromptDeploymentStatus promptId={prompt.id} />
           <span className="row-arrow">→</span>
         </Link>
       ))}
@@ -186,36 +182,45 @@ export function ProjectDetailPage() {
   useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const project = projectFor(projectId);
   if (!project) return <EmptyState title="Project not found" description="This project does not exist or is no longer available." action={<Link to="/projects">Back to projects</Link>} />;
-  return <ProjectDetailContent project={project} />;
+  return <ProjectDetailContent key={project.id} project={project} />;
 }
 function ProjectDetailContent({ project }: { project: Project }) {
+  const refresh = useLiveRefresh();
   const { user } = useAuth();
   const [tab, setTab] = useState<
     "overview" | "prompts" | "members" | "settings"
   >("overview");
-  const [members, setMembers] = useState(memberStore[project.id] ?? []);
+  const members = memberStore[project.id] ?? [];
+  const canManage = user?.role === "super_admin" || user?.id === project.owner_id;
   const [memberEmail, setMemberEmail] = useState("");
-  const [name, setName] = useState(project.name);
-  const [description, setDescription] = useState(project.description ?? "");
+  const [draft, setDraft] = useState<{ baseName: string; baseDescription: string; name: string; description: string } | null>(null);
+  const dirty = draft !== null && (draft.name !== draft.baseName || draft.description !== draft.baseDescription);
+  const name = dirty ? draft.name : project.name;
+  const description = dirty ? draft.description : project.description ?? "";
+  const stale = dirty && (draft.baseName !== project.name || draft.baseDescription !== (project.description ?? ""));
+  const editSettings = (changes: Partial<{ name: string; description: string }>) => setDraft({
+    baseName: dirty ? draft.baseName : project.name, baseDescription: dirty ? draft.baseDescription : project.description ?? "",
+    name, description, ...changes,
+  });
   const [notice, setNotice] = useState("");
+  const [settingsPending, setSettingsPending] = useState(false);
   useEffect(() => {
     let active = true;
     workspaceService.loadMembers(project.id)
-      .then((items) => { if (active) setMembers(items); })
       .catch((cause) => { if (active) setNotice(cause instanceof Error ? cause.message : "Could not load project members."); });
     return () => { active = false; };
-  }, [project.id]);
+  }, [project.id, refresh]);
   const projectPrompts = promptStore.filter(
     (prompt) => prompt.project_id === project.id,
   );
   async function addMember(event: FormEvent) {
     event.preventDefault();
+    if (!canManage) return;
     const email = memberEmail.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email))
       return setNotice("Enter a valid email address.");
     try {
-      const member = await workspaceService.addMember(project.id, { email });
-      setMembers([...(memberStore[project.id] ?? []).filter((item) => item.user_id !== member.user_id), member]);
+      await workspaceService.addMember(project.id, { email });
       setMemberEmail("");
       setNotice(`${email} was added to the project.`);
     } catch (cause) {
@@ -224,13 +229,16 @@ function ProjectDetailContent({ project }: { project: Project }) {
   }
   async function saveSettings(event: FormEvent) {
     event.preventDefault();
+    if (!canManage || stale || settingsPending) return;
     if (!name.trim()) return setNotice("Project name is required.");
+    setSettingsPending(true);
     try {
       await workspaceService.updateProject(project.id, { name: name.trim(), description: description.trim() || null }, user?.id ?? "");
+      setDraft(null);
       setNotice("Project settings saved.");
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : "Could not save project settings.");
-    }
+    } finally { setSettingsPending(false); }
   }
   return (
     <>
@@ -327,7 +335,7 @@ function ProjectDetailContent({ project }: { project: Project }) {
               <p>People who can access this project.</p>
             </div>
           </div>
-          <form className="member-add" onSubmit={addMember}>
+          {canManage && <form className="member-add" onSubmit={addMember}>
             <input
               value={memberEmail}
               onChange={(event) =>
@@ -337,7 +345,7 @@ function ProjectDetailContent({ project }: { project: Project }) {
               aria-label="Member email"
             />
             <Button type="submit">Add member</Button>
-          </form>
+          </form>}
           <div className="member-list">
             {members.map((member) => (
               <div className="member-row" key={member.user_id}>
@@ -351,13 +359,12 @@ function ProjectDetailContent({ project }: { project: Project }) {
                 <Status tone={member.role === "owner" ? "success" : "neutral"}>
                   {member.role}
                 </Status>
-                {member.role !== "owner" && (
+                {canManage && member.role !== "owner" && (
                   <button
                     className="text-button danger"
                     onClick={async () => {
                       try {
                         await workspaceService.removeMember(project.id, member.user_id);
-                        setMembers((items) => items.filter((item) => item.user_id !== member.user_id));
                         setNotice(`${member.display_name} was removed.`);
                       } catch (cause) {
                         setNotice(cause instanceof Error ? cause.message : "Could not remove the member.");
@@ -374,17 +381,21 @@ function ProjectDetailContent({ project }: { project: Project }) {
       )}
       {tab === "settings" && (
         <form className="form-panel" onSubmit={saveSettings}>
+          {stale && <div role="alert"><p>Project settings changed. Your unsaved edits are preserved. Review the refreshed values before saving.</p><p>Current name: {project.name} · Current description: {project.description || "None"}</p>
+            <Button secondary type="button" onClick={() => setDraft(null)}>Use refreshed settings</Button>
+            <Button secondary type="button" onClick={() => setDraft({ baseName: project.name, baseDescription: project.description ?? "", name, description })}>Keep my edits</Button>
+          </div>}
           <Field
             label="Project name"
             placeholder="Project name"
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => editSettings({ name: event.target.value })} disabled={!canManage || settingsPending}
           />
           <label className="field">
             <span>Description</span>
             <textarea
               value={description}
-              onChange={(event) => setDescription(event.target.value)}
+              onChange={(event) => editSettings({ description: event.target.value })} disabled={!canManage || settingsPending}
             />
           </label>
           <div className="settings-key">
@@ -393,7 +404,7 @@ function ProjectDetailContent({ project }: { project: Project }) {
             <small>Project keys cannot be changed after creation.</small>
           </div>
           <div className="form-actions">
-            <Button type="submit">Save settings</Button>
+            <Button type="submit" disabled={!canManage || stale || settingsPending}>Save settings</Button>
           </div>
         </form>
       )}
