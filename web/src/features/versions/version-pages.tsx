@@ -1,16 +1,32 @@
-import { useEffect, useState } from "react";
+import { useLiveRefresh, refreshLiveData } from '../../lib/live-refresh';
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Link, useParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/page-header";
 import { Button, Status } from "../../components/ui/prototype";
 import { EmptyState } from "../../components/ui/empty-state";
 import {
   promptStore,
+  workspaceStore,
   adaptVersion,
   versionsFor,
+  versionEnvironments,
+  promptEnvironments,
 } from "../projects/workspace-data";
 import { versionsApi, type BackendVersionDiff } from "./api";
 import type { PromptVersion } from "../../types/versions";
 import { useDemoData } from '../../lib/runtime';
+
+export function PromptDeploymentStatus({ promptId }: { promptId: string }) {
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
+  const environments = promptEnvironments(promptId);
+  return <Status tone={environments?.includes('production') ? 'success' : 'neutral'}>{environments === undefined ? 'Deployment status unavailable' : environments.length ? `Active: ${environments.join(', ')}` : 'Draft'}</Status>;
+}
+
+export function VersionDeploymentStatus({ promptId, versionId }: { promptId: string; versionId: string }) {
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
+  const environments = versionEnvironments(promptId, versionId);
+  return <Status tone={environments?.includes('production') ? 'success' : 'neutral'}>{environments === undefined ? 'Deployment status unavailable' : environments.length ? `Active: ${environments.join(', ')}` : 'Not active'}</Status>;
+}
 
 function getVersion(versionId?: string) {
   for (const prompt of promptStore) {
@@ -24,6 +40,7 @@ function getVersion(versionId?: string) {
 type VersionResult = NonNullable<ReturnType<typeof getVersion>>;
 function VersionMissing() { return <EmptyState title="Version not found" description="This version does not exist or is no longer available." action={<Link to="/prompts">Back to prompts</Link>} />; }
 export function VersionDetailPage() {
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const { versionId } = useParams();
   const result = getVersion(versionId);
   return result ? <VersionDetailContent result={result} /> : <VersionMissing />;
@@ -46,7 +63,7 @@ function VersionDetailContent({ result: { prompt, version, versions } }: { resul
         <section className="panel editor">
           <div className="editor-top">
             <code>commit: {version.commit_message}</code>
-            <Status tone="success">{prompt.active_environment}</Status>
+            <VersionDeploymentStatus promptId={prompt.id} versionId={version.id} />
           </div>
           <label className="field">
             <span>Template snapshot</span>
@@ -98,26 +115,30 @@ function VersionDetailContent({ result: { prompt, version, versions } }: { resul
   );
 }
 export function CompareVersionPage() {
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const { versionId } = useParams();
   const result = getVersion(versionId);
   return result ? <CompareVersionContent result={result} /> : <VersionMissing />;
 }
 function CompareVersionContent({ result: { prompt, version, versions } }: { result: VersionResult }) {
+  const refresh = useLiveRefresh();
   const compare =
     versions.find((item) => item.id === version.parent_version_id) ??
     versions[1] ??
     version;
-  const [diff, setDiff] = useState<BackendVersionDiff | null>(null);
-  const [error, setError] = useState("");
+  const requestKey = JSON.stringify([refresh, compare.id, version.id]);
+  const [snapshot, setSnapshot] = useState<{ key: string; diff?: BackendVersionDiff; error?: string } | null>(null);
+  const diff = snapshot?.key === requestKey ? snapshot.diff : undefined;
+  const error = snapshot?.key === requestKey ? snapshot.error : undefined;
   useEffect(() => {
     if (useDemoData) return;
     if (compare.id === version.id) return;
     const controller = new AbortController();
     versionsApi.diff(version.id, compare.id, controller.signal)
-      .then((value) => { setDiff(value); setError(""); })
-      .catch((cause) => { if (cause instanceof Error && cause.name !== "AbortError") setError(cause.message); });
+      .then((value) => { if (!controller.signal.aborted) setSnapshot({ key: requestKey, diff: value }); })
+      .catch((cause) => { if (!controller.signal.aborted) setSnapshot({ key: requestKey, error: cause instanceof Error ? cause.message : "Could not compare versions." }); });
     return () => controller.abort();
-  }, [compare.id, version.id]);
+  }, [requestKey, compare.id, version.id]);
   const variableDelta = diff ? diff.variables.added.length - diff.variables.removed.length : version.variables.length - compare.variables.length;
   return (
     <>
@@ -135,7 +156,7 @@ function CompareVersionContent({ result: { prompt, version, versions } }: { resu
           {variableDelta} variables
         </span>
       </div>
-      {error && <p className="form-error" role="alert">{error}</p>}
+      {error && <p className="form-error" role="alert">{error} <Button secondary onClick={refreshLiveData}>Try again</Button></p>}
       <div className="detail-layout">
         <section className="panel editor">
           <div className="editor-top">
@@ -162,25 +183,28 @@ function CompareVersionContent({ result: { prompt, version, versions } }: { resu
   );
 }
 export function VersionLineagePage() {
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot);
   const { versionId } = useParams();
   const result = getVersion(versionId);
   return result ? <VersionLineageContent result={result} /> : <VersionMissing />;
 }
 function VersionLineageContent({ result: { prompt, version, versions } }: { result: VersionResult }) {
-  const [lineage, setLineage] = useState<PromptVersion[] | null>(null);
-  const [error, setError] = useState("");
+  const refresh = useLiveRefresh();
+  const requestKey = JSON.stringify([refresh, version.id]);
+  const [snapshot, setSnapshot] = useState<{ key: string; lineage?: PromptVersion[]; error?: string } | null>(null);
+  const lineage = snapshot?.key === requestKey ? snapshot.lineage : undefined;
+  const error = snapshot?.key === requestKey ? snapshot.error : undefined;
   useEffect(() => {
     if (useDemoData) return;
     const controller = new AbortController();
     versionsApi.lineage(version.id, controller.signal)
       .then((value) => {
-        setLineage(value.items.map(adaptVersion));
-        setError(value.cycle_detected ? "A lineage cycle was detected." : "");
+        if (!controller.signal.aborted) setSnapshot({ key: requestKey, lineage: value.items.map(adaptVersion), error: value.cycle_detected ? "A lineage cycle was detected." : "" });
       })
-      .catch((cause) => { if (cause instanceof Error && cause.name !== "AbortError") setError(cause.message); });
+      .catch((cause) => { if (!controller.signal.aborted) setSnapshot({ key: requestKey, error: cause instanceof Error ? cause.message : "Could not load lineage." }); });
     return () => controller.abort();
-  }, [version.id]);
-  const items = lineage ?? versions.filter((item) => item.version_number <= version.version_number);
+  }, [requestKey, version.id]);
+  const items = lineage ?? (useDemoData ? versions.filter((item) => item.version_number <= version.version_number) : []);
   return (
     <>
       <PageHeader
@@ -199,7 +223,8 @@ function VersionLineageContent({ result: { prompt, version, versions } }: { resu
             </p>
           </div>
         </div>
-        {error && <p className="form-error" role="alert">{error}</p>}
+        {error && <p className="form-error" role="alert">{error} <Button secondary onClick={refreshLiveData}>Try again</Button></p>}
+        {!useDemoData && snapshot?.key !== requestKey && <p role="status">Loading lineage…</p>}
         {items.map((item) => (
           <Link
             className="version-row"

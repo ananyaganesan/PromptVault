@@ -13,6 +13,13 @@ PromptVault is a full-stack prompt versioning, execution, deployment, and govern
 
 The implementation sequence and acceptance criteria are tracked in [docs/working-prototype-plan.md](docs/working-prototype-plan.md).
 
+Remaining work for hosting real users is assigned to Ananya and Jobin in the
+[production launch plan](docs/production-launch-plan.md).
+
+Final submission must also meet the academic [database design and implementation
+requirements](docs/database-design-requirements.md), including ER-to-table mapping,
+3NF, related tables, constraints, SQL demonstrations, and a stored procedure.
+
 ## Current status and remaining boundaries
 
 The working-prototype scope is implemented across the React client, FastAPI service, and PostgreSQL schema. A clean detached checkout builds the production-target containers, applies migrations and deterministic seeds, passes lint and strict type checking, runs the complete backend/database/security/concurrency/performance suite, verifies OpenAPI drift, starts a healthy stack, exercises seeded login and race demonstrations, loads 2,000 representative runs, and executes the showcase queries. The latest redacted transcript is in [`evidence/release/latest.txt`](evidence/release/latest.txt); connected cross-browser acceptance is recorded in [`docs/browser-smoke.md`](docs/browser-smoke.md).

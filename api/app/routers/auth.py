@@ -68,7 +68,7 @@ async def request_password_reset(
     "/password-reset/confirm",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
-    responses={400: {"model": ErrorEnvelope}},
+    responses={400: {"model": ErrorEnvelope}, 409: {"model": ErrorEnvelope}},
 )
 async def confirm_password_reset(
     payload: PasswordResetConfirm,

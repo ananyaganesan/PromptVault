@@ -17,7 +17,7 @@ def migration_sql(version: int) -> str:
 def test_complete_migration_chain_is_discoverable() -> None:
     migrations = discover_migrations(MIGRATIONS_DIRECTORY)
 
-    assert [migration.version for migration in migrations] == list(range(1, 18))
+    assert [migration.version for migration in migrations] == list(range(1, 19))
 
 
 @pytest.mark.parametrize("path", sorted(MIGRATIONS_DIRECTORY.glob("*.sql")), ids=lambda p: p.name)
@@ -111,6 +111,14 @@ def test_admin_self_transition_preserves_last_admin_guard() -> None:
     assert "admin_update_user" in boundary
     assert "last_admin" in boundary
     assert "for update" in boundary
+
+
+def test_password_history_is_recorded_by_database_trigger() -> None:
+    history = migration_sql(18)
+
+    assert "create table password_history" in history
+    assert "record_password_history" in history
+    assert "after insert or update of password_hash" in history
 
 
 def test_seed_files_define_deterministic_demo_identities() -> None:

@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../../components/layout/page-header'
 import { Button, Stat, Status } from '../../components/ui/prototype'
-import { promptStore, versionStore } from '../projects/workspace-data'
+import { promptStore, versionStore, workspaceStore } from '../projects/workspace-data'
 import { runService } from '../runs/run-service'
 import { ApiClientError } from '../../lib/api/client'
 import type { PromptRun } from '../../types/runs'
@@ -11,6 +11,7 @@ import { useAuth } from '../auth/auth-context'
 const demoMode = import.meta.env.MODE === 'test' && import.meta.env.VITE_USE_MOCK_RUNS !== 'false'
 
 export function PlaygroundPage() {
+  useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot)
   const { user } = useAuth()
   const [params] = useSearchParams()
   const [versionId, setVersionId] = useState(params.get('version') ?? Object.values(versionStore).flat()[0]?.id ?? '')
@@ -20,7 +21,7 @@ export function PlaygroundPage() {
   const [error, setError] = useState('')
   const [executionError, setExecutionError] = useState<'blocked' | 'failed' | null>(null)
   const [pending, setPending] = useState(false)
-  const selected = useMemo(() => Object.values(versionStore).flat().find((version) => version.id === versionId), [versionId])
+  const selected = Object.values(versionStore).flat().find((version) => version.id === versionId)
 
   async function execute() {
     if (!selected) return setError('Select a prompt version.')

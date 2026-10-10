@@ -1,3 +1,4 @@
+import { useLiveRefresh, refreshLiveData } from '../../lib/live-refresh';
 import {
   useEffect,
   useState,
@@ -17,6 +18,8 @@ import {
 import type { ApiTokenMetadata } from "../../types/deployments";
 
 export function ApiTokensPage() {
+  const refresh = useLiveRefresh();
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const revision = useSyncExternalStore(
     deploymentStore.subscribe,
@@ -36,9 +39,10 @@ export function ApiTokensPage() {
     tokenService
       .list()
       .then((data) => {
-        if (active) setItems(data);
+        if (active) { setItems(data); setError(""); setLoading(false); }
       })
       .catch((cause) => {
+        if (active) setLoading(false);
         if (active)
           setError(
             cause instanceof Error ? cause.message : "Could not load tokens.",
@@ -47,7 +51,7 @@ export function ApiTokensPage() {
     return () => {
       active = false;
     };
-  }, [revision]);
+  }, [revision, refresh]);
   async function issue(event: FormEvent) {
     event.preventDefault();
     try {
@@ -111,10 +115,10 @@ export function ApiTokensPage() {
       />
       {error && (
         <p className="form-error" role="alert">
-          {error}
+          {error} <Button secondary onClick={refreshLiveData}>Try again</Button>
         </p>
       )}
-      <section className="panel table-panel" tabIndex={0} aria-label="API tokens table">
+      {loading ? <p role="status">Loading API tokens…</p> : <section className="panel table-panel" tabIndex={0} aria-label="API tokens table">
         <table>
           <thead>
             <tr>
@@ -161,7 +165,7 @@ export function ApiTokensPage() {
         {!items.length && (
           <p className="no-results">No API tokens issued yet.</p>
         )}
-      </section>
+      </section>}
       <Modal
         open={issueOpen}
         title="Issue API token"

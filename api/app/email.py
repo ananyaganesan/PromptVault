@@ -3,9 +3,17 @@
 import smtplib
 import ssl
 from email.message import EmailMessage
+from html import escape
+from pathlib import Path
+from string import Template
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from api.app.config import Settings
+
+_RESET_TEMPLATE = Template(
+    (Path(__file__).parent / "templates" / "password-reset.html").read_text(encoding="utf-8")
+)
+_LOGO_PNG = (Path(__file__).parent / "templates" / "assets" / "promptvault-logo.png").read_bytes()
 
 
 class EmailDeliveryError(RuntimeError):
@@ -26,13 +34,31 @@ def send_password_reset_email(settings: Settings, recipient: str, token: str) ->
     reset_url = _reset_url(settings, token)
     message = EmailMessage()
     message["Subject"] = "Reset your PromptVault password"
-    message["From"] = settings.smtp_from_email
+    message["From"] = f"PromptVault <{settings.smtp_from_email}>"
     message["To"] = recipient
     message.set_content(
         "A password reset was requested for your PromptVault account.\n\n"
         f"Reset your password: {reset_url}\n\n"
         f"This link expires in {settings.password_reset_ttl_minutes} minutes and can be used once. "
         "If you did not request it, you can ignore this email."
+    )
+    message.add_alternative(
+        _RESET_TEMPLATE.substitute(
+            reset_url=escape(reset_url, quote=True),
+            expiry_minutes=settings.password_reset_ttl_minutes,
+        ),
+        subtype="html",
+    )
+    html_part = message.get_body(preferencelist=("html",))
+    if html_part is None:
+        raise EmailDeliveryError("HTML email could not be constructed")
+    html_part.add_related(
+        _LOGO_PNG,
+        maintype="image",
+        subtype="png",
+        cid="<promptvault-logo>",
+        disposition="inline",
+        filename="promptvault-logo.png",
     )
 
     try:

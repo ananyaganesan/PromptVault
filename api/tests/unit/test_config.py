@@ -1,11 +1,37 @@
+from pathlib import Path
+
 import pytest
 from api.app.config import Settings
 from pydantic import ValidationError
 
 BASE = {
+    "_env_file": None,
     "database_url": "postgresql://promptvault:promptvault@localhost:5432/promptvault",
     "secret_key": "test-secret-that-is-long-enough",
 }
+
+
+def test_settings_tests_ignore_local_smtp_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".env").write_text(
+        "SMTP_HOST=smtp.example.com\nSMTP_FROM_EMAIL=sender@example.com\n"
+        "PASSWORD_RESET_URL=http://localhost:5173/reset-password\n",
+    )
+    monkeypatch.chdir(tmp_path)
+    settings = Settings(
+        **{
+            **BASE,
+            "environment": "production",
+            "secret_key": "production-secret-that-is-at-least-32-characters",
+            "provider_encryption_key": "independent-provider-key-that-is-at-least-32-characters",
+            "cors_origins": "https://app.example.com",
+            "database_role": "promptvault_app",
+            "rate_limit_redis_url": "redis://redis:6379/0",
+        }
+    )
+    assert settings.smtp_host is None
 
 
 def test_settings_parse_comma_separated_cors_origins() -> None:

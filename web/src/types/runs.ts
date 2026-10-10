@@ -31,7 +31,9 @@ export interface RunListQuery extends PageQuery {
   search?: string
   project_id?: Id
   prompt_id?: Id
+  version_id?: Id
   status?: RunStatus
+  model?: string
   from?: IsoDateString
   to?: IsoDateString
 }

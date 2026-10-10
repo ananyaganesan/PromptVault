@@ -100,6 +100,29 @@ class UserRepository:
             (user_id, token_hash, expires_at),
         )
 
+    async def lock_password_reset_user(self, token_hash: str) -> UserRecord | None:
+        cursor = await self.connection.execute(
+            """
+            SELECT u.id, u.email, u.display_name, u.password_hash, u.role,
+                   u.is_active, u.created_at
+            FROM users u
+            JOIN password_reset_tokens t ON t.user_id = u.id
+            WHERE t.token_hash = %s AND t.used_at IS NULL
+              AND t.expires_at > clock_timestamp() AND u.is_active
+            FOR UPDATE OF u
+            """,
+            (token_hash,),
+        )
+        row = await cursor.fetchone()
+        return _user_from_row(row) if row is not None else None
+
+    async def password_history(self, user_id: UUID) -> list[str]:
+        cursor = await self.connection.execute(
+            "SELECT password_hash FROM password_history WHERE user_id = %s",
+            (user_id,),
+        )
+        return [str(row["password_hash"]) for row in await cursor.fetchall()]
+
     async def consume_password_reset_token(self, *, token_hash: str, password_hash: str) -> bool:
         cursor = await self.connection.execute(
             "SELECT consume_password_reset_token(%s, %s) AS consumed",

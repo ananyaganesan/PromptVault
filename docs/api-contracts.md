@@ -169,7 +169,7 @@ Environments are `dev`, `staging`, and `prod`. Statuses are `pending`, `active`,
 | `GET /auth/me` | None | `200` User |
 
 Passwords contain 12-128 characters. Register/login never accept a role. Email comparison is case-insensitive and normalized.
-Password-reset requests return `503 email_delivery_unavailable` when SMTP is not configured or delivery fails. Confirmation returns `400 invalid_reset_token` for an expired or used link.
+Password-reset requests return `503 email_delivery_unavailable` when SMTP is not configured or delivery fails. Confirmation returns `400 invalid_reset_token` for an expired or used link, or an inactive account. It returns `409 password_reused` when the new password matches the current or any recorded earlier password for that account; this rejection leaves the reset link usable. Successful confirmation atomically changes the password, records its Argon2 hash in `password_history`, and consumes the link. History starts with each existing account's current hash when migration 018 is applied; passwords replaced before that migration cannot be recovered.
 
 ## Project and member endpoints
 

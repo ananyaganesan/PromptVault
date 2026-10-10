@@ -106,12 +106,28 @@ class AuthService:
             ) from exc
 
     async def reset_password(self, request: PasswordResetConfirm) -> None:
+        token_hash = hash_one_time_token(request.token)
+        user = await self.repository.lock_password_reset_user(token_hash)
+        if user is None:
+            raise AppError(400, "invalid_reset_token", "Password reset link is invalid or expired")
+        previous_hashes = await self.repository.password_history(user.id)
+        password = request.password.get_secret_value()
+
+        def was_used_before() -> bool:
+            return any(verify_password(encoded, password) for encoded in previous_hashes)
+
+        if await run_in_threadpool(was_used_before):
+            raise AppError(
+                409,
+                "password_reused",
+                "Choose a password you have never used for this account",
+            )
         password_hash = await run_in_threadpool(
             hash_password,
-            request.password.get_secret_value(),
+            password,
         )
         consumed = await self.repository.consume_password_reset_token(
-            token_hash=hash_one_time_token(request.token),
+            token_hash=token_hash,
             password_hash=password_hash,
         )
         if not consumed:

@@ -62,3 +62,5 @@
 .deployment-impact-layout .health-row { display: grid; grid-template-columns: minmax(130px, 42%) minmax(0, 1fr); gap: 18px; align-items: start; }
 .deployment-impact-layout .health-row b { min-width: 0; overflow-wrap: anywhere; text-align: right; }
 @media (max-width: 1000px) { .deployment-impact-layout { grid-template-columns: 1fr; } }
+
+.data-refresh-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:18px;font-size:11px}.data-refresh-toolbar [role="alert"]{color:#9e3434}.data-refresh-toolbar .button{min-height:36px}

@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { LoginPage } from './pages'
+import { LoginPage, ResetPasswordPage } from './pages'
 import { AuthProvider } from './auth-context'
 
 function Location() { return <output data-testid="location">{useLocation().pathname}</output> }
@@ -102,5 +102,43 @@ describe('LoginPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to connect to the server.')
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument()
     expect(sessionStorage.getItem('promptvault.api.session')).toBeNull()
+  })
+})
+
+describe('ResetPasswordPage', () => {
+  it('keeps the email link usable after password reuse and accepts a fresh password', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: 'password_reused',
+        message: 'Choose a password you have never used for this account',
+      }), { status: 409, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetcher)
+    const token = 'example-reset-token'.repeat(3)
+    render(<MemoryRouter initialEntries={[`/reset-password?token=${token}`]}><ResetPasswordPage /></MemoryRouter>)
+    await user.type(screen.getByLabelText('New password'), 'PreviousPassword2026!')
+    await user.type(screen.getByLabelText('Confirm password'), 'PreviousPassword2026!')
+    await user.click(screen.getByRole('button', { name: 'Reset password' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose a password you have never used')
+    await user.clear(screen.getByLabelText('New password'))
+    await user.clear(screen.getByLabelText('Confirm password'))
+    await user.type(screen.getByLabelText('New password'), 'FreshPassword2026!')
+    await user.type(screen.getByLabelText('Confirm password'), 'FreshPassword2026!')
+    await user.click(screen.getByRole('button', { name: 'Reset password' }))
+    expect(await screen.findByText('Your password has been reset. You can now sign in.')).toBeInTheDocument()
+    expect(fetcher).toHaveBeenLastCalledWith(
+      'http://localhost:8000/api/v1/auth/password-reset/confirm',
+      expect.objectContaining({ body: JSON.stringify({ token, password: 'FreshPassword2026!' }) }),
+    )
+  })
+
+  it('does not submit a reset without the token from the email link', async () => {
+    const fetcher = vi.fn()
+    vi.stubGlobal('fetch', fetcher)
+    render(<MemoryRouter><ResetPasswordPage /></MemoryRouter>)
+    expect(screen.getByRole('alert')).toHaveTextContent('This password reset link is invalid.')
+    expect(screen.queryByRole('button', { name: 'Reset password' })).not.toBeInTheDocument()
+    expect(fetcher).not.toHaveBeenCalled()
   })
 })

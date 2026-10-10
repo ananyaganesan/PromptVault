@@ -1,5 +1,7 @@
 import { apiClient } from '../../lib/api/client'
 import type { Id, Page } from '../../types/api'
+import type { BackendVersion } from '../projects/workspace-data'
+import type { BackendPromptRun } from '../runs/api'
 import type { CreateApiTokenRequest } from '../../types/deployments'
 
 export type BackendDeploymentEnvironment = 'dev' | 'staging' | 'prod'
@@ -66,15 +68,23 @@ export const deploymentsApi = {
   cancel: (deploymentId: Id) => apiClient.request<BackendDeployment>(`/deployments/${deploymentId}/cancel`, { method: 'POST' }),
 }
 
+export interface BackendDeploymentReviewDetail {
+  deployment: BackendDeployment
+  requested_version: BackendVersion
+  active_version: BackendVersion | null
+  recent_runs: BackendPromptRun[]
+}
+
 export const adminDeploymentsApi = {
-  pending: (signal?: AbortSignal) => apiClient.request<Page<BackendDeployment>>('/admin/deployments/pending', { query: { page: 1, page_size: 100 }, signal }),
+  reviewDetail: (deploymentId: Id, signal?: AbortSignal) => apiClient.request<BackendDeploymentReviewDetail>(`/admin/deployments/${deploymentId}`, { signal }),
+  pending: (page = 1, signal?: AbortSignal) => apiClient.request<Page<BackendDeployment>>('/admin/deployments/pending', { query: { page, page_size: 100 }, signal }),
   approve: (deploymentId: Id, reviewNote?: string) => apiClient.request<BackendDeployment>(`/admin/deployments/${deploymentId}/approve`, { method: 'POST', body: { review_note: reviewNote } }),
   reject: (deploymentId: Id, reviewNote: string) => apiClient.request<BackendDeployment>(`/admin/deployments/${deploymentId}/reject`, { method: 'POST', body: { review_note: reviewNote } }),
   rollback: (promptId: Id, targetVersionId: Id, reason: string) => apiClient.request<BackendDeployment>(`/admin/prompts/${promptId}/rollback`, { method: 'POST', body: { target_version_id: targetVersionId, reason } }),
 }
 
 export const apiTokensApi = {
-  list: (signal?: AbortSignal) => apiClient.request<Page<BackendApiToken>>('/api-tokens', { query: { page: 1, page_size: 100 }, signal }),
+  list: (page = 1, signal?: AbortSignal) => apiClient.request<Page<BackendApiToken>>('/api-tokens', { query: { page, page_size: 100 }, signal }),
   create: (request: CreateApiTokenRequest) => apiClient.request<BackendCreatedApiToken>('/api-tokens', { method: 'POST', body: request }),
   revoke: (tokenId: Id) => apiClient.request<void>(`/api-tokens/${tokenId}`, { method: 'DELETE' }),
 }

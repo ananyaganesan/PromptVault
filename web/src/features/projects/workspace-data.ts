@@ -4,6 +4,7 @@ import type { CreateVersionRequest, PromptVersion } from '../../types/versions'
 import type { Page } from '../../types/api'
 import { apiClient } from '../../lib/api/client'
 import { useDemoData } from '../../lib/runtime'
+import { refreshLiveData } from '../../lib/live-refresh'
 
 export const projectStore: Project[] = [
   { id: 'checkout', key: 'checkout-assistant', name: 'Checkout Assistant', description: 'Prompts for the checkout support experience.', prompt_count: 3, member_count: 5, monthly_spend: '$0.0140', updated_at: '2025-08-28T10:30:00Z', is_owner: true, created_at: '2025-08-01T09:00:00Z', owner_id: 'usr_demo_admin' },
@@ -99,8 +100,20 @@ type BackendMember = {
 }
 
 let revision = 0
+let loadGeneration = 0
+const memberGenerations = new Map<string, number>()
+export const activeVersionsStore: Record<string, Record<string, string>> = {}
+export function promptEnvironments(promptId: string): string[] | undefined {
+  const active = activeVersionsStore[promptId]
+  return active ? Object.keys(active).map((environment) => environment === 'prod' ? 'production' : environment === 'dev' ? 'development' : environment) : undefined
+}
+export function versionEnvironments(promptId: string, versionId: string): string[] | undefined {
+  const active = activeVersionsStore[promptId]
+  return active ? Object.entries(active).filter(([, id]) => id === versionId).map(([environment]) => environment === 'prod' ? 'production' : environment === 'dev' ? 'development' : environment) : undefined
+}
 const listeners = new Set<() => void>()
 function notify() { revision += 1; listeners.forEach((listener) => listener()) }
+function notifyMutation() { loadGeneration += 1; notify() }
 function replaceArray<T>(target: T[], values: T[]) { target.splice(0, target.length, ...values) }
 
 export async function collectPages<T>(
@@ -112,14 +125,14 @@ export async function collectPages<T>(
   while (true) {
     const result = await loadPage(page, pageSize)
     items.push(...result.items)
-    if (result.items.length === 0 || items.length >= result.total) return items
+    if (items.length >= result.total || result.items.length === 0) return items
     page += 1
   }
 }
 
-function fetchAllPages<T>(path: string): Promise<T[]> {
+async function loadAllPages<T>(path: string, query: Record<string, string> = {}): Promise<T[]> {
   return collectPages((page, pageSize) => apiClient.request<Page<T>>(path, {
-    query: { page, page_size: pageSize },
+    query: { ...query, page, page_size: pageSize },
   }))
 }
 
@@ -210,22 +223,42 @@ export const workspaceStore = {
 export const workspaceService = {
   async load(userId: string) {
     if (useDemoData) { notify(); return }
-    const projects = await fetchAllPages<BackendProject>('/projects')
+    const generation = ++loadGeneration
+    const projects = await loadAllPages<BackendProject>('/projects')
     const nextProjects = projects.map((project) => adaptProject(project, userId))
     const nextPrompts: Prompt[] = []
     const nextVersions: Record<string, PromptVersion[]> = {}
     for (const project of nextProjects) {
-      const prompts = await fetchAllPages<BackendPrompt>(`/projects/${project.id}/prompts`)
+      const prompts = await loadAllPages<BackendPrompt>(`/projects/${project.id}/prompts`)
       for (const prompt of prompts) {
         nextPrompts.push(adaptPrompt(prompt))
-        const versions = await fetchAllPages<BackendVersion>(`/prompts/${prompt.id}/versions`)
+        const versions = await loadAllPages<BackendVersion>(`/prompts/${prompt.id}/versions`)
         nextVersions[prompt.id] = versions.map(adaptVersion)
       }
     }
+    const nextActive: Record<string, Record<string, string>> = Object.fromEntries(nextPrompts.map((prompt) => [prompt.id, {}]))
+    if (nextPrompts.length) {
+      const active = await loadAllPages<{ prompt_id: string; environment: string; version_id: string }>('/deployments', { status: 'active' })
+      for (const deployment of active) {
+        if (nextActive[deployment.prompt_id]) nextActive[deployment.prompt_id][deployment.environment] = deployment.version_id
+      }
+      for (const prompt of nextPrompts) {
+        prompt.active_environment = activeEnvironment(Object.fromEntries(
+          active.filter((deployment) => deployment.prompt_id === prompt.id).map((deployment) => [deployment.environment, 'active']),
+        ))
+      }
+    }
+    // An earlier session/request must never overwrite a newer workspace snapshot.
+    if (generation !== loadGeneration) return
+    for (const key of Object.keys(activeVersionsStore)) delete activeVersionsStore[key]
+    Object.assign(activeVersionsStore, nextActive)
     replaceArray(projectStore, nextProjects)
     replaceArray(promptStore, nextPrompts)
     for (const key of Object.keys(versionStore)) delete versionStore[key]
     Object.assign(versionStore, nextVersions)
+    for (const key of Object.keys(memberStore)) {
+      if (!nextProjects.some((project) => project.id === key)) delete memberStore[key]
+    }
     notify()
   },
   async createProject(request: CreateProjectRequest, userId: string) {
@@ -244,13 +277,13 @@ export const workspaceService = {
         { id: `${prompts[0].id}-v1`, prompt_id: prompts[0].id, version_number: 1, parent_version_id: null, template: 'Answer this customer question:\n{{customer_message}}', variables: [{ name: 'customer_message', required: true }], model_config: { provider: 'mock', model: 'deterministic-v1', temperature: 0.3, max_output_tokens: 400 }, commit_message: 'Initial version', created_by: userId, created_by_name: 'You', created_at: createdAt },
       ]
       versionStore[prompts[1].id] = [{ id: `${prompts[1].id}-v1`, prompt_id: prompts[1].id, version_number: 1, parent_version_id: null, template: 'Summarize the conversation below as decisions, open questions, and next steps.\n\nConversation:\n{{conversation}}', variables: [{ name: 'conversation', description: 'The conversation to summarize.', required: true }], model_config: { provider: 'mock', model: 'deterministic-v1', temperature: 0.2, max_output_tokens: 350 }, commit_message: 'Initial version', created_by: userId, created_by_name: 'You', created_at: createdAt }]
-      notify()
+      notifyMutation()
       return project
     }
     const result = await apiClient.request<BackendProject>('/projects', { method: 'POST', body: request })
     const project = adaptProject(result, userId)
     replaceProject(project)
-    notify()
+    notifyMutation()
     return project
   },
   async updateProject(projectId: string, request: UpdateProjectRequest, userId: string) {
@@ -259,38 +292,48 @@ export const workspaceService = {
       if (!current) throw new Error('Project not found.')
       const project = { ...current, ...request, updated_at: new Date().toISOString() }
       replaceProject(project)
-      notify()
+      notifyMutation()
       return project
     }
     const result = await apiClient.request<BackendProject>(`/projects/${projectId}`, { method: 'PATCH', body: request })
     const project = adaptProject(result, userId)
     replaceProject(project)
-    notify()
+    notifyMutation()
     return project
   },
   async loadMembers(projectId: string) {
     if (useDemoData) return memberStore[projectId] ?? []
-    const page = await fetchAllPages<BackendMember>(`/projects/${projectId}/members`)
-    const members = page.map(adaptMember)
+    const generation = (memberGenerations.get(projectId) ?? 0) + 1
+    memberGenerations.set(projectId, generation)
+    const members = (await loadAllPages<BackendMember>(`/projects/${projectId}/members`)).map(adaptMember)
+    if (memberGenerations.get(projectId) !== generation) return memberStore[projectId] ?? []
     memberStore[projectId] = members
+    const project = projectFor(projectId)
+    if (project) project.member_count = members.length
     notify()
     return members
   },
   async addMember(projectId: string, request: AddProjectMemberRequest) {
+    memberGenerations.set(projectId, (memberGenerations.get(projectId) ?? 0) + 1)
     const result = await apiClient.request<BackendMember>(`/projects/${projectId}/members`, { method: 'POST', body: request })
     const member = adaptMember(result)
-    memberStore[projectId] = [...(memberStore[projectId] ?? []), member]
+    memberGenerations.set(projectId, (memberGenerations.get(projectId) ?? 0) + 1)
+    memberStore[projectId] = [...(memberStore[projectId] ?? []).filter((item) => item.user_id !== member.user_id), member]
     const project = projectFor(projectId)
     if (project) project.member_count = memberStore[projectId].length
-    notify()
+    notifyMutation()
+    refreshLiveData()
     return member
   },
   async removeMember(projectId: string, userId: string) {
+    memberGenerations.set(projectId, (memberGenerations.get(projectId) ?? 0) + 1)
     await apiClient.request<void>(`/projects/${projectId}/members/${userId}`, { method: 'DELETE' })
+    memberGenerations.set(projectId, (memberGenerations.get(projectId) ?? 0) + 1)
     memberStore[projectId] = (memberStore[projectId] ?? []).filter((member) => member.user_id !== userId)
     const project = projectFor(projectId)
     if (project) project.member_count = memberStore[projectId].length
-    notify()
+    notifyMutation()
+    refreshLiveData()
   },
   async createPrompt(projectId: string, request: CreatePromptRequest) {
     const result = await apiClient.request<BackendPromptDetail>(`/projects/${projectId}/prompts`, {
@@ -306,10 +349,12 @@ export const workspaceService = {
     })
     const prompt = adaptPromptDetail(result)
     replacePrompt(prompt)
+    activeVersionsStore[prompt.id] = result.active_versions
     versionStore[prompt.id] = [adaptVersion(result.latest_version)]
     const project = projectFor(projectId)
     if (project) project.prompt_count += 1
-    notify()
+    notifyMutation()
+    refreshLiveData()
     return prompt
   },
   async createVersion(promptId: string, request: CreateVersionRequest) {
@@ -323,13 +368,13 @@ export const workspaceService = {
       },
     })
     const version = adaptVersion(result)
-    versionStore[promptId] = [version, ...(versionStore[promptId] ?? [])]
+    versionStore[promptId] = [version, ...(versionStore[promptId] ?? []).filter((item) => item.id !== version.id)].sort((left, right) => right.version_number - left.version_number)
     const prompt = promptFor(promptId)
-    if (prompt) {
+    if (prompt && version.version_number >= prompt.latest_version_number) {
       prompt.latest_version_number = version.version_number
       prompt.updated_at = version.created_at
     }
-    notify()
+    notifyMutation()
     return version
   },
 }

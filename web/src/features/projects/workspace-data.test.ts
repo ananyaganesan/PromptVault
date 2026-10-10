@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { collectPages, memberStore, projectStore, promptStore, versionStore, workspaceService } from './workspace-data'
+import { activeVersionsStore, collectPages, memberStore, projectStore, promptStore, versionEnvironments, versionStore, workspaceService } from './workspace-data'
 
 vi.mock('../../lib/runtime', () => ({ useDemoData: false }))
 
@@ -35,7 +35,87 @@ describe('workspaceService', () => {
     promptStore.splice(0)
     for (const key of Object.keys(versionStore)) delete versionStore[key]
     for (const key of Object.keys(memberStore)) delete memberStore[key]
+    for (const key of Object.keys(activeVersionsStore)) delete activeVersionsStore[key]
     vi.unstubAllGlobals()
+  })
+
+  it('loads active deployment pages beyond 100 and replaces the active version on refresh', async () => {
+    let currentVersion = 'v3'
+    const fetcher = vi.fn(async (url: string) => {
+      const parsed = new URL(url)
+      const base = { created_at: '2026-10-10T00:00:00Z', updated_at: '2026-10-10T00:00:00Z' }
+      if (parsed.pathname.endsWith('/projects')) return json({ items: [{ ...base, id: 'project', name: 'Project', key: 'project', description: null, owner: { id: 'owner', display_name: 'Owner' }, member_count: 1, prompt_count: 1 }], total: 1 })
+      if (parsed.pathname.endsWith('/prompts')) return json({ items: [{ ...base, id: 'prompt', project_id: 'project', name: 'Prompt', key: 'prompt', description: null, latest_version_number: 3 }], total: 1 })
+      if (parsed.pathname.endsWith('/versions')) return json({ items: [], total: 0 })
+      if (parsed.pathname.endsWith('/deployments')) return json({ items: parsed.searchParams.get('page') === '1' ? Array.from({ length: 100 }, (_, n) => ({ prompt_id: `other-${n}`, version_id: 'unrelated', environment: 'prod' })) : [{ prompt_id: 'prompt', version_id: currentVersion, environment: 'prod' }, { prompt_id: 'prompt', version_id: 'v2', environment: 'staging' }], total: 102 })
+      throw new Error('Unexpected API read')
+    })
+    vi.stubGlobal('fetch', fetcher)
+    await workspaceService.load('owner')
+    expect(versionEnvironments('prompt', 'v3')).toEqual(['production'])
+    expect(versionEnvironments('prompt', 'v2')).toEqual(['staging'])
+    currentVersion = 'v1'
+    await workspaceService.load('owner')
+    expect(versionEnvironments('prompt', 'v3')).toEqual([])
+    expect(versionEnvironments('prompt', 'v1')).toEqual(['production'])
+    expect(versionEnvironments('prompt', 'v2')).toEqual(['staging'])
+    expect(fetcher.mock.calls.filter(([url]) => new URL(url).pathname.endsWith('/deployments') && new URL(url).searchParams.get('page') === '2')).toHaveLength(2)
+  })
+
+  it('does not let a membership read invalidate an overlapping workspace load', async () => {
+    let resolveProjects!: (response: Response) => void
+    const projects = new Promise<Response>((resolve) => { resolveProjects = resolve })
+    const owner = { id: 'owner', display_name: 'Owner' }
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (new URL(url).pathname.endsWith('/projects')) return projects
+      return Promise.resolve(json({ items: [], total: 0, page: 1, page_size: 100 }))
+    }))
+    const loading = workspaceService.load(owner.id)
+    await workspaceService.loadMembers('project')
+    resolveProjects(json({ items: [{ id: 'project', name: 'Refreshed', key: 'project', description: null, owner, member_count: 1, prompt_count: 0, created_at: '2026-10-10T00:00:00Z', updated_at: '2026-10-10T00:00:00Z' }], total: 1, page: 1, page_size: 100 }))
+    await loading
+    expect(projectStore[0].name).toBe('Refreshed')
+  })
+
+  it('ignores a pre-mutation membership response and reconciles counts from a fresh read', async () => {
+    const owner = { id: 'owner', email: 'owner@example.com', display_name: 'Owner', role: 'user', is_active: true, created_at: '2026-10-10T00:00:00Z', is_owner: true }
+    const member = { ...owner, id: 'member', email: 'member@example.com', is_owner: false }
+    let resolveOld!: (response: Response) => void
+    const fetcher = vi.fn().mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveOld = resolve }))
+      .mockResolvedValueOnce(json(member))
+      .mockResolvedValueOnce(json({ items: [owner, member], total: 2, page: 1, page_size: 100 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetcher)
+    const old = workspaceService.loadMembers('project')
+    await workspaceService.addMember('project', { email: member.email })
+    resolveOld(json({ items: [], total: 0, page: 1, page_size: 100 }))
+    await old
+    expect(memberStore.project).toEqual([expect.objectContaining({ user_id: 'member' })])
+    projectStore.push({ id: 'project', name: 'Project', key: 'project', description: null, owner_id: 'owner', is_owner: true, member_count: 99, prompt_count: 0, monthly_spend: '0', created_at: '2026-10-10T00:00:00Z', updated_at: '2026-10-10T00:00:00Z' })
+    await workspaceService.loadMembers('project')
+    expect(projectStore[0].member_count).toBe(2)
+    await workspaceService.removeMember('project', 'member')
+    expect(projectStore[0].member_count).toBe(1)
+    expect(memberStore.project).toHaveLength(1)
+  })
+
+  it('distinguishes active environments for each immutable version', () => {
+    activeVersionsStore.prompt = { prod: 'v1', staging: 'v2', dev: 'v2' }
+    expect(versionEnvironments('prompt', 'v1')).toEqual(['production'])
+    expect(versionEnvironments('prompt', 'v2')).toEqual(['staging', 'development'])
+    expect(versionEnvironments('prompt', 'v3')).toEqual([])
+    expect(versionEnvironments('unknown', 'v1')).toBeUndefined()
+  })
+
+  it('does not downgrade latest-version metadata when a create response arrives late', async () => {
+    const newest = { id: 'v3', prompt_id: 'prompt', version_number: 3, parent_version_id: 'v2', template: 'Newest', variables: [], model_config: { provider: 'mock', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Newest', created_by: 'owner', created_by_name: 'Owner', created_at: '2026-10-10T00:00:00Z' }
+    versionStore.prompt = [newest]
+    promptStore.push({ id: 'prompt', project_id: 'project', key: 'prompt', name: 'Prompt', description: null, latest_version_number: 3, active_environment: 'draft', created_at: newest.created_at, updated_at: newest.created_at })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ ...newest, id: 'v2', version_number: 2, parent_version_id: 'v1', template_body: 'Late response', variables: [], created_by: { id: 'owner', display_name: 'Owner' }, created_at: '2026-10-09T00:00:00Z' })))
+    await workspaceService.createVersion('prompt', { parent_version_id: 'v1', template: 'Late response', model_config: newest.model_config, commit_message: 'Late' })
+    expect(versionStore.prompt.map((version) => version.id)).toEqual(['v3', 'v2'])
+    expect(promptStore[0].latest_version_number).toBe(3)
+    expect(promptStore[0].updated_at).toBe(newest.created_at)
   })
 
   it('loads and adapts the permitted project, prompt, and immutable versions from the API', async () => {
@@ -43,6 +123,7 @@ describe('workspaceService', () => {
       .mockResolvedValueOnce(json({ items: [{ id: 'project-1', name: 'Live Project', key: 'live-project', description: null, owner: { id: 'user-1', display_name: 'Owner' }, member_count: 1, prompt_count: 1, created_at: '2026-09-27T00:00:00Z', updated_at: '2026-09-27T00:00:00Z' }], page: 1, page_size: 100, total: 1 }))
       .mockResolvedValueOnce(json({ items: [{ id: 'prompt-1', project_id: 'project-1', key: 'live-prompt', name: 'Live Prompt', description: null, latest_version_number: 1, created_at: '2026-09-27T00:00:00Z', updated_at: '2026-09-27T00:00:00Z' }], page: 1, page_size: 100, total: 1 }))
       .mockResolvedValueOnce(json({ items: [{ id: 'version-1', prompt_id: 'prompt-1', version_number: 1, parent_version_id: null, template_body: 'Hello {{name}}', variables: ['name'], model_config: { provider: 'mock', model: 'deterministic', temperature: 0, max_output_tokens: 128 }, commit_message: 'Initial', created_by: { id: 'user-1', display_name: 'Owner' }, created_at: '2026-09-27T00:00:00Z' }], page: 1, page_size: 100, total: 1 }))
+    fetcher.mockResolvedValueOnce(json({ items: [], page: 1, page_size: 100, total: 0 }))
     vi.stubGlobal('fetch', fetcher)
 
     const module = await import('./workspace-data')
@@ -58,6 +139,7 @@ describe('workspaceService', () => {
       'http://localhost:8000/api/v1/projects?page=1&page_size=100',
       'http://localhost:8000/api/v1/projects/project-1/prompts?page=1&page_size=100',
       'http://localhost:8000/api/v1/prompts/prompt-1/versions?page=1&page_size=100',
+      'http://localhost:8000/api/v1/deployments?status=active&page=1&page_size=100',
     ])
   })
 
