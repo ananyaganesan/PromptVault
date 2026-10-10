@@ -88,6 +88,8 @@ class UserRepository:
         token_hash: str,
         expires_at: datetime,
     ) -> None:
+        # Use the same lock order as reset confirmation: user before token.
+        await self.connection.execute("SELECT id FROM users WHERE id = %s FOR UPDATE", (user_id,))
         await self.connection.execute(
             "DELETE FROM password_reset_tokens WHERE user_id = %s AND used_at IS NULL",
             (user_id,),
@@ -100,6 +102,29 @@ class UserRepository:
             (user_id, token_hash, expires_at),
         )
 
+    async def lock_password_reset_user(self, token_hash: str) -> UserRecord | None:
+        cursor = await self.connection.execute(
+            """
+            SELECT u.id, u.email, u.display_name, u.password_hash, u.role,
+                   u.is_active, u.created_at
+            FROM users u
+            JOIN password_reset_tokens t ON t.user_id = u.id
+            WHERE t.token_hash = %s AND t.used_at IS NULL
+              AND t.expires_at > clock_timestamp() AND u.is_active
+            FOR UPDATE OF u
+            """,
+            (token_hash,),
+        )
+        row = await cursor.fetchone()
+        return _user_from_row(row) if row is not None else None
+
+    async def password_history(self, user_id: UUID) -> list[str]:
+        cursor = await self.connection.execute(
+            "SELECT password_hash FROM password_history WHERE user_id = %s",
+            (user_id,),
+        )
+        return [str(row["password_hash"]) for row in await cursor.fetchall()]
+
     async def consume_password_reset_token(self, *, token_hash: str, password_hash: str) -> bool:
         cursor = await self.connection.execute(
             """
@@ -108,7 +133,7 @@ class UserRepository:
                 SET used_at = CURRENT_TIMESTAMP
                 WHERE token_hash = %s
                   AND used_at IS NULL
-                  AND expires_at > CURRENT_TIMESTAMP
+                  AND expires_at > clock_timestamp()
                 RETURNING user_id
             )
             UPDATE users

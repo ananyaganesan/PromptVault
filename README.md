@@ -13,6 +13,13 @@ PromptVault is a full-stack prompt versioning, execution, deployment, and govern
 
 The implementation sequence and acceptance criteria are tracked in [docs/working-prototype-plan.md](docs/working-prototype-plan.md).
 
+Remaining work for hosting real users is assigned to Ananya and Jobin in the
+[production launch plan](docs/production-launch-plan.md).
+
+Final submission must also meet the academic [database design and implementation
+requirements](docs/database-design-requirements.md), including ER-to-table mapping,
+3NF, related tables, constraints, SQL demonstrations, and a stored procedure.
+
 ## Current status
 
 The web client uses the live API by default. Workspace loading follows every API page, and project, member, prompt, and version changes persist after reload. The editor derives variable names from `{{placeholders}}`, matching the database contract. Admin pricing collects both input and output prices required by the API.
@@ -76,6 +83,21 @@ Workspace data also uses the API by default. `VITE_USE_DEMO_DATA=true` is an exp
 
 The **Forgot password?** form calls `POST /api/v1/auth/password-reset`. For an active account, the API stores a hashed, one-use token and sends a link to the public `/reset-password` page. The link expires after `PASSWORD_RESET_TTL_MINUTES` (default 30).
 
+The branded HTML email is editable in `api/app/templates/password-reset.html`.
+Use inline CSS for email-client compatibility and preserve the `$reset_url` and
+`$expiry_minutes` placeholders. The plain-text alternative is defined in
+`api/app/email.py`. Rebuild the API container after changing the email template.
+The login-page logo is embedded as an inline PNG from
+`api/app/templates/assets/promptvault-logo.png`, so it does not require a public image
+server. Email text uses Inter where supported, with Arial as the email-client fallback.
+
+Reset confirmation rejects the current password and every previously recorded password
+for that account. PostgreSQL stores only Argon2 hashes in `password_history`; successful
+resets update the current hash, append history, and consume the token in one transaction.
+Rejected password reuse leaves the link usable so the user can choose another password.
+History begins with existing passwords when migration 017 is installed; older passwords
+that were already replaced before installation cannot be recovered.
+
 To send through Gmail or Google Workspace, enable 2-Step Verification and create a Google App Password for this application. Set `PASSWORD_RESET_URL` to the frontend's public absolute URL and configure these backend variables in the ignored `.env` file or a deployment secret store:
 
 ```dotenv
@@ -89,6 +111,20 @@ SMTP_SSL=false
 ```
 
 Use the same Gmail address for `SMTP_USERNAME` and `SMTP_FROM_EMAIL`. For port 465, use `SMTP_SSL=true` and `SMTP_STARTTLS=false`. Restart the API after changing the settings. Without a configured SMTP server, reset requests return `503 email_delivery_unavailable`; login remains available. Gmail delivery has not been verified until an address and App Password are supplied.
+
+For interactive Gmail setup after installing the backend dependencies, run:
+
+```bash
+.venv/bin/python scripts/configure-smtp.py
+docker compose up -d --build --force-recreate api
+```
+
+The setup command prompts privately for the App Password, validates the settings before
+changing `.env`, preserves other settings, and saves the file with owner-only permissions.
+For hosting, enter the public HTTPS `/reset-password` URL and configure these same values
+in your hosting platform's secret settings. Never put SMTP credentials in frontend variables.
+Verify delivery by requesting a reset for an existing account, following the email link,
+logging in with the new password, and confirming that the link cannot be reused.
 
 Frontend verification:
 

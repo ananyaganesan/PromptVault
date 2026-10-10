@@ -34,7 +34,7 @@ def temporary_database_url(database_url: str) -> Iterator[str]:
 
 def assert_preserved_rows_and_fk(url: str, user_id: str, token_hash: str) -> None:
     with psycopg.connect(url) as connection:
-        assert connection.execute("SELECT count(*) FROM schema_migrations").fetchone() == (16,)
+        assert connection.execute("SELECT count(*) FROM schema_migrations").fetchone() == (17,)
         assert connection.execute(
             "SELECT email FROM users WHERE id = %s", (user_id,)
         ).fetchone() == ("migration-check@example.com",)
@@ -53,6 +53,7 @@ def assert_preserved_rows_and_fk(url: str, user_id: str, token_hash: str) -> Non
             ("prompts", "projects"),
             ("prompt_versions", "prompts"),
             ("password_reset_tokens", "users"),
+            ("password_history", "users"),
         } <= foreign_keys
 
 
@@ -73,7 +74,7 @@ def insert_existing_rows(url: str) -> tuple[str, str]:
 
 
 def test_fresh_migrations_are_idempotent_and_preserve_rows(temporary_database_url: str) -> None:
-    assert len(migrate_database(temporary_database_url, MIGRATIONS)) == 16
+    assert len(migrate_database(temporary_database_url, MIGRATIONS)) == 17
     user_id, token_hash = insert_existing_rows(temporary_database_url)
 
     assert migrate_database(temporary_database_url, MIGRATIONS) == []
@@ -94,9 +95,12 @@ def test_legacy_password_reset_history_upgrades_without_resetting_data(
 
     applied = migrate_database(temporary_database_url, MIGRATIONS)
 
-    assert [item.version for item in applied] == [11, 12, 13, 14, 16]
+    assert [item.version for item in applied] == [11, 12, 13, 14, 16, 17]
     assert_preserved_rows_and_fk(temporary_database_url, user_id, token_hash)
     with psycopg.connect(temporary_database_url) as connection:
         assert connection.execute(
             "SELECT checksum FROM schema_migrations WHERE version = 15"
         ).fetchone() == (reset.checksum,)
+        assert connection.execute(
+            "SELECT password_hash FROM password_history WHERE user_id = %s", (user_id,)
+        ).fetchone() == ("unused",)
