@@ -42,6 +42,7 @@ def test_password_reset_email_uses_configured_smtp(
     FakeSMTP.instances.clear()
     monkeypatch.setattr("api.app.email.smtplib.SMTP", FakeSMTP)
     settings = Settings(
+        _env_file=None,
         database_url="postgresql://promptvault:promptvault@localhost:5432/promptvault",
         secret_key="test-secret-that-is-long-enough",
         smtp_host="smtp.example.com",
@@ -80,6 +81,7 @@ def test_password_reset_email_uses_configured_smtp(
 
 def test_password_reset_email_requires_smtp_configuration() -> None:
     settings = Settings(
+        _env_file=None,
         database_url="postgresql://promptvault:promptvault@localhost:5432/promptvault",
         secret_key="test-secret-that-is-long-enough",
     )
@@ -96,6 +98,7 @@ def test_password_reset_email_wraps_smtp_failures(
 
     monkeypatch.setattr("api.app.email.smtplib.SMTP", fail_to_connect)
     settings = Settings(
+        _env_file=None,
         database_url="postgresql://promptvault:promptvault@localhost:5432/promptvault",
         secret_key="test-secret-that-is-long-enough",
         smtp_host="smtp.example.com",
