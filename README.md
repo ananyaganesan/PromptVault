@@ -4,7 +4,8 @@ PromptVault is a full-stack prompt versioning, execution, deployment, and govern
 
 ## What is implemented
 
-- Email/password registration and login, Argon2id password hashes, JWT sessions, active-user checks, User/Super Admin route guards, and `/auth/me` session restoration.
+- Email/password registration and login, Argon2id password hashes, revocable database-backed JWT sessions, logout/reset invalidation, active-user checks, User/Super Admin route guards, and `/auth/me` session restoration.
+- Safe authenticated account export and password-confirmed account closure with credential revocation and identity pseudonymization.
 - Project ownership/membership, prompt metadata, immutable version snapshots, concurrent version numbering, history, diff, and lineage.
 - Deterministic provider execution with variable rendering, token/latency/cost ledger records, effective-dated pricing, personal analytics, and atomic user/project budgets.
 - Development/staging activation, pending production approval, atomic admin review, cancellation, project-scoped runtime tokens, authenticated Serve API, and auditable rollback.

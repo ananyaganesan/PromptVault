@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     db_pool_timeout_seconds: float = 5.0
     database_health_timeout_seconds: float = 2.0
     provider_timeout_seconds: float = 30.0
+    max_concurrent_runs_per_user: int = 4
     gemini_api_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
     max_request_body_bytes: int = 1_048_576
     auth_rate_limit_requests: int = 10
@@ -92,6 +93,8 @@ class Settings(BaseSettings):
             raise ValueError("database and provider timeouts must be positive")
         if self.access_token_ttl_minutes <= 0:
             raise ValueError("access token lifetime must be positive")
+        if self.max_concurrent_runs_per_user <= 0:
+            raise ValueError("MAX_CONCURRENT_RUNS_PER_USER must be positive")
         if self.max_request_body_bytes <= 0:
             raise ValueError("MAX_REQUEST_BODY_BYTES must be positive")
         if min(

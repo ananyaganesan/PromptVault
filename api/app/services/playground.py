@@ -1,11 +1,13 @@
 """Prompt rendering rules shared by playground and run execution."""
 
+import hashlib
+import json
 import re
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from api.app.db.pool import PoolProtocol
 from api.app.errors import AppError
@@ -14,7 +16,7 @@ from api.app.providers.errors import ProviderExecutionError, ProviderTimeoutErro
 from api.app.providers.factory import get_provider
 from api.app.repositories.pricing import EffectivePrice, PricingRepository
 from api.app.repositories.provider_keys import ProviderKeyRepository
-from api.app.repositories.runs import RunRepository, RunTarget
+from api.app.repositories.runs import ExecutionReservation, RunRepository, RunTarget
 from api.app.repositories.users import UserRecord
 from api.app.schemas.common import Page
 from api.app.schemas.runs import RunCreate, RunResponse, RunStatus
@@ -22,6 +24,7 @@ from api.app.security import decrypt_provider_secret
 from api.app.services.budget_enforcement import BudgetEnforcementService
 from api.app.services.cost_calculation import calculate_cost
 from psycopg import AsyncConnection
+from psycopg import errors as database_errors
 
 _VARIABLE_PATTERN = re.compile(r"{{\s*([A-Za-z_][A-Za-z0-9_]*)\s*}}")
 _MAX_PLACEHOLDERS = 1_000
@@ -74,14 +77,22 @@ class RunExecutionService:
         provider_timeout_seconds: float,
         provider_encryption_key: str,
         gemini_api_base_url: str,
+        max_concurrent_runs_per_user: int,
     ) -> None:
         self.pool = pool
         self.request_id = request_id
         self.provider_timeout_seconds = provider_timeout_seconds
         self.provider_encryption_key = provider_encryption_key
         self.gemini_api_base_url = gemini_api_base_url
+        self.max_concurrent_runs_per_user = max_concurrent_runs_per_user
 
-    async def execute(self, payload: RunCreate, actor: UserRecord) -> RunResponse:
+    async def execute(
+        self,
+        payload: RunCreate,
+        actor: UserRecord,
+        *,
+        idempotency_key: str | None = None,
+    ) -> RunResponse:
         executed_at = datetime.now(UTC)
         target, price, credential = await self._load_target_price_and_credential(
             payload.version_id, actor, executed_at
@@ -113,6 +124,74 @@ class RunExecutionService:
             ) from exc
 
         config = target.model_configuration
+        claim_token = uuid4()
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                {
+                    "version_id": str(payload.version_id),
+                    "variables": payload.variables,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        estimated_cost = calculate_cost(
+            prompt_tokens=len(prompt.encode("utf-8")),
+            completion_tokens=config.max_output_tokens,
+            input_price_per_million=price.input_price_per_million,
+            output_price_per_million=price.output_price_per_million,
+        )
+        try:
+            reservation = await self._reserve(
+                actor=actor,
+                target=target,
+                idempotency_key=idempotency_key
+                or f"auto:{hashlib.sha256(self.request_id.encode('utf-8')).hexdigest()}",
+                request_fingerprint=fingerprint,
+                claim_token=claim_token,
+                estimated_cost=estimated_cost,
+                created_at=executed_at,
+            )
+        except database_errors.RaiseException as exc:
+            if "idempotency_conflict" in str(exc):
+                raise AppError(
+                    409,
+                    "idempotency_conflict",
+                    "The idempotency key was already used for another request",
+                ) from exc
+            raise
+
+        if reservation.status == "completed":
+            if reservation.run_id is None:
+                raise RuntimeError("completed reservation has no run")
+            return await self._get_reserved_run(reservation.run_id, actor.id)
+        if reservation.status in {"failed", "uncertain"}:
+            raise AppError(
+                409,
+                "execution_outcome_unknown",
+                "This execution was already attempted and cannot be safely repeated",
+            )
+        if reservation.status == "blocked":
+            if reservation.claim_token == claim_token:
+                await self._record(
+                    actor=actor,
+                    target=target,
+                    status="blocked",
+                    variables=payload.variables,
+                    output_text=None,
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    latency_ms=0,
+                    cost=Decimal("0"),
+                    error_code=reservation.error_code,
+                    executed_at=executed_at,
+                )
+            if reservation.error_code == "concurrency_limit":
+                raise AppError(429, "concurrency_limit", "Too many runs are already executing")
+            raise AppError(409, "budget_exceeded", "Monthly budget was exceeded")
+        if reservation.claim_token != claim_token:
+            raise AppError(409, "execution_in_progress", "This execution is already in progress")
+
         try:
             result = await execute_with_timeout(
                 get_provider(
@@ -129,18 +208,39 @@ class RunExecutionService:
                 timeout_seconds=self.provider_timeout_seconds,
             )
         except ProviderTimeoutError as exc:
-            await self._record_failure(
+            recorded = await self._record_failure(
                 actor, target, payload.variables, "provider_timeout", executed_at
+            )
+            await self._finalize(
+                reservation.id,
+                status="uncertain" if config.provider != "mock" else "failed",
+                actual_cost=None if config.provider != "mock" else Decimal("0"),
+                run=recorded,
+                error_code="provider_timeout",
             )
             raise AppError(504, "provider_timeout", "Provider request timed out") from exc
         except ProviderExecutionError as exc:
-            await self._record_failure(
+            recorded = await self._record_failure(
                 actor, target, payload.variables, "provider_error", executed_at
+            )
+            await self._finalize(
+                reservation.id,
+                status="uncertain" if config.provider != "mock" else "failed",
+                actual_cost=None if config.provider != "mock" else Decimal("0"),
+                run=recorded,
+                error_code="provider_error",
             )
             raise AppError(502, "provider_error", "Provider request failed") from exc
         except Exception as exc:
-            await self._record_failure(
+            recorded = await self._record_failure(
                 actor, target, payload.variables, "provider_error", executed_at
+            )
+            await self._finalize(
+                reservation.id,
+                status="uncertain" if config.provider != "mock" else "failed",
+                actual_cost=None if config.provider != "mock" else Decimal("0"),
+                run=recorded,
+                error_code="provider_error",
             )
             raise AppError(502, "provider_error", "Provider request failed") from exc
 
@@ -150,22 +250,108 @@ class RunExecutionService:
             input_price_per_million=price.input_price_per_million,
             output_price_per_million=price.output_price_per_million,
         )
-        recorded = await self._record(
-            actor=actor,
-            target=target,
-            status="completed",
-            variables=payload.variables,
-            output_text=result.output_text,
-            prompt_tokens=result.prompt_tokens,
-            completion_tokens=result.completion_tokens,
-            latency_ms=result.latency_ms,
-            cost=cost,
-            error_code=None,
-            executed_at=executed_at,
-        )
+        try:
+            recorded = await self._record(
+                actor=actor,
+                target=target,
+                status="completed",
+                variables=payload.variables,
+                output_text=result.output_text,
+                prompt_tokens=result.prompt_tokens,
+                completion_tokens=result.completion_tokens,
+                latency_ms=result.latency_ms,
+                cost=cost,
+                error_code=None,
+                executed_at=executed_at,
+            )
+        except AppError:
+            await self._finalize(
+                reservation.id,
+                status="uncertain",
+                actual_cost=None,
+                run=None,
+                error_code="access_changed",
+            )
+            raise
+        except Exception as exc:
+            await self._finalize(
+                reservation.id,
+                status="uncertain",
+                actual_cost=None,
+                run=None,
+                error_code="persistence_error",
+            )
+            raise AppError(
+                503,
+                "execution_outcome_unknown",
+                "Provider execution completed but persistence could not be confirmed",
+            ) from exc
         if recorded.status == "blocked":
             raise AppError(409, "budget_exceeded", "Monthly budget was exceeded")
+        await self._finalize(
+            reservation.id,
+            status="completed",
+            actual_cost=cost,
+            run=recorded,
+            error_code=None,
+        )
         return recorded
+
+    async def _reserve(
+        self,
+        *,
+        actor: UserRecord,
+        target: RunTarget,
+        idempotency_key: str,
+        request_fingerprint: str,
+        claim_token: UUID,
+        estimated_cost: Decimal,
+        created_at: datetime,
+    ) -> ExecutionReservation:
+        async with self.pool.connection() as raw_connection:
+            connection = cast(AsyncConnection[dict[str, Any]], raw_connection)
+            async with connection.transaction():
+                runs = RunRepository(connection)
+                if not await runs.lock_execution_access(target.version_id, actor.id):
+                    raise AppError(404, "not_found", "Prompt version was not found")
+                return await runs.reserve_execution(
+                    user_id=actor.id,
+                    target=target,
+                    idempotency_key=idempotency_key,
+                    request_fingerprint=request_fingerprint,
+                    claim_token=claim_token,
+                    estimated_cost=estimated_cost,
+                    maximum_concurrent=self.max_concurrent_runs_per_user,
+                    created_at=created_at,
+                )
+
+    async def _finalize(
+        self,
+        reservation_id: UUID,
+        *,
+        status: str,
+        actual_cost: Decimal | None,
+        run: RunResponse | None,
+        error_code: str | None,
+    ) -> None:
+        async with self.pool.connection() as raw_connection:
+            connection = cast(AsyncConnection[dict[str, Any]], raw_connection)
+            async with connection.transaction():
+                await RunRepository(connection).finalize_execution(
+                    reservation_id,
+                    status=status,
+                    actual_cost=actual_cost,
+                    run=run,
+                    error_code=error_code,
+                )
+
+    async def _get_reserved_run(self, run_id: UUID, user_id: UUID) -> RunResponse:
+        async with self.pool.connection() as raw_connection:
+            connection = cast(AsyncConnection[dict[str, Any]], raw_connection)
+            run = await RunRepository(connection).get(run_id, user_id, "admin")
+            if run is None:
+                raise RuntimeError("reserved run was not found")
+            return run
 
     async def _load_target_price_and_credential(
         self,
@@ -259,8 +445,8 @@ class RunExecutionService:
         variables: dict[str, str],
         error_code: str,
         executed_at: datetime,
-    ) -> None:
-        await self._record(
+    ) -> RunResponse:
+        return await self._record(
             actor=actor,
             target=target,
             status="failed",

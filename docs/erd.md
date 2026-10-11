@@ -22,6 +22,13 @@ erDiagram
     users ||--o{ provider_keys : creates
     users ||--o{ model_pricing : creates
     users ||--o{ audit_events : acts
+    users ||--o{ password_reset_tokens : resets
+    users ||--o{ password_history : remembers
+    users ||--o{ auth_sessions : authenticates
+    users ||--o{ run_reservations : reserves
+    projects ||--o{ run_reservations : budgets
+    prompts ||--o{ run_reservations : targets
+    prompt_versions ||--o{ run_reservations : executes
 ```
 
 ## Entity summary
@@ -40,5 +47,34 @@ erDiagram
 | `api_tokens` | Scoped to one project | Only prefix and SHA-256 hash persist; revocation metadata retained |
 | `provider_keys` | Created by an administrator | Encrypted value only; active aliases unique per provider |
 | `audit_events` | Optional actor plus resource snapshot | Append-only; sensitive fields removed by trigger |
+| `password_reset_tokens` | Hashed one-time token for one user | Expiring, single-use; plaintext never stored |
+| `password_history` | User/hash composite history | Trigger-maintained Argon2id history; reuse checks |
+| `auth_sessions` | JWT `jti` for one user | Expiry and explicit revocation metadata |
+| `run_reservations` | User-scoped idempotency key | Pre-call budget reservation; terminal/uncertain reconciliation |
+| `schema_migrations` | Numeric migration version | Immutable filename/name/checksum tracking |
+
+## Relational schema mapping
+
+Primary keys are underlined conceptually below; arrows name foreign-key targets. The complete column types/defaults are executable in `db/migrations`, while this mapping establishes that every physical table derives from the ER model.
+
+| Relation | Primary key | Foreign keys / alternate keys |
+|---|---|---|
+| `users` | `id` | `email` unique (case-insensitive) |
+| `projects` | `id` | `owner_id → users`; `key` unique |
+| `project_members` | `(project_id, user_id)` | both columns and `added_by → users` |
+| `prompts` | `id` | `project_id → projects`; `(project_id,key)` unique |
+| `prompt_versions` | `id` | `prompt_id → prompts`, `parent_version_id → prompt_versions`, `created_by → users`; `(prompt_id,version_number)` unique |
+| `model_pricing` | `id` | `created_by → users`; non-overlapping `(provider,model,effective window)` |
+| `budgets` | `id` | exactly one of `user_id → users` or `project_id → projects`; partial unique target |
+| `provider_keys` | `id` | `created_by → users`; active `(provider,alias)` unique |
+| `api_tokens` | `id` | `project_id → projects`, creator/revoker → `users`; `token_hash` unique |
+| `deployments` | `id` | composite version/prompt reference; requester/reviewer → `users`; rollback → `deployments` |
+| `runs` | `(id, created_at)` | user/project/prompt/version references; range-partitioned by `created_at` |
+| `audit_events` | `id` | optional `actor_user_id → users` |
+| `password_reset_tokens` | `id` | `user_id → users`; `token_hash` unique |
+| `password_history` | `(user_id, password_hash)` | `user_id → users` |
+| `auth_sessions` | `id` | `user_id → users` |
+| `run_reservations` | `id` | user/project/prompt/version and optional composite run reference; `(user_id,idempotency_key)` unique |
+| `schema_migrations` | `version` | migration `name` and SHA-256 `checksum` are tracked attributes |
 
 `organization_monthly_metrics` and `user_monthly_metrics` are refreshable materialized views over the partitioned run ledger. `prompt_version_lineage`, `deployment_history`, and `monthly_costs` provide read-oriented projections without duplicating source-of-truth data.

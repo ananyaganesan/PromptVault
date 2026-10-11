@@ -72,23 +72,23 @@ reviewed. Do not infer completion from the prototype's feature checklist.
 | Check | Acceptance evidence | Primary owner |
 |---|---|---|
 | [ ] Database design precedes implementation | Dated design artifacts/revision history; update the design before future schema changes | Jobin, with Ananya reviewing workflows |
-| [ ] ER Diagram includes at least 4 primary entities and 3 relationships | Final ER Diagram with named entities, relationships, and cardinalities | Jobin |
-| [ ] Every implemented table maps to the ER Diagram | Table-to-entity inventory, including authentication/history and infrastructure tables; identify physical partitions separately | Jobin |
-| [ ] Relational Schema derives from the ER Diagram | Relations listing attributes, types, primary keys, foreign keys, and constraints | Jobin |
+| [x] ER Diagram includes at least 4 primary entities and 3 relationships | Final ER Diagram with named entities, relationships, and cardinalities | Jobin |
+| [x] Every implemented table maps to the ER Diagram | Table-to-entity inventory, including authentication/history and infrastructure tables; identify physical partitions separately | Jobin |
+| [x] Relational Schema derives from the ER Diagram | Relations listing attributes, types, primary keys, foreign keys, and constraints | Jobin |
 | [ ] Data Dictionary prepared (recommended) | Column definitions, purpose, types, nullability, defaults, keys, and constraints | Jobin |
-| [ ] Table-count requirements satisfied | Inventory of at least 8 related logical tables; do not inflate counts with partitions or views | Jobin |
-| [ ] Every table has a Primary Key | Schema/catalog query output, including composite keys where used | Jobin |
-| [ ] Appropriate Foreign Keys and constraints exist | DDL and tests demonstrating valid and invalid writes | Jobin |
-| [ ] All tables satisfy 3NF or higher | Table-by-table keys and functional-dependency analysis; resolve any normalization violations | Jobin |
-| [ ] Database creation is reproducible | Fresh PostgreSQL creation and migration transcript | Jobin |
+| [x] Table-count requirements satisfied | Inventory of at least 8 related logical tables; do not inflate counts with partitions or views | Jobin |
+| [x] Every table has a Primary Key | Schema/catalog query output, including composite keys where used | Jobin |
+| [x] Appropriate Foreign Keys and constraints exist | DDL and tests demonstrating valid and invalid writes | Jobin |
+| [x] All tables satisfy 3NF or higher | Table-by-table keys and functional-dependency analysis; resolve any normalization violations | Jobin |
+| [x] Database creation is reproducible | Fresh PostgreSQL creation and migration transcript | Jobin |
 | [ ] CRUD operations demonstrated | SQL/API examples and working UI flows; explain immutable/append-only table restrictions | Both |
 | [ ] Joins demonstrated | Executable queries joining related tables, with results | Jobin |
 | [ ] Aggregate queries demonstrated | Executable count/sum/grouping queries with results | Jobin |
 | [ ] Views demonstrated | View definitions and example query results | Jobin |
 | [ ] Transactions demonstrated | Atomic operations and rollback/concurrency evidence | Jobin |
-| [ ] At least one stored procedure demonstrated | PostgreSQL `CREATE PROCEDURE` definition and successful `CALL` example | Jobin |
-| [ ] At least one trigger demonstrated | Trigger definition and observable before/after behavior | Jobin |
-| [ ] Appropriate indexes demonstrated | Index inventory and representative query-plan evidence | Jobin |
+| [x] At least one stored procedure demonstrated | PostgreSQL `CREATE PROCEDURE` definition and successful `CALL` example | Jobin |
+| [x] At least one trigger demonstrated | Trigger definition and observable before/after behavior | Jobin |
+| [x] Appropriate indexes demonstrated | Index inventory and representative query-plan evidence | Jobin |
 | [ ] Final design, database, and application agree | Joint review of deployed schema, documentation, and user workflows | Both |
 
 ## Existing references and gaps to review
@@ -101,19 +101,15 @@ reviewed. Do not infer completion from the prototype's feature checklist.
 - [Performance evidence guidance](performance.md).
 - [Testing strategy](testing.md).
 
-At the time this reference was added, the ER Diagram lists the original domain
-tables but does not include `password_reset_tokens`, `password_history`, or the
-`schema_migrations` tracking table. Reconcile the complete table inventory with the
-diagram and relational schema before submission.
+The ER mapping now includes authentication, password history, execution reservations,
+and migration tracking. Physical monthly run partitions remain implementations of the
+logical `runs` relation rather than inflated table-count evidence.
 
-Existing SQL business routines use PostgreSQL functions. A function is not a
-`CREATE PROCEDURE` stored procedure; verify and implement the explicit procedure
-requirement with a documented `CALL` demonstration.
+Migration 021 defines `perform_system_maintenance` with `CREATE PROCEDURE`; the
+`db/showcase/maintenance-procedure.sql` artifact demonstrates an executable `CALL`.
 
-The existing normalization discussion describes intentional JSONB snapshots and
-historical ledger fields. It is not a substitute for a table-by-table 3NF review.
-Document functional dependencies and resolve deviations against the mandatory
-normalization requirement rather than claiming compliance without analysis.
+The normalization document now records candidate keys and functional dependencies
+for every logical relation and explains the immutable historical snapshots.
 
 For any future database change, update the ER Diagram and relational schema first,
 then add a new migration and appropriate verification. Do not edit already-applied

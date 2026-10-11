@@ -81,6 +81,98 @@ class UserRepository:
         row = await cursor.fetchone()
         return _user_from_row(row) if row is not None else None
 
+    async def create_session(
+        self,
+        *,
+        session_id: UUID,
+        user_id: UUID,
+        issued_at: datetime,
+        expires_at: datetime,
+    ) -> None:
+        await self.connection.execute(
+            """
+            INSERT INTO auth_sessions (id, user_id, issued_at, expires_at)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (session_id, user_id, issued_at, expires_at),
+        )
+
+    async def is_session_active(self, session_id: UUID, user_id: UUID) -> bool:
+        cursor = await self.connection.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM auth_sessions
+                WHERE id = %s AND user_id = %s
+                  AND revoked_at IS NULL
+                  AND expires_at > clock_timestamp()
+            ) AS active
+            """,
+            (session_id, user_id),
+        )
+        row = await cursor.fetchone()
+        return bool(row and row["active"])
+
+    async def revoke_session(self, session_id: UUID, user_id: UUID) -> None:
+        await self.connection.execute(
+            """
+            UPDATE auth_sessions
+            SET revoked_at = CURRENT_TIMESTAMP, revocation_reason = 'logout'
+            WHERE id = %s AND user_id = %s AND revoked_at IS NULL
+            """,
+            (session_id, user_id),
+        )
+
+    async def export_account(self, user_id: UUID) -> dict[str, list[dict[str, Any]]]:
+        queries = {
+            "owned_projects": """
+                SELECT id, name, key, description, created_at, updated_at
+                FROM projects WHERE owner_id = %s ORDER BY created_at, id
+            """,
+            "memberships": """
+                SELECT project_id, created_at FROM project_members
+                WHERE user_id = %s ORDER BY created_at, project_id
+            """,
+            "prompt_versions": """
+                SELECT id, prompt_id, version_number, parent_version_id, template_body,
+                       variables, model_config, commit_message, created_at
+                FROM prompt_versions WHERE created_by = %s ORDER BY created_at, id
+            """,
+            "runs": """
+                SELECT id, project_id, prompt_id, version_id, status, provider, model,
+                       input_variables, output_text, prompt_tokens, completion_tokens,
+                       latency_ms, cost, error_code, created_at
+                FROM runs WHERE user_id = %s ORDER BY created_at, id
+            """,
+            "deployments": """
+                SELECT id, prompt_id, version_id, environment, status, request_note,
+                       review_note, rollback_reason, rollback_of_id, requested_at,
+                       reviewed_at, activated_at
+                FROM deployments WHERE requested_by = %s OR reviewed_by = %s
+                ORDER BY requested_at, id
+            """,
+            "api_tokens": """
+                SELECT id, project_id, name, token_prefix, created_at, expires_at, revoked_at
+                FROM api_tokens WHERE created_by = %s ORDER BY created_at, id
+            """,
+        }
+        exported: dict[str, list[dict[str, Any]]] = {}
+        for name, query in queries.items():
+            parameters = (user_id, user_id) if name == "deployments" else (user_id,)
+            cursor = await self.connection.execute(query, parameters)
+            exported[name] = [dict(row) for row in await cursor.fetchall()]
+        return exported
+
+    async def close_account(
+        self, *, user_id: UUID, password_hash: str, request_id: str
+    ) -> bool:
+        cursor = await self.connection.execute(
+            "SELECT close_user_account(%s, %s, %s) AS closed",
+            (user_id, password_hash, request_id),
+        )
+        row = await cursor.fetchone()
+        return bool(row and row["closed"])
+
     async def create_password_reset_token(
         self,
         *,

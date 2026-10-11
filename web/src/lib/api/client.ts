@@ -27,6 +27,7 @@ export interface RequestOptions {
   query?: QueryParams
   signal?: AbortSignal
   auth?: boolean
+  headers?: Record<string, string>
 }
 
 export interface ApiClientOptions {
@@ -56,7 +57,7 @@ function fallbackError(status: number): ApiErrorEnvelope {
 
 export function createApiClient({ baseUrl = defaultBaseUrl, getAccessToken = () => accessToken, fetcher, onUnauthorized = notifyUnauthorized }: ApiClientOptions = {}) {
   return {
-    async request<T>(path: string, { method = 'GET', body, query, signal, auth = true }: RequestOptions = {}): Promise<T> {
+    async request<T>(path: string, { method = 'GET', body, query, signal, auth = true, headers }: RequestOptions = {}): Promise<T> {
       const token = auth ? getAccessToken() : null
       const response = await (fetcher ?? fetch)(toUrl(path, baseUrl, query), {
         method,
@@ -65,6 +66,7 @@ export function createApiClient({ baseUrl = defaultBaseUrl, getAccessToken = () 
           Accept: 'application/json',
           ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...headers,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       })

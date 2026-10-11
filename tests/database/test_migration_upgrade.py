@@ -34,7 +34,7 @@ def temporary_database_url(database_url: str) -> Iterator[str]:
 
 def assert_preserved_rows_and_fk(url: str, user_id: str, token_hash: str) -> None:
     with psycopg.connect(url) as connection:
-        assert connection.execute("SELECT count(*) FROM schema_migrations").fetchone() == (18,)
+        assert connection.execute("SELECT count(*) FROM schema_migrations").fetchone() == (22,)
         assert connection.execute(
             "SELECT email FROM users WHERE id = %s", (user_id,)
         ).fetchone() == ("migration-check@example.com",)
@@ -54,6 +54,11 @@ def assert_preserved_rows_and_fk(url: str, user_id: str, token_hash: str) -> Non
             ("prompt_versions", "prompts"),
             ("password_reset_tokens", "users"),
             ("password_history", "users"),
+            ("run_reservations", "users"),
+            ("run_reservations", "projects"),
+            ("run_reservations", "prompts"),
+            ("run_reservations", "prompt_versions"),
+            ("auth_sessions", "users"),
         } <= foreign_keys
 
 
@@ -74,7 +79,7 @@ def insert_existing_rows(url: str) -> tuple[str, str]:
 
 
 def test_fresh_migrations_are_idempotent_and_preserve_rows(temporary_database_url: str) -> None:
-    assert len(migrate_database(temporary_database_url, MIGRATIONS)) == 18
+    assert len(migrate_database(temporary_database_url, MIGRATIONS)) == 22
     user_id, token_hash = insert_existing_rows(temporary_database_url)
 
     assert migrate_database(temporary_database_url, MIGRATIONS) == []
@@ -95,7 +100,9 @@ def test_legacy_password_reset_history_upgrades_without_resetting_data(
 
     applied = migrate_database(temporary_database_url, MIGRATIONS)
 
-    assert [item.version for item in applied] == [11, 12, 13, 14, 16, 17, 18]
+    assert [item.version for item in applied] == [
+        11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22
+    ]
     assert_preserved_rows_and_fk(temporary_database_url, user_id, token_hash)
     with psycopg.connect(temporary_database_url) as connection:
         assert connection.execute(

@@ -50,7 +50,7 @@ def login(client: TestClient, email: str, password: str) -> str:
 
 
 @pytest.mark.database
-def test_database_role_overrides_forged_admin_claim(
+def test_unregistered_forged_admin_session_is_rejected(
     authorization_client: TestClient,
     test_settings: Settings,
 ) -> None:
@@ -61,8 +61,8 @@ def test_database_role_overrides_forged_admin_claim(
         headers={"Authorization": f"Bearer {forged_role_token}"},
     )
 
-    assert response.status_code == 403
-    assert response.json()["code"] == "forbidden"
+    assert response.status_code == 401
+    assert response.json()["code"] == "invalid_token"
 
 
 @pytest.mark.database

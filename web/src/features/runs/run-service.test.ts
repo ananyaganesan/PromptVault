@@ -34,6 +34,7 @@ describe('live run outcome freshness', () => {
 
   it.each<[number, ApiErrorCode]>([
     [502, 'provider_error'], [504, 'provider_timeout'], [409, 'budget_exceeded'],
+    [429, 'concurrency_limit'], [409, 'execution_outcome_unknown'],
   ])('refreshes recorded execution error %i/%s without inventing a run or replacing its error', async (status, code) => {
     const error = new ApiClientError(status, { code, message: 'Original execution message', request_id: 'request-1' })
     vi.spyOn(runsApi, 'create').mockRejectedValue(error)

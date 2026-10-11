@@ -50,6 +50,7 @@ describe('AuthProvider session restoration', () => {
     sessionStorage.setItem('promptvault.api.session', 'old-token')
     let resolveMe!: (user: ApiUserSummary) => void
     vi.spyOn(authApi, 'me').mockReturnValue(new Promise((resolve) => { resolveMe = resolve }))
+    const revoke = vi.spyOn(authApi, 'logout').mockResolvedValue(undefined)
     const user = userEvent.setup()
 
     function SessionControls() {
@@ -65,5 +66,6 @@ describe('AuthProvider session restoration', () => {
 
     expect(screen.getByText('signed out')).toBeInTheDocument()
     expect(sessionStorage.getItem('promptvault.api.session')).toBeNull()
+    expect(revoke).toHaveBeenCalledOnce()
   })
 })

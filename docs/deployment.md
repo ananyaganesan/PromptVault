@@ -16,7 +16,7 @@ Production startup additionally requires `DATABASE_ROLE=promptvault_app`. `docke
 
 ## Production Compose deployment
 
-Point the public DNS name at the host and permit inbound TCP 80/443 plus UDP 443. Copy `.env.production.example` to an operator-managed environment file. Create an owner-only `SECRET_DIR` containing files named `postgres_owner_password`, `migration_database_url`, `runtime_database_password`, `runtime_database_url`, `secret_key`, `provider_encryption_key`, `redis_password`, `rate_limit_redis_url`, `smtp_password`, `alert_webhook_url`, `restic_password`, and `restic_credentials`; set every file to mode `0400` or `0600`. `alert_webhook_url` contains the HTTPS receiver URL. `restic_credentials` uses the AWS shared-credentials format for S3-compatible storage. The two database URLs must use the owner and `promptvault_runtime` passwords respectively, and the Redis URL must contain the same password used by the Redis service. Percent-encode URI-reserved password characters in URL files.
+Point the public DNS name at the host and permit inbound TCP 80/443 plus UDP 443. Copy `.env.production.example` to an operator-managed environment file. Create an owner-only `SECRET_DIR` containing files named `postgres_owner_password`, `migration_database_url`, `runtime_database_password`, `runtime_database_url`, `secret_key`, `provider_encryption_key`, `redis_password`, `rate_limit_redis_url`, `smtp_password`, `alert_webhook_url`, `restic_password`, and `restic_credentials`; set every file to mode `0400` or `0600`. `alert_webhook_url` contains the HTTPS receiver URL. `restic_credentials` uses the AWS shared-credentials format for S3-compatible storage. The two database URLs must use the owner and `promptvault_runtime` passwords respectively, and the Redis URL must contain the same password used by the Redis service. Percent-encode URI-reserved password characters in URL files. Staging and production must use different Compose project names, secret directories, hostnames, database volumes/databases, and backup repositories; never point both environments at the same PostgreSQL database.
 
 Run the offline preflight before starting containers, then rerun it without `--offline` after DNS points at the host and Caddy has obtained its certificate:
 
@@ -35,6 +35,14 @@ DOMAIN=promptvault.example.com SECRET_DIR=/secure/promptvault \
 
 Caddy obtains and renews public certificates, redirects HTTP to HTTPS, adds HSTS and security headers, and exposes only ports 80/443. PostgreSQL, Redis, the API, web server, Prometheus, and `/metrics` remain on an internal Docker network. Because the API has no published port and only Caddy can reach it on that network, Uvicorn trusts Caddy's forwarded client address for per-client throttling. Application, Redis, database, and SMTP password secrets are mounted as files rather than committed or placed in Compose YAML.
 
+Production migrations never load demo users. On a new database, create `production_admin_password` in `SECRET_DIR` with mode `0400`, set the non-placeholder `PRODUCTION_ADMIN_EMAIL` and `PRODUCTION_ADMIN_DISPLAY_NAME`, and run the one-shot bootstrap exactly once:
+
+```bash
+docker compose -f docker-compose.production.yml --profile bootstrap run --rm bootstrap-admin
+```
+
+The command serializes concurrent attempts, refuses to run if an active Super Admin or the requested email already exists, and never prints the password or its Argon2id hash. Remove the bootstrap password file after the first successful login and password rotation.
+
 Prometheus scrapes the internal low-cardinality `/metrics` endpoint and loads alerts for API availability, 5xx ratio, and mean latency. The packaged Alertmanager groups alerts by name/severity and sends firing and resolved notifications to the HTTPS URL stored in `alert_webhook_url`. Aggregate the API's structured JSON container logs in the platform's log destination before accepting production traffic.
 
 The `operations` profile starts an always-on scheduler that writes an atomic custom-format dump every `BACKUP_INTERVAL_SECONDS` and removes expired dumps. The one-shot command remains available for release or migration checkpoints:
@@ -43,6 +51,8 @@ The `operations` profile starts an always-on scheduler that writes an atomic cus
 DOMAIN=promptvault.example.com SECRET_DIR=/secure/promptvault \
   docker compose -f docker-compose.production.yml --profile operations run --rm backup
 ```
+
+The same profile runs hourly database maintenance by default. `perform_system_maintenance` marks reservations older than `STALE_RESERVATION_MINUTES` as `uncertain` (their estimated spend remains reserved because a paid provider call may have escaped), deletes expired/revoked sessions and reset tokens after `SECURITY_RETENTION_DAYS`, expires completed/failed/blocked idempotency records after `IDEMPOTENCY_RETENTION_DAYS`, creates next month's run partition, and refreshes both analytics materialized views. Operators can invoke the exact stored-procedure path once with `python3 scripts/run-maintenance.py`; failures exit nonzero for scheduler/alert visibility.
 
 Enable the `offsite-backup` profile to start the same scheduler plus restic replication. Restic encrypts each snapshot before sending it to `RESTIC_REPOSITORY`, applies daily/weekly/monthly retention, and ignores incomplete `.partial` dumps:
 
@@ -54,7 +64,7 @@ Object-storage immutability/retention lock and alert delivery remain provider co
 
 Password reset requires a public HTTPS `PASSWORD_RESET_URL` in production and backend SMTP settings (`SMTP_HOST`, `SMTP_FROM_EMAIL`, and, for Gmail, `SMTP_USERNAME` and a Google App Password in `SMTP_PASSWORD`). Port 587 uses STARTTLS by default; port 465 uses `SMTP_SSL=true` and `SMTP_STARTTLS=false`. These settings are passed only to the API and migration containers, never to the browser build. Verify Gmail delivery before advertising password recovery.
 
-Gemini execution is optional. Keep `GEMINI_API_BASE_URL` at Google's HTTPS endpoint, create an active provider key whose provider is `gemini` through the admin API, and add effective-dated pricing for each enabled model before saving a Gemini-backed prompt version. PromptVault decrypts the newest active key only for the outbound request and sends it in the `x-goog-api-key` header; it never places the plaintext key in API responses, logs, or run records. The deterministic `mock` provider remains available for offline verification.
+Gemini execution is optional. Keep `GEMINI_API_BASE_URL` at Google's HTTPS endpoint, create an active provider key whose provider is `gemini` through the admin API, and add effective-dated pricing for each enabled model before saving a Gemini-backed prompt version. PromptVault decrypts the newest active key only for the outbound request and sends it in the `x-goog-api-key` header; it never places the plaintext key in API responses, logs, or run records. Before any provider call, the API creates a durable user-scoped idempotency and maximum-cost reservation. Active and uncertain reservations count against user/project budgets, and `MAX_CONCURRENT_RUNS_PER_USER` (default `4`) bounds simultaneous calls per account. Clients should retain one `Idempotency-Key` for retries of the same execution. The deterministic `mock` provider remains available for offline verification.
 
 Container and CI installs use the fully pinned `api/requirements.lock` and `api/requirements-dev.lock`; the adjacent `.txt` files remain the human-maintained compatible dependency ranges. Regenerate and verify lock files deliberately when upgrading dependencies.
 

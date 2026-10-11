@@ -3,10 +3,13 @@
 from typing import Annotated
 
 from api.app.db.transactions import DatabaseConnection, get_connection
-from api.app.dependencies.auth import CurrentUser
+from api.app.dependencies.auth import CurrentUser, bearer_scheme
+from api.app.dependencies.request_context import get_request_id
 from api.app.errors import ErrorEnvelope
 from api.app.repositories.users import UserRepository
 from api.app.schemas.auth import (
+    AccountCloseRequest,
+    AccountExportResponse,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -14,8 +17,10 @@ from api.app.schemas.auth import (
     SessionResponse,
 )
 from api.app.schemas.users import UserResponse
+from api.app.security import decode_access_token
 from api.app.services.auth import AuthService
 from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.security import HTTPAuthorizationCredentials
 
 router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
 
@@ -50,6 +55,51 @@ async def login(
     service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> SessionResponse:
     return await service.login(payload)
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    responses={401: {"model": ErrorEnvelope}},
+)
+async def logout(
+    request: Request,
+    current_user: CurrentUser,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
+    service: Annotated[AuthService, Depends(get_auth_service)],
+) -> Response:
+    claims = decode_access_token(credentials.credentials, request.app.state.settings)
+    await service.logout(session_id=claims.token_id, user_id=current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/account/export",
+    response_model=AccountExportResponse,
+    responses={401: {"model": ErrorEnvelope}},
+)
+async def export_account(
+    current_user: CurrentUser,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+) -> AccountExportResponse:
+    return await service.export_account(current_user)
+
+
+@router.delete(
+    "/account",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    responses={401: {"model": ErrorEnvelope}, 409: {"model": ErrorEnvelope}},
+)
+async def close_account(
+    payload: AccountCloseRequest,
+    request: Request,
+    current_user: CurrentUser,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+) -> Response:
+    await service.close_account(payload, current_user, get_request_id(request))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

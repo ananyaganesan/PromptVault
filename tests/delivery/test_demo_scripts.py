@@ -73,6 +73,7 @@ def test_showcase_runner_executes_every_query_file(database_url: str) -> None:
     for filename in (
         "cost-analytics.sql",
         "deployment-history.sql",
+        "maintenance-procedure.sql",
         "query-plans.sql",
         "version-lineage.sql",
     ):

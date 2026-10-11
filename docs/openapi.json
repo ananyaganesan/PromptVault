@@ -1,10 +1,99 @@
 {
   "components": {
     "schemas": {
+      "AccountCloseRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "AccountCloseRequest",
+        "type": "object"
+      },
+      "AccountExportResponse": {
+        "properties": {
+          "api_tokens": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Api Tokens",
+            "type": "array"
+          },
+          "deployments": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Deployments",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "memberships": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Memberships",
+            "type": "array"
+          },
+          "owned_projects": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Owned Projects",
+            "type": "array"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "prompt_versions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Prompt Versions",
+            "type": "array"
+          },
+          "runs": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "profile",
+          "owned_projects",
+          "memberships",
+          "prompt_versions",
+          "runs",
+          "deployments",
+          "api_tokens"
+        ],
+        "title": "AccountExportResponse",
+        "type": "object"
+      },
       "AdminCostTrendPoint": {
         "properties": {
           "cost": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Cost",
             "type": "string"
           },
@@ -95,7 +184,6 @@
             "type": "array"
           },
           "total_spend": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Spend",
             "type": "string"
           },
@@ -491,7 +579,6 @@
                 "type": "number"
               },
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
                 "type": "string"
               }
             ],
@@ -560,7 +647,6 @@
             "type": "string"
           },
           "monthly_limit": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Monthly Limit",
             "type": "string"
           },
@@ -621,7 +707,6 @@
                 "type": "number"
               },
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
                 "type": "string"
               },
               {
@@ -650,7 +735,6 @@
       "CostTrendPoint": {
         "properties": {
           "cost": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Cost",
             "type": "string"
           },
@@ -1495,7 +1579,6 @@
                 "type": "number"
               },
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
                 "type": "string"
               }
             ],
@@ -1514,7 +1597,6 @@
                 "type": "number"
               },
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
                 "type": "string"
               }
             ],
@@ -1580,7 +1662,6 @@
             "type": "string"
           },
           "input_price_per_million": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
             "title": "Input Price Per Million",
             "type": "string"
           },
@@ -1591,7 +1672,6 @@
             "type": "string"
           },
           "output_price_per_million": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
             "title": "Output Price Per Million",
             "type": "string"
           },
@@ -1618,7 +1698,6 @@
       "ModelSpendResponse": {
         "properties": {
           "cost": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Cost",
             "type": "string"
           },
@@ -2150,7 +2229,6 @@
           "monthly_budget": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2160,7 +2238,6 @@
             "title": "Monthly Budget"
           },
           "monthly_spend": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Monthly Spend",
             "type": "string"
           },
@@ -2942,7 +3019,6 @@
             "type": "integer"
           },
           "cost": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Cost",
             "type": "string"
           },
@@ -3190,7 +3266,6 @@
       "TopSpenderResponse": {
         "properties": {
           "cost": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Cost",
             "type": "string"
           },
@@ -6145,6 +6220,121 @@
         ]
       }
     },
+    "/api/v1/auth/account": {
+      "delete": {
+        "operationId": "close_account_api_v1_auth_account_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCloseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Close Account",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/account/export": {
+      "get": {
+        "operationId": "export_account_api_v1_auth_account_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountExportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Account",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "login_api_v1_auth_login_post",
@@ -6211,6 +6401,45 @@
           }
         },
         "summary": "Login",
+        "tags": [
+          "authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Logout",
         "tags": [
           "authentication"
         ]
@@ -8648,6 +8877,27 @@
       },
       "post": {
         "operationId": "execute_run_api_v1_runs_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 16,
+                  "pattern": "^[A-Za-z0-9._:-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

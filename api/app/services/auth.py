@@ -2,12 +2,15 @@
 
 from datetime import UTC, datetime, timedelta
 from secrets import token_urlsafe
+from uuid import UUID, uuid4
 
 from api.app.config import Settings
 from api.app.email import EmailDeliveryError, send_password_reset_email
 from api.app.errors import AppError
 from api.app.repositories.users import UserRecord, UserRepository
 from api.app.schemas.auth import (
+    AccountCloseRequest,
+    AccountExportResponse,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -21,7 +24,7 @@ from api.app.security import (
     hash_password,
     verify_password,
 )
-from psycopg.errors import UniqueViolation
+from psycopg.errors import CheckViolation, UniqueViolation
 from starlette.concurrency import run_in_threadpool
 
 _BEARER_HEADERS = {"WWW-Authenticate": "Bearer"}
@@ -49,7 +52,7 @@ class AuthService:
                 "duplicate_email",
                 "An account with this email already exists",
             ) from exc
-        return self._session(user)
+        return await self._session(user)
 
     async def login(self, request: LoginRequest) -> SessionResponse:
         user = await self.repository.get_by_email(str(request.email))
@@ -74,7 +77,42 @@ class AuthService:
             )
         if not user.is_active:
             raise AppError(403, "inactive_user", "User account is inactive")
-        return self._session(user)
+        return await self._session(user)
+
+    async def logout(self, *, session_id: UUID, user_id: UUID) -> None:
+        await self.repository.revoke_session(session_id, user_id)
+
+    async def export_account(self, user: UserRecord) -> AccountExportResponse:
+        exported = await self.repository.export_account(user.id)
+        return AccountExportResponse(
+            generated_at=datetime.now(UTC),
+            profile=UserResponse.model_validate(user),
+            **exported,
+        )
+
+    async def close_account(
+        self, request: AccountCloseRequest, user: UserRecord, request_id: str
+    ) -> None:
+        matches = await run_in_threadpool(
+            verify_password, user.password_hash, request.password.get_secret_value()
+        )
+        if not matches:
+            raise AppError(401, "invalid_credentials", "Invalid password", headers=_BEARER_HEADERS)
+        replacement_hash = await run_in_threadpool(hash_password, token_urlsafe(48))
+        try:
+            closed = await self.repository.close_account(
+                user_id=user.id,
+                password_hash=replacement_hash,
+                request_id=request_id,
+            )
+        except CheckViolation as exc:
+            if "last_admin" in str(exc):
+                raise AppError(
+                    409, "last_admin", "The last active Super Admin cannot close their account"
+                ) from exc
+            raise
+        if not closed:
+            raise AppError(409, "invalid_state", "Account is already closed")
 
     async def request_password_reset(self, request: PasswordResetRequest) -> None:
         if not self.settings.smtp_host:
@@ -137,9 +175,24 @@ class AuthService:
                 "Password reset link is invalid or expired",
             )
 
-    def _session(self, user: UserRecord) -> SessionResponse:
+    async def _session(self, user: UserRecord) -> SessionResponse:
+        issued_at = datetime.now(UTC).replace(microsecond=0)
+        expires_at = issued_at + timedelta(minutes=self.settings.access_token_ttl_minutes)
+        session_id = uuid4()
+        await self.repository.create_session(
+            session_id=session_id,
+            user_id=user.id,
+            issued_at=issued_at,
+            expires_at=expires_at,
+        )
         return SessionResponse(
-            access_token=create_access_token(user.id, user.role, self.settings),
+            access_token=create_access_token(
+                user.id,
+                user.role,
+                self.settings,
+                now=issued_at,
+                token_id=session_id,
+            ),
             expires_in=self.settings.access_token_ttl_minutes * 60,
             user=UserResponse.model_validate(user),
         )

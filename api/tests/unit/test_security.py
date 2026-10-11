@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from api.app.config import Settings
@@ -43,8 +43,11 @@ def test_access_token_round_trip_contains_required_identity_claims(
     test_settings: Settings,
 ) -> None:
     issued_at = datetime(2026, 9, 23, 10, 30, tzinfo=UTC)
+    token_id = uuid4()
 
-    token = create_access_token(USER_ID, "user", test_settings, now=issued_at)
+    token = create_access_token(
+        USER_ID, "user", test_settings, now=issued_at, token_id=token_id
+    )
     claims = decode_access_token(
         token,
         test_settings,
@@ -52,6 +55,7 @@ def test_access_token_round_trip_contains_required_identity_claims(
     )
 
     assert claims.user_id == USER_ID
+    assert claims.token_id == token_id
     assert claims.role == "user"
     assert claims.issued_at == issued_at
     assert claims.expires_at == issued_at + timedelta(

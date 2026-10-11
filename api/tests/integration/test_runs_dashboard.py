@@ -183,6 +183,289 @@ def test_gemini_run_uses_active_encrypted_key_and_persists_usage(
 
 
 @pytest.mark.database
+def test_over_budget_gemini_run_is_rejected_before_provider_call(
+    test_settings: Settings,
+    seeded_database_url: str,
+) -> None:
+    provider_calls = 0
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            nonlocal provider_calls
+            provider_calls += 1
+            body = json.dumps(
+                {
+                    "candidates": [{"content": {"parts": [{"text": "Paid output"}]}}],
+                    "usageMetadata": {"promptTokenCount": 7, "candidatesTokenCount": 3},
+                }
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    model = f"gemini-budget-{uuid4().hex}"
+    with psycopg.connect(seeded_database_url) as connection:
+        admin_id = connection.execute(
+            "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"
+        ).fetchone()[0]
+        connection.execute(
+            "INSERT INTO provider_keys (provider, alias, encrypted_secret, created_by) "
+            "VALUES ('gemini', %s, %s, %s)",
+            (
+                f"budget-{uuid4().hex}",
+                encrypt_provider_secret(
+                    "budget-gemini-secret",
+                    test_settings.resolved_provider_encryption_key,
+                ),
+                admin_id,
+            ),
+        )
+        connection.execute(
+            "INSERT INTO model_pricing (provider, model, input_price_per_million, "
+            "output_price_per_million, effective_from, created_by) "
+            "VALUES ('gemini', %s, 1, 2, '2026-01-01T00:00:00Z', %s)",
+            (model, admin_id),
+        )
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    settings = test_settings.model_copy(
+        update={
+            "database_url": seeded_database_url,
+            "gemini_api_base_url": f"http://127.0.0.1:{server.server_port}/v1beta",
+        }
+    )
+    try:
+        with TestClient(create_app(settings)) as client:
+            user, headers = register_user(client, "gemini-budget-owner")
+            _, version = create_prompt_version(client, headers, provider="gemini", model=model)
+            with psycopg.connect(seeded_database_url) as connection:
+                connection.execute(
+                    "INSERT INTO budgets (user_id, monthly_limit) VALUES (%s, 0)",
+                    (user["id"],),
+                )
+            response = client.post(
+                "/api/v1/runs",
+                headers={**headers, "Idempotency-Key": "gemini-budget-request-0001"},
+                json={"version_id": version["id"], "variables": {"name": "Jobin"}},
+            )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "budget_exceeded"
+    assert provider_calls == 0
+
+
+@pytest.mark.database
+def test_duplicate_idempotency_key_returns_one_persisted_gemini_run(
+    test_settings: Settings,
+    seeded_database_url: str,
+) -> None:
+    provider_calls = 0
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            nonlocal provider_calls
+            provider_calls += 1
+            body = json.dumps(
+                {
+                    "candidates": [{"content": {"parts": [{"text": "One output"}]}}],
+                    "usageMetadata": {"promptTokenCount": 2, "candidatesTokenCount": 2},
+                }
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    model = f"gemini-idempotency-{uuid4().hex}"
+    with psycopg.connect(seeded_database_url) as connection:
+        admin_id = connection.execute(
+            "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"
+        ).fetchone()[0]
+        connection.execute(
+            "INSERT INTO provider_keys (provider, alias, encrypted_secret, created_by) "
+            "VALUES ('gemini', %s, %s, %s)",
+            (
+                f"idempotency-{uuid4().hex}",
+                encrypt_provider_secret(
+                    "idempotency-gemini-secret",
+                    test_settings.resolved_provider_encryption_key,
+                ),
+                admin_id,
+            ),
+        )
+        connection.execute(
+            "INSERT INTO model_pricing (provider, model, input_price_per_million, "
+            "output_price_per_million, effective_from, created_by) "
+            "VALUES ('gemini', %s, 1, 1, '2026-01-01T00:00:00Z', %s)",
+            (model, admin_id),
+        )
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    settings = test_settings.model_copy(
+        update={
+            "database_url": seeded_database_url,
+            "gemini_api_base_url": f"http://127.0.0.1:{server.server_port}/v1beta",
+        }
+    )
+    try:
+        with TestClient(create_app(settings)) as client:
+            _, headers = register_user(client, "gemini-idempotency-owner")
+            _, version = create_prompt_version(client, headers, provider="gemini", model=model)
+            request_headers = {
+                **headers,
+                "Idempotency-Key": "gemini-idempotency-request-0001",
+            }
+            payload = {"version_id": version["id"], "variables": {"name": "Jobin"}}
+            first = client.post("/api/v1/runs", headers=request_headers, json=payload)
+            duplicate = client.post("/api/v1/runs", headers=request_headers, json=payload)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert first.status_code == duplicate.status_code == 201
+    assert duplicate.json()["id"] == first.json()["id"]
+    assert provider_calls == 1
+
+
+@pytest.mark.database
+def test_concurrent_duplicate_run_is_not_executed_twice(
+    run_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    model = f"deterministic-delay-{uuid4().hex}"
+    with psycopg.connect(seeded_database_url) as connection:
+        connection.execute(
+            "INSERT INTO model_pricing (provider, model, input_price_per_million, "
+            "output_price_per_million, effective_from) "
+            "VALUES ('mock', %s, 1, 1, '2026-01-01T00:00:00Z')",
+            (model,),
+        )
+    _, headers = register_user(run_client, "concurrent-idempotency-owner")
+    _, version = create_prompt_version(run_client, headers, model=model)
+    request_headers = {
+        **headers,
+        "Idempotency-Key": "concurrent-idempotency-request-0001",
+    }
+    payload = {"version_id": version["id"], "variables": {"name": "Jobin"}}
+
+    def execute() -> tuple[int, dict[str, object]]:
+        response = run_client.post("/api/v1/runs", headers=request_headers, json=payload)
+        return response.status_code, response.json()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: execute(), range(2)))
+
+    assert sorted(status for status, _ in results) == [201, 409]
+    rejected = next(body for status, body in results if status == 409)
+    assert rejected["code"] == "execution_in_progress"
+    with psycopg.connect(seeded_database_url) as connection:
+        assert connection.execute(
+            "SELECT count(*) FROM runs WHERE version_id = %s",
+            (version["id"],),
+        ).fetchone() == (1,)
+
+
+@pytest.mark.database
+def test_uncertain_paid_failure_keeps_reservation_and_cannot_be_replayed(
+    test_settings: Settings,
+    seeded_database_url: str,
+) -> None:
+    provider_calls = 0
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            nonlocal provider_calls
+            provider_calls += 1
+            self.send_response(500)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    model = f"gemini-uncertain-{uuid4().hex}"
+    with psycopg.connect(seeded_database_url) as connection:
+        admin_id = connection.execute(
+            "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"
+        ).fetchone()[0]
+        connection.execute(
+            "INSERT INTO provider_keys (provider, alias, encrypted_secret, created_by) "
+            "VALUES ('gemini', %s, %s, %s)",
+            (
+                f"uncertain-{uuid4().hex}",
+                encrypt_provider_secret(
+                    "uncertain-gemini-secret",
+                    test_settings.resolved_provider_encryption_key,
+                ),
+                admin_id,
+            ),
+        )
+        connection.execute(
+            "INSERT INTO model_pricing (provider, model, input_price_per_million, "
+            "output_price_per_million, effective_from, created_by) "
+            "VALUES ('gemini', %s, 1, 1, '2026-01-01T00:00:00Z', %s)",
+            (model, admin_id),
+        )
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    settings = test_settings.model_copy(
+        update={
+            "database_url": seeded_database_url,
+            "gemini_api_base_url": f"http://127.0.0.1:{server.server_port}/v1beta",
+        }
+    )
+    key = "gemini-uncertain-request-0001"
+    try:
+        with TestClient(create_app(settings)) as client:
+            user, headers = register_user(client, "gemini-uncertain-owner")
+            _, version = create_prompt_version(client, headers, provider="gemini", model=model)
+            request_headers = {**headers, "Idempotency-Key": key}
+            payload = {"version_id": version["id"], "variables": {"name": "Jobin"}}
+            first = client.post("/api/v1/runs", headers=request_headers, json=payload)
+            replay = client.post("/api/v1/runs", headers=request_headers, json=payload)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert first.status_code == 502
+    assert first.json()["code"] == "provider_error"
+    assert replay.status_code == 409
+    assert replay.json()["code"] == "execution_outcome_unknown"
+    assert provider_calls == 1
+    with psycopg.connect(seeded_database_url) as connection:
+        reservation = connection.execute(
+            "SELECT status, estimated_cost, actual_cost FROM run_reservations "
+            "WHERE user_id = %s AND idempotency_key = %s",
+            (user["id"], key),
+        ).fetchone()
+    assert reservation is not None
+    assert reservation[0] == "uncertain"
+    assert reservation[1] > 0
+    assert reservation[2] is None
+
+
+@pytest.mark.database
 def test_run_execution_persists_precise_ledger_and_scopes_reads(
     run_client: TestClient,
     seeded_database_url: str,
@@ -191,9 +474,10 @@ def test_run_execution_persists_precise_ledger_and_scopes_reads(
     _, outsider_headers = register_user(run_client, "run-outsider")
     project, version = create_prompt_version(run_client, headers)
 
+    request_id = "r" * 128
     executed = run_client.post(
         "/api/v1/runs",
-        headers={**headers, "X-Request-ID": "run-success-request"},
+        headers={**headers, "X-Request-ID": request_id},
         json={"version_id": version["id"], "variables": {"name": "Jobin"}},
     )
 
@@ -213,10 +497,10 @@ def test_run_execution_persists_precise_ledger_and_scopes_reads(
     assert Decimal(run["cost"]) == Decimal("0.000015")
     assert run["error_code"] is None
     with psycopg.connect(seeded_database_url) as connection:
-        request_id = connection.execute(
+        stored_request_id = connection.execute(
             "SELECT request_id FROM runs WHERE id = %s", (run["id"],)
         ).fetchone()
-    assert request_id == ("run-success-request",)
+    assert stored_request_id == (request_id,)
 
     detail = run_client.get(f"/api/v1/runs/{run['id']}", headers=headers)
     assert detail.status_code == 200

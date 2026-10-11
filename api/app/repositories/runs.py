@@ -41,6 +41,18 @@ class RunTarget:
     model_configuration: ModelConfiguration
 
 
+@dataclass(frozen=True, slots=True)
+class ExecutionReservation:
+    id: UUID
+    claim_token: UUID
+    estimated_cost: Decimal
+    actual_cost: Decimal | None
+    status: str
+    error_code: str | None
+    run_id: UUID | None
+    run_created_at: datetime | None
+
+
 def _run_from_row(row: Mapping[str, Any]) -> RunResponse:
     return RunResponse(
         id=row["id"],
@@ -144,6 +156,91 @@ class RunRepository:
                 (user_id, version_id),
             )
         return await cursor.fetchone() is not None
+
+    async def reserve_execution(
+        self,
+        *,
+        user_id: UUID,
+        target: RunTarget,
+        idempotency_key: str,
+        request_fingerprint: str,
+        claim_token: UUID,
+        estimated_cost: Decimal,
+        maximum_concurrent: int,
+        created_at: datetime,
+    ) -> ExecutionReservation:
+        cursor = await self.connection.execute(
+            """
+            SELECT reserved.id, reserved.claim_token, reserved.estimated_cost,
+                   reserved.actual_cost, reserved.status, reserved.error_code,
+                   reserved.run_id, reserved.run_created_at
+            FROM reserve_run_execution(
+                p_user_id => %s,
+                p_project_id => %s,
+                p_prompt_id => %s,
+                p_version_id => %s,
+                p_idempotency_key => %s,
+                p_request_fingerprint => %s,
+                p_claim_token => %s,
+                p_estimated_cost => %s,
+                p_maximum_concurrent => %s,
+                p_created_at => %s
+            ) AS reserved
+            """,
+            (
+                user_id,
+                target.project_id,
+                target.prompt_id,
+                target.version_id,
+                idempotency_key,
+                request_fingerprint,
+                claim_token,
+                estimated_cost,
+                maximum_concurrent,
+                created_at,
+            ),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            raise RuntimeError("reservation function returned no row")
+        return ExecutionReservation(**row)
+
+    async def finalize_execution(
+        self,
+        reservation_id: UUID,
+        *,
+        status: str,
+        actual_cost: Decimal | None,
+        run: RunResponse | None,
+        error_code: str | None,
+    ) -> ExecutionReservation:
+        cursor = await self.connection.execute(
+            """
+            SELECT finalized.id, finalized.claim_token, finalized.estimated_cost,
+                   finalized.actual_cost, finalized.status, finalized.error_code,
+                   finalized.run_id, finalized.run_created_at
+            FROM finalize_run_execution(
+                p_reservation_id => %s,
+                p_status => %s,
+                p_actual_cost => %s,
+                p_run_id => %s,
+                p_run_created_at => %s,
+                p_error_code => %s
+            ) AS finalized
+            """,
+            (
+                reservation_id,
+                status,
+                actual_cost,
+                run.id if run else None,
+                run.created_at if run else None,
+                error_code,
+            ),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            raise RuntimeError("reservation finalization returned no row")
+        return ExecutionReservation(**row)
 
     async def record(
         self,

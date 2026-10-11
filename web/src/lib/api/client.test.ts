@@ -15,6 +15,24 @@ describe('api client', () => {
     }))
   })
 
+  it('forwards an idempotency key without replacing authentication headers', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'run_1' }), { headers: { 'Content-Type': 'application/json' } }))
+    const client = createApiClient({ baseUrl: 'https://api.example.test', getAccessToken: () => 'demo-token', fetcher })
+
+    await client.request('/runs', {
+      method: 'POST',
+      body: { version_id: 'version_1', variables: {} },
+      headers: { 'Idempotency-Key': 'execution-request-0001' },
+    })
+
+    expect(fetcher).toHaveBeenCalledWith('https://api.example.test/runs', expect.objectContaining({
+      headers: expect.objectContaining({
+        Authorization: 'Bearer demo-token',
+        'Idempotency-Key': 'execution-request-0001',
+      }),
+    }))
+  })
+
   it('throws a typed error for the documented error envelope', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'forbidden', message: 'Access denied', request_id: 'req_123' }), { status: 403, headers: { 'Content-Type': 'application/json' } }))
     const client = createApiClient({ fetcher })

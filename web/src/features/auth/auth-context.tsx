@@ -91,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return account
     },
     logout() {
+      void authApi.logout().catch(() => undefined)
       currentToken.current = null
       clearAccessToken()
       sessionStorage.removeItem(apiSessionKey)

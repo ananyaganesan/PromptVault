@@ -39,11 +39,16 @@ async def _resolve_current_user(
             headers=_BEARER_HEADERS,
         ) from exc
 
-    user = await UserRepository(connection).get_by_id(claims.user_id)
+    repository = UserRepository(connection)
+    if not await repository.is_session_active(claims.token_id, claims.user_id):
+        raise AppError(401, "invalid_token", "Access token is invalid", headers=_BEARER_HEADERS)
+    user = await repository.get_by_id(claims.user_id)
     if user is None:
         raise AppError(401, "invalid_token", "Access token is invalid", headers=_BEARER_HEADERS)
     if not user.is_active:
         raise AppError(403, "inactive_user", "User account is inactive")
+    if user.role != claims.role:
+        raise AppError(401, "invalid_token", "Access token is invalid", headers=_BEARER_HEADERS)
     return user
 
 

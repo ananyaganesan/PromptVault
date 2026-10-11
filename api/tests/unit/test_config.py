@@ -58,6 +58,11 @@ def test_settings_reject_nonpositive_provider_timeout() -> None:
         Settings(**BASE, provider_timeout_seconds=0)
 
 
+def test_settings_reject_nonpositive_execution_concurrency_limit() -> None:
+    with pytest.raises(ValidationError):
+        Settings(**BASE, max_concurrent_runs_per_user=0)
+
+
 def test_settings_reject_nonpositive_request_body_limit() -> None:
     with pytest.raises(ValidationError):
         Settings(**BASE, max_request_body_bytes=0)

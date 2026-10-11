@@ -138,6 +138,16 @@ class AdminRepository:
         row = await cursor.fetchone()
         if row is None:
             raise RuntimeError("user update function returned no row")
+        if role_set or active_set:
+            await self.connection.execute(
+                """
+                UPDATE auth_sessions
+                SET revoked_at = CURRENT_TIMESTAMP,
+                    revocation_reason = 'account_changed'
+                WHERE user_id = %s AND revoked_at IS NULL
+                """,
+                (user_id,),
+            )
         updated = await self.get_user(row["id"])
         if updated is None:
             raise RuntimeError("updated user was not returned")

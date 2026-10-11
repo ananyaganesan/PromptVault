@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import jwt
 from argon2 import PasswordHasher
@@ -32,6 +32,7 @@ class ExpiredAccessToken(InvalidAccessToken):
 
 @dataclass(frozen=True, slots=True)
 class AccessTokenClaims:
+    token_id: UUID
     user_id: UUID
     role: UserRole
     issued_at: datetime
@@ -87,11 +88,13 @@ def create_access_token(
     settings: Settings,
     *,
     now: datetime | None = None,
+    token_id: UUID | None = None,
 ) -> str:
     issued_at = (now or datetime.now(UTC)).astimezone(UTC).replace(microsecond=0)
     expires_at = issued_at + timedelta(minutes=settings.access_token_ttl_minutes)
     return jwt.encode(
         {
+            "jti": str(token_id or uuid4()),
             "sub": str(user_id),
             "role": role,
             "iat": issued_at,
@@ -118,7 +121,7 @@ def decode_access_token(
             audience=settings.jwt_audience,
             issuer=settings.jwt_issuer,
             options={
-                "require": ["sub", "role", "iat", "exp", "iss", "aud"],
+                "require": ["jti", "sub", "role", "iat", "exp", "iss", "aud"],
                 "verify_exp": False,
                 "verify_iat": False,
             },
@@ -127,6 +130,7 @@ def decode_access_token(
         if role not in ("user", "admin"):
             raise InvalidAccessToken("invalid role claim")
         claims = AccessTokenClaims(
+            token_id=UUID(payload["jti"]),
             user_id=UUID(payload["sub"]),
             role=role,
             issued_at=datetime.fromtimestamp(payload["iat"], tz=UTC),

@@ -86,6 +86,31 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
+  bootstrap-admin:
+    <<: *api-image
+    profiles: [bootstrap]
+    user: "0:0"
+    entrypoint:
+      - sh
+      - -ec
+      - |
+        export MIGRATION_DATABASE_URL="$$(cat /run/secrets/migration_database_url)"
+        export PRODUCTION_ADMIN_PASSWORD="$$(cat /run/secrets/production_admin_password)"
+        exec setpriv --reuid=999 --regid=999 --clear-groups python scripts/bootstrap-production-admin.py
+    environment:
+      PRODUCTION_ADMIN_EMAIL: ${PRODUCTION_ADMIN_EMAIL:?PRODUCTION_ADMIN_EMAIL is required}
+      PRODUCTION_ADMIN_DISPLAY_NAME: ${PRODUCTION_ADMIN_DISPLAY_NAME:?PRODUCTION_ADMIN_DISPLAY_NAME is required}
+    secrets:
+      - source: migration_database_url
+        target: migration_database_url
+      - source: production_admin_password
+        target: production_admin_password
+    networks: [backend]
+    depends_on:
+      provision:
+        condition: service_completed_successfully
+    restart: "no"
+
   api:
     <<: *api-image
     user: "0:0"
@@ -109,6 +134,7 @@ services:
       PASSWORD_RESET_URL: https://${DOMAIN:?DOMAIN is required}/reset-password
       GEMINI_API_BASE_URL: https://generativelanguage.googleapis.com/v1beta
       ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-30}
+      MAX_CONCURRENT_RUNS_PER_USER: ${MAX_CONCURRENT_RUNS_PER_USER:-4}
       AUTH_RATE_LIMIT_REQUESTS: ${AUTH_RATE_LIMIT_REQUESTS:-10}
       AUTH_RATE_LIMIT_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:-60}
       PASSWORD_RESET_RATE_LIMIT_REQUESTS: ${PASSWORD_RESET_RATE_LIMIT_REQUESTS:-5}
@@ -307,6 +333,36 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  maintenance-scheduler:
+    <<: *api-image
+    profiles: [operations]
+    user: "0:0"
+    command:
+      - sh
+      - -ec
+      - |
+        export DATABASE_URL="$$(cat /run/secrets/migration_database_url)"
+        while true; do
+          setpriv --reuid=999 --regid=999 --clear-groups python scripts/run-maintenance.py \
+            --stale-reservation-minutes "$${STALE_RESERVATION_MINUTES:-10}" \
+            --security-retention-days "$${SECURITY_RETENTION_DAYS:-30}" \
+            --idempotency-retention-days "$${IDEMPOTENCY_RETENTION_DAYS:-30}"
+          sleep "$${MAINTENANCE_INTERVAL_SECONDS:-3600}"
+        done
+    environment:
+      STALE_RESERVATION_MINUTES: ${STALE_RESERVATION_MINUTES:-10}
+      SECURITY_RETENTION_DAYS: ${SECURITY_RETENTION_DAYS:-30}
+      IDEMPOTENCY_RETENTION_DAYS: ${IDEMPOTENCY_RETENTION_DAYS:-30}
+      MAINTENANCE_INTERVAL_SECONDS: ${MAINTENANCE_INTERVAL_SECONDS:-3600}
+    secrets:
+      - source: migration_database_url
+        target: migration_database_url
+    networks: [backend]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 secrets:
   postgres_owner_password:
     file: ${SECRET_DIR:-./secrets}/postgres_owner_password
@@ -332,6 +388,8 @@ secrets:
     file: ${SECRET_DIR:-./secrets}/restic_password
   restic_credentials:
     file: ${SECRET_DIR:-./secrets}/restic_credentials
+  production_admin_password:
+    file: ${SECRET_DIR:-./secrets}/production_admin_password
 
 volumes:
   production-db:

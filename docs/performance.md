@@ -17,4 +17,7 @@ The run ledger indexes follow the API's primary access paths: `(user_id, created
 - Create the next monthly partition before month rollover with `python3 scripts/create-partition.py`.
 - Refresh reporting views with `python3 scripts/refresh-views.py`; API maintenance actions require an active Super Admin and are audited.
 - Re-run representative plan tests after changing filters, ordering, joins, indexes, partitions, or PostgreSQL versions.
-- This prototype records correctness-focused plan evidence, not a production latency SLO. Load, connection-pool, and provider-capacity testing remain deployment-specific.
+- The reference capacity dataset is 2,000 partitioned run rows. It validates the pilot query/index shape, not a universal production latency SLO.
+- API requests are limited to 1 MiB by default, templates to 100,000 characters, list pages to 100 rows, and model output configuration to 1,000,000 tokens. Paid execution is additionally bounded to four concurrent calls per user by default and by atomic user/project budgets.
+- Concurrency tests cover 12 simultaneous budget reservations plus membership, version, approval, rollback, and final-admin races. Re-run them against the intended PostgreSQL instance size before raising pool or execution limits.
+- Live-provider throughput and quota are controlled by Gemini and the deployed network. Measure them in staging with non-production budgets and credentials; do not infer paid-provider capacity from deterministic mock timings.

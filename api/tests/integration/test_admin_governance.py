@@ -53,6 +53,15 @@ def login_admin(client: TestClient) -> dict[str, str]:
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
+def login_user(client: TestClient, email: object) -> dict[str, str]:
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "CorrectHorse2026!"},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
 def create_project_and_run(
     client: TestClient, headers: dict[str, str]
 ) -> tuple[dict[str, object], dict[str, object]]:
@@ -120,6 +129,8 @@ def test_admin_users_dashboard_and_organization_runs(
     )
     assert promoted.status_code == 200
     assert promoted.json()["role"] == "admin"
+    assert admin_client.get("/api/v1/auth/me", headers=user_headers).status_code == 401
+    user_headers = login_user(admin_client, user["email"])
     self_deactivated = admin_client.patch(
         f"/api/v1/admin/users/{user['id']}",
         headers=user_headers,
@@ -127,13 +138,15 @@ def test_admin_users_dashboard_and_organization_runs(
     )
     assert self_deactivated.status_code == 200
     assert self_deactivated.json()["is_active"] is False
-    assert admin_client.get("/api/v1/auth/me", headers=user_headers).status_code == 403
+    assert admin_client.get("/api/v1/auth/me", headers=user_headers).status_code == 401
     reactivated = admin_client.patch(
         f"/api/v1/admin/users/{user['id']}",
         headers=admin_headers,
         json={"is_active": True},
     )
     assert reactivated.status_code == 200
+    assert admin_client.get("/api/v1/auth/me", headers=user_headers).status_code == 401
+    user_headers = login_user(admin_client, user["email"])
     self_demoted = admin_client.patch(
         f"/api/v1/admin/users/{user['id']}",
         headers=user_headers,
@@ -141,6 +154,10 @@ def test_admin_users_dashboard_and_organization_runs(
     )
     assert self_demoted.status_code == 200
     assert self_demoted.json()["role"] == "user"
+    stale_admin_session = admin_client.get("/api/v1/auth/me", headers=user_headers)
+    assert stale_admin_session.status_code == 401
+    assert stale_admin_session.json()["code"] == "invalid_token"
+    user_headers = login_user(admin_client, user["email"])
     assert admin_client.get("/api/v1/auth/me", headers=user_headers).json()["role"] == "user"
     assert admin_client.patch(
         f"/api/v1/admin/users/{user['id']}",
@@ -155,8 +172,8 @@ def test_admin_users_dashboard_and_organization_runs(
     assert deactivated.status_code == 200
     assert deactivated.json()["is_active"] is False
     inactive_session = admin_client.get("/api/v1/auth/me", headers=user_headers)
-    assert inactive_session.status_code == 403
-    assert inactive_session.json()["code"] == "inactive_user"
+    assert inactive_session.status_code == 401
+    assert inactive_session.json()["code"] == "invalid_token"
 
     with psycopg.connect(seeded_database_url) as connection:
         other_admins = connection.execute(
@@ -243,6 +260,8 @@ def test_concurrent_admin_cross_deactivation_returns_safe_loser_response(
             json={"role": "admin"},
         )
         assert promoted.status_code == 200
+    first_headers = login_user(admin_client, first["email"])
+    second_headers = login_user(admin_client, second["email"])
 
     with psycopg.connect(seeded_database_url) as connection:
         connection.execute(
@@ -275,7 +294,7 @@ def test_concurrent_admin_cross_deactivation_returns_safe_loser_response(
                     ),
                 )
             )
-        assert sorted(statuses) == [200, 403]
+        assert sorted(statuses) == [200, 401]
         with psycopg.connect(seeded_database_url) as connection:
             active_count = connection.execute(
                 "SELECT count(*) FROM users WHERE role = 'admin' AND is_active"

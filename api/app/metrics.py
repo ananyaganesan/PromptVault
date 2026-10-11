@@ -15,6 +15,7 @@ class ApplicationMetrics:
     def __init__(self) -> None:
         self.started = monotonic()
         self.requests: dict[tuple[str, int], int] = defaultdict(int)
+        self.errors: dict[str, int] = defaultdict(int)
         self.duration_count = 0
         self.duration_sum = 0.0
         self.lock = Lock()
@@ -24,6 +25,10 @@ class ApplicationMetrics:
             self.requests[(method, status)] += 1
             self.duration_count += 1
             self.duration_sum += duration_seconds
+
+    def record_error(self, code: str) -> None:
+        with self.lock:
+            self.errors[code] += 1
 
     def render(self) -> str:
         with self.lock:
@@ -35,6 +40,16 @@ class ApplicationMetrics:
                 lines.append(
                     "promptvault_http_requests_total"
                     f'{{method="{_label(method)}",status="{status}"}} {count}'
+                )
+            lines.extend(
+                [
+                    "# HELP promptvault_errors_total Application errors by stable code.",
+                    "# TYPE promptvault_errors_total counter",
+                ]
+            )
+            for code, count in sorted(self.errors.items()):
+                lines.append(
+                    f'promptvault_errors_total{{code="{_label(code)}"}} {count}'
                 )
             lines.extend(
                 [

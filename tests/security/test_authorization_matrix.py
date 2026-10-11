@@ -63,4 +63,4 @@ def test_registration_cannot_escalate_role_and_inactive_sessions_fail_closed(
     )
     assert disabled.status_code == 200
     rejected = api_client.get("/api/v1/auth/me", headers=headers)
-    assert (rejected.status_code, rejected.json()["code"]) == (403, "inactive_user")
+    assert (rejected.status_code, rejected.json()["code"]) == (401, "invalid_token")

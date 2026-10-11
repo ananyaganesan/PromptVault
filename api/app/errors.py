@@ -87,6 +87,9 @@ def _error_response(
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    metrics = getattr(request.app.state, "metrics", None)
+    if metrics is not None:
+        metrics.record_error(exc.code)
     return _error_response(
         request,
         status_code=exc.status_code,

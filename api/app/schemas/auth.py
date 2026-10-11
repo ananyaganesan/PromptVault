@@ -1,6 +1,7 @@
 """Authentication request and response schemas."""
 
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Any
 
 from api.app.schemas.users import UserResponse
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
@@ -79,3 +80,20 @@ class SessionResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     user: UserResponse
+
+
+class AccountCloseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: Password
+
+
+class AccountExportResponse(BaseModel):
+    generated_at: datetime
+    profile: UserResponse
+    owned_projects: list[dict[str, Any]]
+    memberships: list[dict[str, Any]]
+    prompt_versions: list[dict[str, Any]]
+    runs: list[dict[str, Any]]
+    deployments: list[dict[str, Any]]
+    api_tokens: list[dict[str, Any]]

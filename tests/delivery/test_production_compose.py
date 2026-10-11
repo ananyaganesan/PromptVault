@@ -30,6 +30,7 @@ def test_production_stack_has_tls_metrics_redis_and_restricted_runtime(
         "alert_webhook_url",
         "restic_password",
         "restic_credentials",
+        "production_admin_password",
     ):
         path = tmp_path / name
         path.write_text("test-secret")
@@ -44,6 +45,8 @@ def test_production_stack_has_tls_metrics_redis_and_restricted_runtime(
             "operations",
             "--profile",
             "offsite-backup",
+            "--profile",
+            "bootstrap",
             "config",
             "--format",
             "json",
@@ -54,6 +57,8 @@ def test_production_stack_has_tls_metrics_redis_and_restricted_runtime(
             "DOMAIN": "promptvault.example.com",
             "SECRET_DIR": str(tmp_path),
             "RESTIC_REPOSITORY": "s3:https://objects.example.com/promptvault",
+            "PRODUCTION_ADMIN_EMAIL": "owner@example.com",
+            "PRODUCTION_ADMIN_DISPLAY_NAME": "Production Owner",
         },
         capture_output=True,
         text=True,
@@ -65,7 +70,7 @@ def test_production_stack_has_tls_metrics_redis_and_restricted_runtime(
     assert {
         "db", "redis", "migrate", "provision", "api", "web", "caddy",
         "prometheus", "alertmanager", "backup", "backup-scheduler",
-        "backup-replicator",
+        "backup-replicator", "bootstrap-admin", "maintenance-scheduler",
     }.issubset(services)
     assert services["api"]["environment"]["ENVIRONMENT"] == "production"
     assert services["api"]["environment"]["DATABASE_ROLE"] == "promptvault_app"
@@ -78,6 +83,8 @@ def test_production_stack_has_tls_metrics_redis_and_restricted_runtime(
     assert "setpriv --reuid=999 --regid=1000 --clear-groups" in services["redis"]["command"][-1]
     assert services["api"]["depends_on"]["provision"]["condition"] == "service_completed_successfully"
     assert services["api"]["depends_on"]["redis"]["condition"] == "service_healthy"
+    assert services["bootstrap-admin"]["profiles"] == ["bootstrap"]
+    assert services["bootstrap-admin"]["depends_on"]["provision"]["condition"] == "service_completed_successfully"
     assert "--forwarded-allow-ips='*'" in services["api"]["command"][-1]
     assert services["caddy"]["ports"]
     for service_name in (
@@ -90,5 +97,7 @@ def test_production_stack_has_tls_metrics_redis_and_restricted_runtime(
     assert services["backup-scheduler"]["restart"] == "unless-stopped"
     assert services["backup-replicator"]["profiles"] == ["offsite-backup"]
     assert services["backup-replicator"]["restart"] == "unless-stopped"
+    assert services["maintenance-scheduler"]["profiles"] == ["operations"]
+    assert services["maintenance-scheduler"]["restart"] == "unless-stopped"
     assert services["prometheus"]["depends_on"]["alertmanager"]["condition"] == "service_healthy"
     assert services["alertmanager"]["secrets"][0]["target"] == "alert_webhook_url"

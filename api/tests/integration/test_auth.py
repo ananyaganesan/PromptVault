@@ -120,6 +120,120 @@ def test_login_accepts_seeded_credentials(auth_client: TestClient) -> None:
 
 
 @pytest.mark.database
+def test_logout_revokes_the_server_side_session(auth_client: TestClient) -> None:
+    email = f"logout-{uuid4()}@example.com"
+    registered = auth_client.post("/api/v1/auth/register", json=registration_payload(email))
+    assert registered.status_code == 201
+    token = registered.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert auth_client.get("/api/v1/auth/me", headers=headers).status_code == 200
+    assert auth_client.post("/api/v1/auth/logout", headers=headers).status_code == 204
+
+    rejected = auth_client.get("/api/v1/auth/me", headers=headers)
+    assert rejected.status_code == 401
+    assert rejected.json()["code"] == "invalid_token"
+
+
+@pytest.mark.database
+def test_account_export_excludes_secrets_and_closure_pseudonymizes_identity(
+    auth_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    email = f"lifecycle-{uuid4()}@example.com"
+    payload = registration_payload(email)
+    registered = auth_client.post("/api/v1/auth/register", json=payload)
+    assert registered.status_code == 201
+    user_id = registered.json()["user"]["id"]
+    token = registered.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    exported = auth_client.get("/api/v1/auth/account/export", headers=headers)
+    assert exported.status_code == 200
+    assert exported.json()["profile"]["email"] == email
+    assert exported.json()["owned_projects"] == []
+    for forbidden in ("password_hash", "token_hash", "access_token"):
+        assert forbidden not in exported.text
+
+    wrong_password = auth_client.request(
+        "DELETE",
+        "/api/v1/auth/account",
+        headers=headers,
+        json={"password": "WrongPassword2026!"},
+    )
+    assert wrong_password.status_code == 401
+    assert auth_client.get("/api/v1/auth/me", headers=headers).status_code == 200
+
+    closed = auth_client.request(
+        "DELETE",
+        "/api/v1/auth/account",
+        headers=headers,
+        json={"password": payload["password"]},
+    )
+    assert closed.status_code == 204
+    assert auth_client.get("/api/v1/auth/me", headers=headers).status_code == 401
+    assert auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": payload["password"]},
+    ).status_code == 401
+
+    with psycopg.connect(seeded_database_url) as connection:
+        account = connection.execute(
+            "SELECT email, display_name, role, is_active FROM users WHERE id = %s",
+            (user_id,),
+        ).fetchone()
+        audit = connection.execute(
+            """
+            SELECT after_data FROM audit_events
+            WHERE entity_type = 'accounts' AND entity_id = %s
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (user_id,),
+        ).fetchone()
+    assert account[0].endswith("@invalid.promptvault")
+    assert account[1:] == ("Deleted User", "user", False)
+    assert audit[0]["pseudonymized"] is True
+    assert email not in str(audit[0])
+
+
+@pytest.mark.database
+def test_password_reset_revokes_every_existing_session(
+    auth_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = f"reset-sessions-{uuid4()}@example.com"
+    password = registration_payload(email)["password"]
+    registered = auth_client.post("/api/v1/auth/register", json=registration_payload(email))
+    second = auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert registered.status_code == 201
+    assert second.status_code == 200
+    tokens = [registered.json()["access_token"], second.json()["access_token"]]
+    delivered: list[str] = []
+    monkeypatch.setattr(
+        "api.app.services.auth.send_password_reset_email",
+        lambda _settings, _recipient, token: delivered.append(token),
+    )
+
+    assert auth_client.post("/api/v1/auth/password-reset", json={"email": email}).status_code == 202
+    confirmed = auth_client.post(
+        "/api/v1/auth/password-reset/confirm",
+        json={"token": delivered[0], "password": "ReplacementPassword2026!"},
+    )
+    assert confirmed.status_code == 204
+
+    for token in tokens:
+        rejected = auth_client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert rejected.status_code == 401
+        assert rejected.json()["code"] == "invalid_token"
+
+
+@pytest.mark.database
 def test_password_reset_delivers_a_one_time_link_and_updates_the_password(
     auth_client: TestClient,
     seeded_database_url: str,

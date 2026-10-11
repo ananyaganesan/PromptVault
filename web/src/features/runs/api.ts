@@ -19,7 +19,11 @@ export interface BackendPersonalDashboard extends Omit<PersonalDashboard, 'recen
 }
 
 export const runsApi = {
-  create: (request: CreateRunRequest) => apiClient.request<BackendPromptRun>('/runs', { method: 'POST', body: request }),
+  create: (request: CreateRunRequest) => apiClient.request<BackendPromptRun>('/runs', {
+    method: 'POST',
+    body: request,
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+  }),
   list: (query: RunListQuery = {}, signal?: AbortSignal) => apiClient.request<Page<BackendPromptRun>>('/runs', { query: { ...query }, signal }),
   get: (runId: string, signal?: AbortSignal) => apiClient.request<BackendPromptRun>(`/runs/${runId}`, { signal }),
   personalDashboard: (signal?: AbortSignal) => apiClient.request<BackendPersonalDashboard>('/dashboard/me', { signal }),

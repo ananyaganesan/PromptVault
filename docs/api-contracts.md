@@ -17,7 +17,7 @@ Runnable login, deployment approval, runtime-token, and Serve requests are in `d
 
 ## Authentication
 
-Application endpoints accept `Authorization: Bearer <JWT>`. The short-lived JWT contains `sub`, `role`, `iat`, and `exp`; every protected request also loads the current database user so role changes and deactivation apply immediately.
+Application endpoints accept `Authorization: Bearer <JWT>`. The short-lived JWT contains `jti`, `sub`, `role`, `iat`, and `exp`; every protected request validates the corresponding database session and current user, so logout, password resets, role changes, and deactivation apply immediately.
 
 Serve endpoints accept `Authorization: Bearer <serve-token>`. Serve tokens are not JWTs and are scoped to one project.
 
@@ -34,7 +34,7 @@ Clients may send `X-Request-ID` using 1-128 visible ASCII characters; otherwise 
 }
 ```
 
-`field_errors` is `null` for non-field errors. Stable codes include `bad_request`, `invalid_filter`, `invalid_variables`, `request_too_large`, `unauthorized`, `invalid_token`, `token_expired`, `forbidden`, `inactive_user`, `not_found`, `no_active_deployment`, `conflict`, `invalid_state`, `invalid_rollback_target`, `duplicate_email`, `duplicate_key`, `already_reviewed`, `last_admin`, `validation_error`, `rate_limited`, `budget_exceeded`, `pricing_not_configured`, `provider_error`, `provider_timeout`, `not_ready`, `missing_partition`, and `internal_error`.
+`field_errors` is `null` for non-field errors. Stable codes include `bad_request`, `invalid_filter`, `invalid_variables`, `request_too_large`, `unauthorized`, `invalid_token`, `token_expired`, `forbidden`, `inactive_user`, `not_found`, `no_active_deployment`, `conflict`, `invalid_state`, `invalid_rollback_target`, `duplicate_email`, `duplicate_key`, `already_reviewed`, `last_admin`, `validation_error`, `rate_limited`, `budget_exceeded`, `concurrency_limit`, `idempotency_conflict`, `execution_in_progress`, `execution_outcome_unknown`, `pricing_not_configured`, `provider_not_configured`, `provider_configuration_error`, `provider_error`, `provider_timeout`, `not_ready`, `missing_partition`, and `internal_error`.
 
 Database constraint names, SQL text, stack traces, hashes, and encrypted values never appear in a response.
 
@@ -128,7 +128,7 @@ The first version has `parent_version_id: null`. Clients never send `version_num
 
 Run status is `completed`, `failed`, or `blocked`. Lists may truncate output; detail returns the stored value.
 
-Provider `mock` is always runnable and deterministic. Provider `gemini` is runnable only when an active encrypted `gemini` provider key and effective model price exist. The newest active Gemini key is selected; missing configuration returns `409 provider_not_configured`, while upstream HTTP/response failures remain the normalized `502 provider_error` and bounded timeouts return `504 provider_timeout`.
+Provider `mock` is always runnable and deterministic. Provider `gemini` is runnable only when an active encrypted `gemini` provider key and effective model price exist. The newest active Gemini key is selected; missing configuration returns `409 provider_not_configured`, while upstream HTTP/response failures remain the normalized `502 provider_error` and bounded timeouts return `504 provider_timeout`. Execution reserves its conservative maximum cost before contacting a provider. The caller may send a 16–128 character `Idempotency-Key`; reuse with the same payload returns the existing completed run, while reuse for another payload returns `409 idempotency_conflict`. Concurrent duplicates return `409 execution_in_progress`, the per-user execution cap returns `429 concurrency_limit`, and an uncertain prior paid attempt returns `409 execution_outcome_unknown` rather than being executed again.
 
 ### Deployment
 
@@ -164,12 +164,17 @@ Environments are `dev`, `staging`, and `prod`. Statuses are `pending`, `active`,
 |---|---|---|
 | `POST /auth/register` | `email`, `password`, `display_name` | `201` with `access_token`, `token_type`, `expires_in`, and `user` |
 | `POST /auth/login` | `email`, `password` | `200` with the same session shape |
+| `POST /auth/logout` | None | `204`; revokes the current server-side session |
+| `GET /auth/account/export` | None | `200`; safe account/business-data export without credential material |
+| `DELETE /auth/account` | `password` | `204`; revokes credentials and pseudonymizes/deactivates the account |
 | `POST /auth/password-reset` | `email` | `202`; sends a one-use link for an active account when SMTP is configured |
-| `POST /auth/password-reset/confirm` | `token`, `password` | `204`; consumes the token and changes the password |
+| `POST /auth/password-reset/confirm` | `token`, `password` | `204`; consumes the token, changes the password, and revokes all sessions |
 | `GET /auth/me` | None | `200` User |
 
 Passwords contain 12-128 characters. Register/login never accept a role. Email comparison is case-insensitive and normalized.
 Password-reset requests return `503 email_delivery_unavailable` when SMTP is not configured or delivery fails. Confirmation returns `400 invalid_reset_token` for an expired or used link, or an inactive account. It returns `409 password_reused` when the new password matches the current or any recorded earlier password for that account; this rejection leaves the reset link usable. Successful confirmation atomically changes the password, records its Argon2 hash in `password_history`, and consumes the link. History starts with each existing account's current hash when migration 018 is applied; passwords replaced before that migration cannot be recovered.
+
+Account closure returns `401 invalid_credentials` when password confirmation fails and `409 last_admin` when the account is the final active Super Admin. Immutable shared business records remain retained according to `docs/data-lifecycle.md`.
 
 ## Project and member endpoints
 
@@ -203,7 +208,7 @@ Variable names match `^[A-Za-z_][A-Za-z0-9_]*$`. Duplicate placeholders appear o
 
 | Method and path | Request/query | Success |
 |---|---|---|
-| `POST /runs` | `version_id`, `variables` object | `201` Run; budget rejection is `409 budget_exceeded` and records a blocked ledger row |
+| `POST /runs` | `version_id`, `variables` object; optional `Idempotency-Key` header | `201` Run; pre-call budget rejection is `409 budget_exceeded` and records a blocked ledger row |
 | `GET /runs` | Literal prompt-key/run-ID search, project/prompt/version/status/model/date filters, and paging | `200` permitted run page; filtering occurs before pagination |
 | `GET /runs/{run_id}` | None | `200` Run detail |
 

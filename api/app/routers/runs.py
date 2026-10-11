@@ -10,7 +10,7 @@ from api.app.dependencies.runs import RunExecution, RunQuery
 from api.app.errors import error_responses
 from api.app.schemas.common import Page
 from api.app.schemas.runs import RunCreate, RunResponse, RunStatus
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 
 router = APIRouter(prefix="/api/v1/runs", tags=["runs"])
 
@@ -26,8 +26,17 @@ async def execute_run(
     payload: RunCreate,
     current_user: DetachedCurrentUser,
     service: RunExecution,
+    idempotency_key: Annotated[
+        str | None,
+        Header(
+            alias="Idempotency-Key",
+            min_length=16,
+            max_length=128,
+            pattern=r"^[A-Za-z0-9._:-]+$",
+        ),
+    ] = None,
 ) -> RunResponse:
-    return await service.execute(payload, current_user)
+    return await service.execute(payload, current_user, idempotency_key=idempotency_key)
 
 
 @router.get(

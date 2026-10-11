@@ -67,7 +67,9 @@ export const runService = {
         if (cause instanceof ApiClientError && (
           (cause.status === 502 && cause.code === 'provider_error') ||
           (cause.status === 504 && cause.code === 'provider_timeout') ||
-          (cause.status === 409 && cause.code === 'budget_exceeded')
+          (cause.status === 409 && cause.code === 'budget_exceeded') ||
+          (cause.status === 429 && cause.code === 'concurrency_limit') ||
+          ([409, 503].includes(cause.status) && cause.code === 'execution_outcome_unknown')
         )) notify()
         throw cause
       }

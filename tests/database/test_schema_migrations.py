@@ -17,7 +17,7 @@ def migration_sql(version: int) -> str:
 def test_complete_migration_chain_is_discoverable() -> None:
     migrations = discover_migrations(MIGRATIONS_DIRECTORY)
 
-    assert [migration.version for migration in migrations] == list(range(1, 19))
+    assert [migration.version for migration in migrations] == list(range(1, 23))
 
 
 @pytest.mark.parametrize("path", sorted(MIGRATIONS_DIRECTORY.glob("*.sql")), ids=lambda p: p.name)
@@ -119,6 +119,43 @@ def test_password_history_is_recorded_by_database_trigger() -> None:
     assert "create table password_history" in history
     assert "record_password_history" in history
     assert "after insert or update of password_hash" in history
+
+
+def test_execution_reservations_protect_paid_calls_before_provider_use() -> None:
+    reservations = migration_sql(19)
+
+    assert "create table run_reservations" in reservations
+    assert "reserve_run_execution" in reservations
+    assert "finalize_run_execution" in reservations
+    assert "idempotency_key" in reservations
+    assert "status in ('reserved', 'completed', 'failed', 'uncertain', 'blocked')" in reservations
+
+
+def test_auth_sessions_support_revocation_and_password_reset_invalidation() -> None:
+    sessions = migration_sql(20)
+
+    assert "create table auth_sessions" in sessions
+    assert "revoked_at" in sessions
+    assert "password_reset" in sessions
+    assert "consume_password_reset_token" in sessions
+
+
+def test_system_maintenance_is_an_actual_stored_procedure() -> None:
+    maintenance = migration_sql(21)
+
+    assert "create or replace procedure perform_system_maintenance" in maintenance
+    assert "update run_reservations" in maintenance
+    assert "delete from auth_sessions" in maintenance
+    assert "refresh materialized view" in maintenance
+
+
+def test_account_closure_is_atomic_and_revokes_credentials() -> None:
+    lifecycle = migration_sql(22)
+
+    assert "create or replace function close_user_account" in lifecycle
+    assert "update auth_sessions" in lifecycle
+    assert "update api_tokens" in lifecycle
+    assert "pseudonymized" in lifecycle
 
 
 def test_seed_files_define_deterministic_demo_identities() -> None:
