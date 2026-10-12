@@ -7,15 +7,16 @@ PromptVault is a full-stack prompt versioning, execution, deployment, and govern
 - Email/password registration and login, Argon2id password hashes, revocable database-backed JWT sessions, logout/reset invalidation, active-user checks, User/Super Admin route guards, and `/auth/me` session restoration.
 - Safe authenticated account export and password-confirmed account closure with credential revocation and identity pseudonymization.
 - Project ownership/membership, prompt metadata, immutable version snapshots, concurrent version numbering, history, diff, and lineage.
-- Deterministic provider execution with variable rendering, token/latency/cost ledger records, effective-dated pricing, personal analytics, and atomic user/project budgets.
+- Gemini, OpenRouter and Groq execution with a fixed free-access model catalog, variable rendering, usage/latency records and idempotent admission; deterministic mock execution is internal to development/tests.
 - Development/staging activation, pending production approval, atomic admin review, cancellation, project-scoped runtime tokens, authenticated Serve API, and auditable rollback.
 - Admin users, organization analytics/runs, encrypted provider keys, budgets, pricing history, audit search, partition status, and materialized-view refresh.
 - Docker startup/migrations/seeds, Swagger/OpenAPI, database/security/concurrency/performance suites, and live Playwright workflows.
 
 The implementation sequence and acceptance criteria are tracked in [docs/working-prototype-plan.md](docs/working-prototype-plan.md).
 
-Remaining work for hosting real users is assigned to Ananya and Jobin in the
-[production launch plan](docs/production-launch-plan.md).
+The current local project scope and acceptance are recorded in the
+[local completion plan](docs/production-launch-plan.md). Email verification,
+payments, staging URLs and production deployment are outside scope.
 
 Final submission must also meet the academic [database design and implementation
 requirements](docs/database-design-requirements.md), including ER-to-table mapping,
@@ -23,9 +24,45 @@ requirements](docs/database-design-requirements.md), including ER-to-table mappi
 
 ## Current status and remaining boundaries
 
+### Stable local startup with pgAdmin
+
+Use the existing PostgreSQL server on `localhost:5432` and the persistent
+`promptvault` database configured in the root `.env`. Start the app with:
+
+```bash
+.venv/bin/python scripts/start-local.py
+```
+
+The web app stays at **http://localhost:5173**, the API at **http://localhost:8000**,
+and PostgreSQL at **localhost:5432**. pgAdmin uses the same server and database;
+no port edits are needed between starts. The launcher applies pending migrations
+without resetting data or overwriting accounts. It fails clearly if an app port
+is busy instead of silently choosing another port. Ctrl-C stops the app processes
+and leaves PostgreSQL running. Use `--check` to check the database connection only.
+
+Do not start Docker's `db` service alongside the installed PostgreSQL server on
+5432. The isolated acceptance/simulator databases on other ports are for tests and
+are not the normal app database.
+
+If you prefer Docker for the app, stop the native app first and use this override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+```
+
+It connects API/migrations to `host.docker.internal:5432/promptvault`, so pgAdmin
+and Docker use the same installed database server. It does not start another
+database or automatically reseed existing accounts. Keep `POSTGRES_USER`,
+`POSTGRES_PASSWORD` and `POSTGRES_DB` in `.env` aligned with that server.
+
 The working-prototype scope is implemented across the React client, FastAPI service, and PostgreSQL schema. A clean detached checkout builds the production-target containers, applies migrations and deterministic seeds, passes lint and strict type checking, runs the complete backend/database/security/concurrency/performance suite, verifies OpenAPI drift, starts a healthy stack, exercises seeded login and race demonstrations, loads 2,000 representative runs, and executes the showcase queries. The latest redacted transcript is in [`evidence/release/latest.txt`](evidence/release/latest.txt); connected cross-browser acceptance is recorded in [`docs/browser-smoke.md`](docs/browser-smoke.md).
 
-The remaining boundaries require real infrastructure or human certification rather than more repository code: Gmail password-reset delivery needs a sender account and App Password; Gemini execution needs an active encrypted provider key and effective model pricing; a production host needs DNS, operator-managed secrets, an Alertmanager webhook, an off-site restic repository, and a log destination. The repository now supplies scheduled atomic dumps, encrypted restic replication, Alertmanager routing, and a DNS/TLS/secret preflight. Automated WebKit coverage is included, while physical Safari/device, screen-reader, and manual accessibility certification remain outside the automated acceptance boundary.
+Real-provider verification still requires keys from free-tier accounts; allowed
+external execution uses zero accounting and requires no pricing setup. The
+external allowlist remains Gemini, OpenRouter and Groq only, with no paid fallback.
+The academic dictionary and executable evidence are complete; original design
+chronology and final submission review remain open. Historical deployment tooling
+is retained but does not add hosting requirements to this local project.
 
 The live web client follows all API pages for workspace and administration data, persists project, member, prompt, and version changes, and derives editor variables from `{{placeholders}}` to match the database contract. The migration runner also reconciles the legacy password-reset migration recorded as version 011 with the current version 015 by exact checksum; PostgreSQL tests cover both fresh installation and data-preserving legacy upgrades. Development seeds are refused outside development and test environments.
 

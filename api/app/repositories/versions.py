@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
+from api.app.repositories.pagination import read_page
 from api.app.schemas.versions import (
     ModelConfiguration,
     PromptVersionResponse,
@@ -147,17 +148,12 @@ class VersionRepository:
         sort: str,
         direction: str,
     ) -> tuple[list[PromptVersionResponse], int]:
-        count_cursor = await self.connection.execute(
-            "SELECT count(*) AS total FROM prompt_versions WHERE prompt_id = %s",
-            (prompt_id,),
-        )
-        total_row = await count_cursor.fetchone()
-        if total_row is None:
-            raise RuntimeError("version count returned no row")
         sort_column = {"version_number": "pv.version_number", "created_at": "pv.created_at"}[sort]
         order = "ASC" if direction == "asc" else "DESC"
-        cursor = await self.connection.execute(
-            f"""
+        rows, total = await read_page(
+            self.connection,
+            count_query="SELECT count(*) AS total FROM prompt_versions WHERE prompt_id = %s",
+            items_query=f"""
             SELECT {_VERSION_COLUMNS}
             FROM prompt_versions pv
             JOIN users creator ON creator.id = pv.created_by
@@ -165,9 +161,12 @@ class VersionRepository:
             ORDER BY {sort_column} {order}, pv.id {order}
             LIMIT %s OFFSET %s
             """,
-            (prompt_id, page_size, (page - 1) * page_size),
+            parameters=(prompt_id,),
+            page=page,
+            page_size=page_size,
+            order_by=f'{sort_column.removeprefix("pv.")} {order}, id {order}',
         )
-        return [_version_from_row(row) for row in await cursor.fetchall()], int(total_row["total"])
+        return [_version_from_row(row) for row in rows], total
 
     async def lineage(self, version_id: UUID) -> tuple[list[PromptVersionResponse], bool]:
         cursor = await self.connection.execute(

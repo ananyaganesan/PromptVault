@@ -80,6 +80,7 @@ def get_admin_governance_service(
         AdminRepository(connection),
         get_request_id(request),
         request.app.state.settings.resolved_provider_encryption_key,
+        allow_mock=request.app.state.settings.environment in {"development", "test"},
     )
 
 

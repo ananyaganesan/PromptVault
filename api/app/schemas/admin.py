@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Annotated, Literal, Self
 from uuid import UUID
 
+from api.app.providers.policy import ConfiguredProvider, ExternalProvider
 from api.app.schemas.users import UserRole
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -76,7 +77,7 @@ class AdminDashboardResponse(BaseModel):
 class ProviderKeyCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["gemini"]
+    provider: ExternalProvider
     alias: Annotated[str, Field(min_length=1, max_length=120)]
     secret: Annotated[str, Field(min_length=1, max_length=10_000, repr=False)]
 
@@ -108,7 +109,7 @@ class ProviderKeyResponse(BaseModel):
 class ModelPricingCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: Annotated[str, Field(min_length=1, max_length=80)]
+    provider: ConfiguredProvider
     model: Annotated[str, Field(min_length=1, max_length=160)]
     input_price_per_million: Annotated[
         Decimal, Field(ge=0, max_digits=18, decimal_places=6)

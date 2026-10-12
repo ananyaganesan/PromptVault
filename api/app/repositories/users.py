@@ -81,6 +81,22 @@ class UserRepository:
         row = await cursor.fetchone()
         return _user_from_row(row) if row is not None else None
 
+    async def update_display_name(
+        self,
+        user_id: UUID,
+        session_id: UUID,
+        display_name: str,
+        request_id: str,
+    ) -> UserRecord:
+        cursor = await self.connection.execute(
+            "SELECT * FROM update_self_display_name(%s, %s, %s, %s)",
+            (user_id, session_id, display_name, request_id),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            raise RuntimeError("profile update returned no row")
+        return _user_from_row(row)
+
     async def create_session(
         self,
         *,
@@ -163,9 +179,7 @@ class UserRepository:
             exported[name] = [dict(row) for row in await cursor.fetchall()]
         return exported
 
-    async def close_account(
-        self, *, user_id: UUID, password_hash: str, request_id: str
-    ) -> bool:
+    async def close_account(self, *, user_id: UUID, password_hash: str, request_id: str) -> bool:
         cursor = await self.connection.execute(
             "SELECT close_user_account(%s, %s, %s) AS closed",
             (user_id, password_hash, request_id),

@@ -94,6 +94,7 @@
       "AdminCostTrendPoint": {
         "properties": {
           "cost": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Cost",
             "type": "string"
           },
@@ -184,6 +185,7 @@
             "type": "array"
           },
           "total_spend": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Spend",
             "type": "string"
           },
@@ -579,6 +581,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
                 "type": "string"
               }
             ],
@@ -647,6 +650,7 @@
             "type": "string"
           },
           "monthly_limit": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Monthly Limit",
             "type": "string"
           },
@@ -707,6 +711,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
                 "type": "string"
               },
               {
@@ -735,6 +740,7 @@
       "CostTrendPoint": {
         "properties": {
           "cost": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Cost",
             "type": "string"
           },
@@ -1507,8 +1513,12 @@
             "type": "string"
           },
           "provider": {
-            "maxLength": 80,
-            "minLength": 1,
+            "enum": [
+              "gemini",
+              "openrouter",
+              "groq",
+              "mock"
+            ],
             "title": "Provider",
             "type": "string"
           },
@@ -1579,6 +1589,7 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
                 "type": "string"
               }
             ],
@@ -1597,14 +1608,19 @@
                 "type": "number"
               },
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
                 "type": "string"
               }
             ],
             "title": "Output Price Per Million"
           },
           "provider": {
-            "maxLength": 80,
-            "minLength": 1,
+            "enum": [
+              "gemini",
+              "openrouter",
+              "groq",
+              "mock"
+            ],
             "title": "Provider",
             "type": "string"
           }
@@ -1662,6 +1678,7 @@
             "type": "string"
           },
           "input_price_per_million": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
             "title": "Input Price Per Million",
             "type": "string"
           },
@@ -1672,12 +1689,17 @@
             "type": "string"
           },
           "output_price_per_million": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,19}0*$)\\d{0,12}\\.\\d{0,6}0*$)",
             "title": "Output Price Per Million",
             "type": "string"
           },
           "provider": {
-            "maxLength": 80,
-            "minLength": 1,
+            "enum": [
+              "gemini",
+              "openrouter",
+              "groq",
+              "mock"
+            ],
             "title": "Provider",
             "type": "string"
           }
@@ -1698,6 +1720,7 @@
       "ModelSpendResponse": {
         "properties": {
           "cost": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Cost",
             "type": "string"
           },
@@ -2229,6 +2252,7 @@
           "monthly_budget": {
             "anyOf": [
               {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2238,6 +2262,7 @@
             "title": "Monthly Budget"
           },
           "monthly_spend": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Monthly Spend",
             "type": "string"
           },
@@ -2291,6 +2316,22 @@
           "refreshed_through"
         ],
         "title": "PersonalDashboardResponse",
+        "type": "object"
+      },
+      "ProfileUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name"
+        ],
+        "title": "ProfileUpdate",
         "type": "object"
       },
       "ProjectCreate": {
@@ -2821,6 +2862,37 @@
         "title": "PromptVersionResponse",
         "type": "object"
       },
+      "ProviderDiscoveryResponse": {
+        "properties": {
+          "credential_ownership": {
+            "default": "shared_project",
+            "title": "Credential Ownership",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "max_concurrent_runs_per_user": {
+            "title": "Max Concurrent Runs Per User",
+            "type": "integer"
+          },
+          "timeout_seconds": {
+            "title": "Timeout Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "max_concurrent_runs_per_user",
+          "timeout_seconds"
+        ],
+        "title": "ProviderDiscoveryResponse",
+        "type": "object"
+      },
       "ProviderKeyCreate": {
         "additionalProperties": false,
         "properties": {
@@ -2831,7 +2903,11 @@
             "type": "string"
           },
           "provider": {
-            "const": "gemini",
+            "enum": [
+              "gemini",
+              "openrouter",
+              "groq"
+            ],
             "title": "Provider",
             "type": "string"
           },
@@ -2897,6 +2973,91 @@
           "deactivated_at"
         ],
         "title": "ProviderKeyResponse",
+        "type": "object"
+      },
+      "ProviderModelResponse": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "free_access": {
+            "default": true,
+            "title": "Free Access",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "max_input_characters": {
+            "title": "Max Input Characters",
+            "type": "integer"
+          },
+          "max_output_tokens": {
+            "title": "Max Output Tokens",
+            "type": "integer"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "max_output_tokens",
+          "max_input_characters",
+          "available"
+        ],
+        "title": "ProviderModelResponse",
+        "type": "object"
+      },
+      "ProviderResponse": {
+        "properties": {
+          "credential_available": {
+            "title": "Credential Available",
+            "type": "boolean"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderModelResponse"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "provider": {
+            "enum": [
+              "gemini",
+              "openrouter",
+              "groq"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "quota_note": {
+            "title": "Quota Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "credential_available",
+          "models",
+          "quota_note"
+        ],
+        "title": "ProviderResponse",
         "type": "object"
       },
       "ReadinessResponse": {
@@ -3019,6 +3180,7 @@
             "type": "integer"
           },
           "cost": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Cost",
             "type": "string"
           },
@@ -3266,6 +3428,7 @@
       "TopSpenderResponse": {
         "properties": {
           "cost": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Cost",
             "type": "string"
           },
@@ -6499,6 +6662,80 @@
         "tags": [
           "authentication"
         ]
+      },
+      "patch": {
+        "operationId": "update_profile_api_v1_auth_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Profile",
+        "tags": [
+          "authentication"
+        ]
       }
     },
     "/api/v1/auth/password-reset": {
@@ -8643,6 +8880,72 @@
         ]
       }
     },
+    "/api/v1/providers/models": {
+      "get": {
+        "operationId": "discover_models_api_v1_providers_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderDiscoveryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Discover Models",
+        "tags": [
+          "providers"
+        ]
+      }
+    },
     "/api/v1/runs": {
       "get": {
         "operationId": "list_runs_api_v1_runs_get",
@@ -8969,7 +9272,27 @@
             },
             "description": "Unprocessable Content"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error Response"
+          },
           "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Error Response"
+          },
+          "503": {
             "content": {
               "application/json": {
                 "schema": {

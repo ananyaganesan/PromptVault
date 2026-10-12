@@ -97,12 +97,15 @@ class Settings(BaseSettings):
             raise ValueError("MAX_CONCURRENT_RUNS_PER_USER must be positive")
         if self.max_request_body_bytes <= 0:
             raise ValueError("MAX_REQUEST_BODY_BYTES must be positive")
-        if min(
-            self.auth_rate_limit_requests,
-            self.auth_rate_limit_window_seconds,
-            self.password_reset_rate_limit_requests,
-            self.password_reset_rate_limit_window_seconds,
-        ) <= 0:
+        if (
+            min(
+                self.auth_rate_limit_requests,
+                self.auth_rate_limit_window_seconds,
+                self.password_reset_rate_limit_requests,
+                self.password_reset_rate_limit_window_seconds,
+            )
+            <= 0
+        ):
             raise ValueError("authentication rate limits must be positive")
         if self.password_reset_ttl_minutes <= 0:
             raise ValueError("PASSWORD_RESET_TTL_MINUTES must be positive")
@@ -115,8 +118,7 @@ class Settings(BaseSettings):
             or reset_url.fragment
         ):
             raise ValueError(
-                "PASSWORD_RESET_URL must be an absolute HTTP URL "
-                "without credentials or a fragment"
+                "PASSWORD_RESET_URL must be an absolute HTTP URL without credentials or a fragment"
             )
         if self.environment == "production" and self.smtp_host and reset_url.scheme != "https":
             raise ValueError("production PASSWORD_RESET_URL must use HTTPS when SMTP is enabled")
@@ -132,8 +134,10 @@ class Settings(BaseSettings):
             raise ValueError("SMTP_SSL and SMTP_STARTTLS cannot both be enabled")
         if self.smtp_username and not (self.smtp_ssl or self.smtp_starttls):
             raise ValueError("SMTP authentication requires TLS")
-        if self.environment == "production" and self.smtp_host and not (
-            self.smtp_ssl or self.smtp_starttls
+        if (
+            self.environment == "production"
+            and self.smtp_host
+            and not (self.smtp_ssl or self.smtp_starttls)
         ):
             raise ValueError("production SMTP delivery requires TLS")
         for origin in self.cors_origins:
@@ -167,6 +171,18 @@ class Settings(BaseSettings):
             raise ValueError("GEMINI_API_BASE_URL must be an absolute HTTP URL")
         if self.environment == "production" and gemini_url.scheme != "https":
             raise ValueError("production GEMINI_API_BASE_URL must use HTTPS")
+        official_gemini = (
+            gemini_url.scheme == "https"
+            and gemini_url.hostname == "generativelanguage.googleapis.com"
+            and gemini_url.port in {None, 443}
+        )
+        local_test_server = self.environment == "test" and gemini_url.hostname in {
+            "localhost",
+            "127.0.0.1",
+            "::1",
+        }
+        if not official_gemini and not local_test_server:
+            raise ValueError("GEMINI_API_BASE_URL must use the official Gemini host")
         if self.rate_limit_redis_url is not None:
             redis_url = urlsplit(self.rate_limit_redis_url.get_secret_value())
             if redis_url.scheme not in {"redis", "rediss"} or not redis_url.hostname:

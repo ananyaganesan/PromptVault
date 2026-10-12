@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
+from api.app.repositories.pagination import read_page
 from api.app.schemas.admin import (
     AdminUserResponse,
     ModelPricingResponse,
@@ -262,18 +263,13 @@ class AdminRepository:
             pattern = f"%{escaped_search}%"
             parameters.extend((pattern, pattern))
         where_sql = " AND ".join(where)
-        count_cursor = await self.connection.execute(
-            f"""SELECT count(*) AS total
+        rows, total = await read_page(
+            self.connection,
+            count_query=f"""SELECT count(*) AS total
                 FROM runs r
                 JOIN prompts p ON p.id = r.prompt_id
                 WHERE {where_sql}""",
-            tuple(parameters),
-        )
-        total_row = await count_cursor.fetchone()
-        if total_row is None:
-            raise RuntimeError("admin run count returned no row")
-        cursor = await self.connection.execute(
-            f"""
+            items_query=f"""
             SELECT {_RUN_COLUMNS}
             FROM runs r
             JOIN prompts p ON p.id = r.prompt_id
@@ -282,9 +278,12 @@ class AdminRepository:
             ORDER BY r.created_at DESC, r.id DESC
             LIMIT %s OFFSET %s
             """,
-            (*parameters, page_size, (page - 1) * page_size),
+            parameters=parameters,
+            page=page,
+            page_size=page_size,
+            order_by='created_at DESC, id DESC',
         )
-        return [_run(row) for row in await cursor.fetchall()], int(total_row["total"])
+        return [_run(row) for row in rows], total
 
     async def list_budgets(
         self, *, user_id: UUID | None, project_id: UUID | None, page: int, page_size: int

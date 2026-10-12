@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from api.app.repositories.pagination import read_page
 from api.app.schemas.runs import RunResponse, RunStatus
 from api.app.schemas.versions import ModelConfiguration
 from api.app.security import UserRole
@@ -118,13 +119,19 @@ class RunRepository:
             model_configuration=ModelConfiguration.model_validate(row["model_config"]),
         )
 
-    async def lock_execution_access(self, version_id: UUID, user_id: UUID) -> bool:
+    async def lock_execution_access(
+        self, version_id: UUID, user_id: UUID, *, for_reservation: bool = False
+    ) -> bool:
+        # Admission upgrades this lock inside reserve_run_execution. Acquire its
+        # final strength up front so concurrent admissions cannot deadlock while
+        # each holds SHARE and waits for the other's UPDATE lock.
+        user_lock = "UPDATE" if for_reservation else "SHARE"
         user_cursor = await self.connection.execute(
-            """
+            f"""
             SELECT role
             FROM users
             WHERE id = %s AND is_active
-            FOR SHARE
+            FOR {user_lock}
             """,
             (user_id,),
         )
@@ -381,18 +388,13 @@ class RunRepository:
             pattern = f"%{escaped_search}%"
             parameters.extend((pattern, pattern))
         where_sql = " AND ".join(where)
-        count_cursor = await self.connection.execute(
-            f"""SELECT count(*) AS total
+        rows, total = await read_page(
+            self.connection,
+            count_query=f"""SELECT count(*) AS total
                 FROM runs r
                 JOIN prompts p ON p.id = r.prompt_id
                 WHERE {where_sql}""",
-            tuple(parameters),
-        )
-        total_row = await count_cursor.fetchone()
-        if total_row is None:
-            raise RuntimeError("run count returned no row")
-        cursor = await self.connection.execute(
-            f"""
+            items_query=f"""
             SELECT {_RUN_SUMMARY_COLUMNS}
             FROM runs r
             JOIN prompts p ON p.id = r.prompt_id
@@ -401,9 +403,12 @@ class RunRepository:
             ORDER BY r.created_at DESC, r.id DESC
             LIMIT %s OFFSET %s
             """,
-            (*parameters, page_size, (page - 1) * page_size),
+            parameters=parameters,
+            page=page,
+            page_size=page_size,
+            order_by='created_at DESC, id DESC',
         )
-        return [_run_from_row(row) for row in await cursor.fetchall()], int(total_row["total"])
+        return [_run_from_row(row) for row in rows], total
 
     async def personal_metrics(
         self,

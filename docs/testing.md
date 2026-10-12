@@ -47,6 +47,21 @@ COMPOSE_PROJECT_NAME=promptvault-ananya-check POSTGRES_PORT=5543 API_PORT=8001 W
 
 The separate Compose project gives these tests their own PostgreSQL volume. `E2E_BASE_URL` selects its packaged web address; the usual stack remains available on ports 5173 and 8000.
 
+## A2 data freshness coverage
+
+- `tests/concurrency/test_read_freshness.py` tests single-statement count/page
+  snapshots for projects, members, prompts, versions, runs, admin runs, pending
+  approvals and active deployments during committed changes. Empty/out-of-range
+  pages retain their totals. Additional tests prove dashboard metrics/trend/activity
+  share a read snapshot and membership removal waits for admitted detail/lineage reads.
+- `web/src/lib/api/pagination.test.ts` tests bounded retries for changing offset
+  pages, duplicates, missing rows and same-count updates. Workspace refresh tests
+  verify failed reconciliation retains the previous snapshot.
+- `web/e2e/live-data-freshness.spec.ts` reconciles all six A2 workflows to real SQL,
+  creates more than 100 records, and checks cross-user refresh, unsaved drafts,
+  stale responses and restricted access. See [A2 acceptance](a2-live-acceptance.md)
+  for isolated stack commands, actual counts and the hosted sign-off boundary.
+
 ## Deployment and Serve coverage
 
 - `api/tests/integration/test_deployments_tokens_serve.py` exercises staging activation, pending production requests, scoped history/detail, requester-only cancellation, Super Admin approval/rejection, review evidence, rollback, one-time token disclosure, hash-only persistence, project isolation, expiration/revocation, and conditional Serve responses.
@@ -60,3 +75,33 @@ The separate Compose project gives these tests their own PostgreSQL volume. `E2E
 - `api/tests/unit/test_provider_key_encryption.py` proves provider secrets use randomized authenticated ciphertext and round-trip only with the configured server key.
 - `tests/concurrency/test_admin_role_race.py` submits reciprocal concurrent deactivations and proves database serialization leaves exactly one active administrator.
 - `tests/database/test_roles.py` verifies secret-column denial, revoked direct user updates, and the narrow application-role function privileges required for atomic, audited governance operations.
+
+## Local free-provider and profile acceptance
+
+See [A1 provider/Playground acceptance](a1-local-acceptance.md) for the isolated HTTP
+simulator, fixed free-access catalog, API/SQL/browser tests and real-key boundary.
+See [A4 profile acceptance](a4-local-acceptance.md) for self-only display-name updates,
+restricted database-role checks and desktop/mobile reload persistence. Both are
+local workflows; staging and production deployment are outside project scope.
+Use separate Playwright `--output` directories when browser runs overlap.
+
+## Local authentication and password-reset acceptance
+
+See [A5 local acceptance](a5-local-acceptance.md) for the loopback SMTP capture
+setup and repeatable desktop/mobile registration, login, reset and logout journey.
+The harness requires a disposable `_test` database and sends no external email.
+Email verification is excluded from the project scope.
+
+## Academic database acceptance
+
+See [academic local acceptance](academic-local-acceptance.md) for the catalog
+dictionary, rollback-only SQL collector, isolated final user/admin demonstration
+and remaining submission boundaries. `tests/delivery/test_academic_evidence.py`
+checks database-name refusal and verifies that collecting evidence preserves row
+counts even though its demonstration invokes the maintenance procedure.
+
+## Real-provider verification
+
+[Real-provider verification](real-provider-verification.md) distinguishes live
+account acceptance from simulated adapter/verifier tests. The local runner defaults
+to readiness only and requires confirmed free-tier credentials for execution.

@@ -3,7 +3,7 @@
 from typing import Annotated, Any, cast
 
 from api.app.db.pool import PoolProtocol, get_pool
-from api.app.db.transactions import DatabaseConnection, get_connection
+from api.app.db.transactions import DatabaseConnection, get_connection, get_snapshot_connection
 from api.app.errors import AppError
 from api.app.repositories.users import UserRecord, UserRepository
 from api.app.security import ExpiredAccessToken, InvalidAccessToken, decode_access_token
@@ -73,3 +73,14 @@ async def get_detached_current_user(
 
 CurrentUser = Annotated[UserRecord, Depends(get_current_user)]
 DetachedCurrentUser = Annotated[UserRecord, Depends(get_detached_current_user)]
+
+
+async def get_snapshot_current_user(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    connection: Annotated[DatabaseConnection, Depends(get_snapshot_connection)],
+) -> UserRecord:
+    return await _resolve_current_user(request, credentials, connection)
+
+
+SnapshotCurrentUser = Annotated[UserRecord, Depends(get_snapshot_current_user)]

@@ -1,0 +1,3305 @@
+{
+  "generated_at": "2026-10-12T16:30:26.673790+00:00",
+  "logical_tables": 17,
+  "migrations": [
+    {
+      "version": 1,
+      "name": "extensions_enums",
+      "checksum": "12d3e8e701813d581ad6d253aca74411affb0684630a9d5b1b079dc38b128251"
+    },
+    {
+      "version": 2,
+      "name": "tables",
+      "checksum": "c53b345ca785711c0694c2656cbf81c64362e02f6d9ae7992bb8c28f47a5d73c"
+    },
+    {
+      "version": 3,
+      "name": "constraints_indexes",
+      "checksum": "d3605390661c35bcaf711b55e3f5cf63501fdcddd22cc6e0837aa6cdbd1c1fc1"
+    },
+    {
+      "version": 4,
+      "name": "partitions",
+      "checksum": "855a0ec506a58e1634fb3ffd7cc32e10f31cab525dab54fdeb5b5d6abf11dc29"
+    },
+    {
+      "version": 5,
+      "name": "triggers",
+      "checksum": "d25d500ff878a57910c352d3997216ecd467bc748e4ec03f63d489dea44cef03"
+    },
+    {
+      "version": 6,
+      "name": "functions_procedures",
+      "checksum": "550ce8f1b34be51ebd27a0acb913fb258531903902eca2fc155f6ef8d75653ff"
+    },
+    {
+      "version": 7,
+      "name": "views",
+      "checksum": "3b1afa39926c7445d33148da3b9f1e38c0d4c6305157d83be78365a1690040c3"
+    },
+    {
+      "version": 8,
+      "name": "materialized_views",
+      "checksum": "53fc8188fafaa5d9640a79dffa63cc9f0bec1c915adfe2b8c67f8cf400e95828"
+    },
+    {
+      "version": 9,
+      "name": "roles_grants",
+      "checksum": "dccd5f41e3c7c607ed8bb14daea592104210931ccffd604743376c8e3cc37a49"
+    },
+    {
+      "version": 10,
+      "name": "seed",
+      "checksum": "1dc8f5da665fe8e232df722df2b36c218abae8377e5df58ec8eced2ca3f5e02f"
+    },
+    {
+      "version": 11,
+      "name": "run_budget_boundary",
+      "checksum": "0cb4234c8298df737e3bd6a6500348ab1f7d36c6e52c1e11ac888429081ef856"
+    },
+    {
+      "version": 12,
+      "name": "deployment_boundaries",
+      "checksum": "749e4c0d6eff87a159dfe87555aca04c966fb9cd976aff7ffad85f2760b4a398"
+    },
+    {
+      "version": 13,
+      "name": "governance_boundaries",
+      "checksum": "ef35991b2a40550d2e0b6d682a0443ebeb1aff4f7c8ec9a5e1883d90f6c9b3b2"
+    },
+    {
+      "version": 14,
+      "name": "stabilization_constraints_indexes",
+      "checksum": "fb3975e9f197b1f297d57d9ddbde3acb5cf056e0af40a05506fa0f7070166fad"
+    },
+    {
+      "version": 15,
+      "name": "password_reset_tokens",
+      "checksum": "56a0ddcb11eff458209bdac9dcb92abd1d5215cc17d0ab725069002b43cf201b"
+    },
+    {
+      "version": 16,
+      "name": "password_reset_boundary",
+      "checksum": "af8f402b305515f214495b6439dfffdbfe6264e69ad2a6eeca5eb998d4e3361b"
+    },
+    {
+      "version": 17,
+      "name": "allow_admin_self_transition",
+      "checksum": "45e831b91e3de05f77867840a980c796080356e11411ee0d183a9907b818ee9e"
+    },
+    {
+      "version": 18,
+      "name": "password_history",
+      "checksum": "06236bd5bb67be9b7f987af3f57867baf3aa9bcf378ac40cbf5be69e302c7af2"
+    },
+    {
+      "version": 19,
+      "name": "execution_reservations",
+      "checksum": "c2b4a29511e7c60fcdb9cd714d3b0c021ee4279d78cb084754c7a86f8ebc57f6"
+    },
+    {
+      "version": 20,
+      "name": "auth_sessions",
+      "checksum": "a63f01dd2d6f187bb7b6b484b77abe153b85dae722aa1d547206616bf4449475"
+    },
+    {
+      "version": 21,
+      "name": "system_maintenance",
+      "checksum": "42fea185279cb30b378ea61d5ca7a983ce80f0dc979eff6068601dc4f0efdecf"
+    },
+    {
+      "version": 22,
+      "name": "account_lifecycle",
+      "checksum": "507dd5252264ce53a3d0b4793fe2b8f5993e1bdf6b76fa5dd378a0e5cba95f0a"
+    },
+    {
+      "version": 23,
+      "name": "self_profile",
+      "checksum": "4f11d55d22ae0fd6e18eb1b215c85aa91854b8247fde353f8f57f4f2c12252b5"
+    }
+  ],
+  "tables": [
+    {
+      "name": "api_tokens",
+      "purpose": "Hashed, expiring and revocable project-scoped Serve credentials.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced project/workspace."
+        },
+        {
+          "name": "name",
+          "type": "character varying(120)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Human-readable resource name (migration name for schema_migrations)."
+        },
+        {
+          "name": "token_prefix",
+          "type": "character varying(20)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Non-secret token label shown after one-time disclosure."
+        },
+        {
+          "name": "token_hash",
+          "type": "character(64)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "SHA-256 digest of the one-time disclosed token."
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "User who created the resource."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Time after which the credential/session is invalid."
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional time of explicit credential/session revocation."
+        },
+        {
+          "name": "revoked_by",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "User who revoked the credential, if retained."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "api_tokens_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "api_tokens_created_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "api_tokens_created_by_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_by"
+        },
+        {
+          "name": "api_tokens_expiry_after_creation",
+          "kind": "c",
+          "definition": "CHECK (((expires_at IS NULL) OR (expires_at > created_at)))"
+        },
+        {
+          "name": "api_tokens_hash_hex",
+          "kind": "c",
+          "definition": "CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "name": "api_tokens_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "api_tokens_name_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(TRIM(BOTH FROM name)) > 0))"
+        },
+        {
+          "name": "api_tokens_name_not_null",
+          "kind": "n",
+          "definition": "NOT NULL name"
+        },
+        {
+          "name": "api_tokens_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "api_tokens_project_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "api_tokens_project_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL project_id"
+        },
+        {
+          "name": "api_tokens_revocation_after_creation",
+          "kind": "c",
+          "definition": "CHECK (((revoked_at IS NULL) OR (revoked_at >= created_at)))"
+        },
+        {
+          "name": "api_tokens_revocation_complete",
+          "kind": "c",
+          "definition": "CHECK (((revoked_at IS NULL) = (revoked_by IS NULL)))"
+        },
+        {
+          "name": "api_tokens_revoked_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (revoked_by) REFERENCES users(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "api_tokens_token_hash_not_null",
+          "kind": "n",
+          "definition": "NOT NULL token_hash"
+        },
+        {
+          "name": "api_tokens_token_prefix_not_null",
+          "kind": "n",
+          "definition": "NOT NULL token_prefix"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "api_tokens_pkey",
+          "definition": "CREATE UNIQUE INDEX api_tokens_pkey ON public.api_tokens USING btree (id)"
+        },
+        {
+          "name": "ix_api_tokens_project_active",
+          "definition": "CREATE INDEX ix_api_tokens_project_active ON public.api_tokens USING btree (project_id, created_at DESC) WHERE (revoked_at IS NULL)"
+        },
+        {
+          "name": "uq_api_tokens_hash",
+          "definition": "CREATE UNIQUE INDEX uq_api_tokens_hash ON public.api_tokens USING btree (token_hash)"
+        }
+      ]
+    },
+    {
+      "name": "audit_events",
+      "purpose": "Append-only redacted change history and actor attribution.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "identity": "a",
+          "default": null,
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "actor_user_id",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional user responsible for the audited change."
+        },
+        {
+          "name": "action",
+          "type": "character varying(120)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Audited operation name."
+        },
+        {
+          "name": "entity_type",
+          "type": "character varying(80)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Relation/resource kind affected by the audited operation."
+        },
+        {
+          "name": "entity_id",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Affected UUID resource identity, if applicable."
+        },
+        {
+          "name": "before_data",
+          "type": "jsonb",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Redacted resource snapshot before the change."
+        },
+        {
+          "name": "after_data",
+          "type": "jsonb",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Redacted resource snapshot after the change."
+        },
+        {
+          "name": "request_id",
+          "type": "character varying(128)",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Correlation identifier connecting the request and audit/execution."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "audit_events_action_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(TRIM(BOTH FROM action)) > 0))"
+        },
+        {
+          "name": "audit_events_action_not_null",
+          "kind": "n",
+          "definition": "NOT NULL action"
+        },
+        {
+          "name": "audit_events_actor_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "audit_events_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "audit_events_entity_type_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(TRIM(BOTH FROM entity_type)) > 0))"
+        },
+        {
+          "name": "audit_events_entity_type_not_null",
+          "kind": "n",
+          "definition": "NOT NULL entity_type"
+        },
+        {
+          "name": "audit_events_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "audit_events_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "audit_events_pkey",
+          "definition": "CREATE UNIQUE INDEX audit_events_pkey ON public.audit_events USING btree (id)"
+        },
+        {
+          "name": "ix_audit_events_action_created",
+          "definition": "CREATE INDEX ix_audit_events_action_created ON public.audit_events USING btree (action, created_at DESC, id)"
+        },
+        {
+          "name": "ix_audit_events_actor_created",
+          "definition": "CREATE INDEX ix_audit_events_actor_created ON public.audit_events USING btree (actor_user_id, created_at DESC, id)"
+        },
+        {
+          "name": "ix_audit_events_entity_created",
+          "definition": "CREATE INDEX ix_audit_events_entity_created ON public.audit_events USING btree (entity_type, entity_id, created_at DESC, id)"
+        }
+      ]
+    },
+    {
+      "name": "auth_sessions",
+      "purpose": "Server-side session lifetime and revocation state.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced account/actor or user budget target."
+        },
+        {
+          "name": "issued_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Time the server-side session was issued."
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Time after which the credential/session is invalid."
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional time of explicit credential/session revocation."
+        },
+        {
+          "name": "revocation_reason",
+          "type": "text",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Reason a session was revoked; consistent with revoked_at."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "auth_sessions_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "auth_sessions_expires_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL expires_at"
+        },
+        {
+          "name": "auth_sessions_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "auth_sessions_issued_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL issued_at"
+        },
+        {
+          "name": "auth_sessions_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "auth_sessions_revocation_consistent",
+          "kind": "c",
+          "definition": "CHECK ((((revoked_at IS NULL) AND (revocation_reason IS NULL)) OR ((revoked_at IS NOT NULL) AND (revocation_reason IS NOT NULL))))"
+        },
+        {
+          "name": "auth_sessions_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "auth_sessions_user_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL user_id"
+        },
+        {
+          "name": "auth_sessions_valid_lifetime",
+          "kind": "c",
+          "definition": "CHECK ((expires_at > issued_at))"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "auth_sessions_pkey",
+          "definition": "CREATE UNIQUE INDEX auth_sessions_pkey ON public.auth_sessions USING btree (id)"
+        },
+        {
+          "name": "ix_auth_sessions_expired_cleanup",
+          "definition": "CREATE INDEX ix_auth_sessions_expired_cleanup ON public.auth_sessions USING btree (expires_at) WHERE (revoked_at IS NULL)"
+        },
+        {
+          "name": "ix_auth_sessions_user_active",
+          "definition": "CREATE INDEX ix_auth_sessions_user_active ON public.auth_sessions USING btree (user_id, expires_at DESC) WHERE (revoked_at IS NULL)"
+        }
+      ]
+    },
+    {
+      "name": "budgets",
+      "purpose": "Monthly execution limit targeting exactly one user or project.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced account/actor or user budget target."
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced project/workspace."
+        },
+        {
+          "name": "monthly_limit",
+          "type": "numeric(18,6)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Exact decimal monthly execution allowance."
+        },
+        {
+          "name": "timezone",
+          "type": "character varying(64)",
+          "nullable": false,
+          "identity": "",
+          "default": "'UTC'::character varying",
+          "purpose": "Timezone defining the target's monthly budget boundaries."
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "User who created the resource."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Timestamp of the latest mutable state change."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "budgets_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "budgets_created_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "budgets_exactly_one_target",
+          "kind": "c",
+          "definition": "CHECK ((num_nonnulls(user_id, project_id) = 1))"
+        },
+        {
+          "name": "budgets_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "budgets_limit_nonnegative",
+          "kind": "c",
+          "definition": "CHECK ((monthly_limit >= (0)::numeric))"
+        },
+        {
+          "name": "budgets_monthly_limit_not_null",
+          "kind": "n",
+          "definition": "NOT NULL monthly_limit"
+        },
+        {
+          "name": "budgets_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "budgets_project_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "budgets_timezone_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(TRIM(BOTH FROM timezone)) > 0))"
+        },
+        {
+          "name": "budgets_timezone_not_null",
+          "kind": "n",
+          "definition": "NOT NULL timezone"
+        },
+        {
+          "name": "budgets_updated_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL updated_at"
+        },
+        {
+          "name": "budgets_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "budgets_pkey",
+          "definition": "CREATE UNIQUE INDEX budgets_pkey ON public.budgets USING btree (id)"
+        },
+        {
+          "name": "ix_budgets_updated",
+          "definition": "CREATE INDEX ix_budgets_updated ON public.budgets USING btree (updated_at DESC, id DESC)"
+        },
+        {
+          "name": "uq_budgets_project",
+          "definition": "CREATE UNIQUE INDEX uq_budgets_project ON public.budgets USING btree (project_id) WHERE (project_id IS NOT NULL)"
+        },
+        {
+          "name": "uq_budgets_user",
+          "definition": "CREATE UNIQUE INDEX uq_budgets_user ON public.budgets USING btree (user_id) WHERE (user_id IS NOT NULL)"
+        }
+      ]
+    },
+    {
+      "name": "deployments",
+      "purpose": "Prompt/version promotion, review and rollback lifecycle records.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "prompt_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced prompt identity."
+        },
+        {
+          "name": "version_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced immutable prompt version."
+        },
+        {
+          "name": "environment",
+          "type": "deployment_environment",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Application promotion slot (dev/staging/prod), usable locally."
+        },
+        {
+          "name": "status",
+          "type": "deployment_status",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Lifecycle state constrained by the relation's enum/checks."
+        },
+        {
+          "name": "request_note",
+          "type": "text",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Requester's explanation for promotion."
+        },
+        {
+          "name": "review_note",
+          "type": "text",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Reviewer's decision explanation."
+        },
+        {
+          "name": "rollback_reason",
+          "type": "text",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Explanation of a rollback."
+        },
+        {
+          "name": "rollback_of_id",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Deployment event being rolled back."
+        },
+        {
+          "name": "requested_by",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "User who requested the deployment."
+        },
+        {
+          "name": "reviewed_by",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional user who reviewed the deployment."
+        },
+        {
+          "name": "requested_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Time the promotion was requested."
+        },
+        {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional time of the review decision."
+        },
+        {
+          "name": "activated_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional time the version became active."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "deployments_environment_not_null",
+          "kind": "n",
+          "definition": "NOT NULL environment"
+        },
+        {
+          "name": "deployments_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "deployments_pending_only_in_production",
+          "kind": "c",
+          "definition": "CHECK (((environment = 'prod'::deployment_environment) OR (status <> 'pending'::deployment_status)))"
+        },
+        {
+          "name": "deployments_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "deployments_production_activation_reviewed",
+          "kind": "c",
+          "definition": "CHECK (((environment <> 'prod'::deployment_environment) OR (status <> ALL (ARRAY['active'::deployment_status, 'superseded'::deployment_status, 'rolled_back'::deployment_status])) OR (reviewed_at IS NOT NULL)))"
+        },
+        {
+          "name": "deployments_prompt_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "deployments_prompt_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL prompt_id"
+        },
+        {
+          "name": "deployments_rejection_note_required",
+          "kind": "c",
+          "definition": "CHECK (((status <> 'rejected'::deployment_status) OR (length(TRIM(BOTH FROM review_note)) > 0)))"
+        },
+        {
+          "name": "deployments_requested_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL requested_at"
+        },
+        {
+          "name": "deployments_requested_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "deployments_requested_by_not_null",
+          "kind": "n",
+          "definition": "NOT NULL requested_by"
+        },
+        {
+          "name": "deployments_review_metadata_complete",
+          "kind": "c",
+          "definition": "CHECK (((reviewed_by IS NULL) = (reviewed_at IS NULL)))"
+        },
+        {
+          "name": "deployments_reviewed_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "deployments_rollback_of_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (rollback_of_id) REFERENCES deployments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "deployments_rollback_reason_required",
+          "kind": "c",
+          "definition": "CHECK (((rollback_of_id IS NULL) OR (length(TRIM(BOTH FROM rollback_reason)) > 0)))"
+        },
+        {
+          "name": "deployments_state_timestamps",
+          "kind": "c",
+          "definition": "CHECK ((((status = ANY (ARRAY['pending'::deployment_status, 'cancelled'::deployment_status])) AND (reviewed_at IS NULL) AND (activated_at IS NULL)) OR ((status = 'rejected'::deployment_status) AND (reviewed_at IS NOT NULL) AND (activated_at IS NULL)) OR ((status = ANY (ARRAY['active'::deployment_status, 'superseded'::deployment_status, 'rolled_back'::deployment_status])) AND (activated_at IS NOT NULL))))"
+        },
+        {
+          "name": "deployments_status_not_null",
+          "kind": "n",
+          "definition": "NOT NULL status"
+        },
+        {
+          "name": "deployments_version_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL version_id"
+        },
+        {
+          "name": "fk_deployments_prompt_version",
+          "kind": "f",
+          "definition": "FOREIGN KEY (version_id, prompt_id) REFERENCES prompt_versions(id, prompt_id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "fk_deployments_rollback_scope",
+          "kind": "f",
+          "definition": "FOREIGN KEY (rollback_of_id, prompt_id, environment) REFERENCES deployments(id, prompt_id, environment) ON DELETE RESTRICT"
+        },
+        {
+          "name": "uq_deployments_id_prompt_environment",
+          "kind": "u",
+          "definition": "UNIQUE (id, prompt_id, environment)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "deployments_pkey",
+          "definition": "CREATE UNIQUE INDEX deployments_pkey ON public.deployments USING btree (id)"
+        },
+        {
+          "name": "ix_deployments_history",
+          "definition": "CREATE INDEX ix_deployments_history ON public.deployments USING btree (prompt_id, environment, requested_at DESC, id)"
+        },
+        {
+          "name": "ix_deployments_pending_prod",
+          "definition": "CREATE INDEX ix_deployments_pending_prod ON public.deployments USING btree (requested_at, id) WHERE ((environment = 'prod'::deployment_environment) AND (status = 'pending'::deployment_status))"
+        },
+        {
+          "name": "uq_deployments_id_prompt_environment",
+          "definition": "CREATE UNIQUE INDEX uq_deployments_id_prompt_environment ON public.deployments USING btree (id, prompt_id, environment)"
+        },
+        {
+          "name": "uq_deployments_one_active",
+          "definition": "CREATE UNIQUE INDEX uq_deployments_one_active ON public.deployments USING btree (prompt_id, environment) WHERE (status = 'active'::deployment_status)"
+        }
+      ]
+    },
+    {
+      "name": "model_pricing",
+      "purpose": "Historical provider/model effective price windows.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "provider",
+          "type": "character varying(80)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Provider identity; external execution is restricted by application policy."
+        },
+        {
+          "name": "model",
+          "type": "character varying(160)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Provider-specific model identifier."
+        },
+        {
+          "name": "input_price_per_million",
+          "type": "numeric(18,6)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Historical price per million input tokens."
+        },
+        {
+          "name": "output_price_per_million",
+          "type": "numeric(18,6)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Historical price per million output tokens."
+        },
+        {
+          "name": "effective_from",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Inclusive start of the pricing validity window."
+        },
+        {
+          "name": "effective_to",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional end of the pricing validity window."
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "User who created the resource."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "model_pricing_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "model_pricing_created_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "model_pricing_effective_from_not_null",
+          "kind": "n",
+          "definition": "NOT NULL effective_from"
+        },
+        {
+          "name": "model_pricing_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "model_pricing_input_price_per_million_not_null",
+          "kind": "n",
+          "definition": "NOT NULL input_price_per_million"
+        },
+        {
+          "name": "model_pricing_model_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(TRIM(BOTH FROM model)) > 0))"
+        },
+        {
+          "name": "model_pricing_model_not_null",
+          "kind": "n",
+          "definition": "NOT NULL model"
+        },
+        {
+          "name": "model_pricing_no_overlap",
+          "kind": "x",
+          "definition": "EXCLUDE USING gist (provider WITH =, model WITH =, tstzrange(effective_from, effective_to, '[)'::text) WITH &&)"
+        },
+        {
+          "name": "model_pricing_nonnegative",
+          "kind": "c",
+          "definition": "CHECK (((input_price_per_million >= (0)::numeric) AND (output_price_per_million >= (0)::numeric)))"
+        },
+        {
+          "name": "model_pricing_output_price_per_million_not_null",
+          "kind": "n",
+          "definition": "NOT NULL output_price_per_million"
+        },
+        {
+          "name": "model_pricing_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "model_pricing_provider_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(TRIM(BOTH FROM provider)) > 0))"
+        },
+        {
+          "name": "model_pricing_provider_not_null",
+          "kind": "n",
+          "definition": "NOT NULL provider"
+        },
+        {
+          "name": "model_pricing_valid_window",
+          "kind": "c",
+          "definition": "CHECK (((effective_to IS NULL) OR (effective_to > effective_from)))"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_model_pricing_lookup",
+          "definition": "CREATE INDEX ix_model_pricing_lookup ON public.model_pricing USING btree (provider, model, effective_from DESC)"
+        },
+        {
+          "name": "model_pricing_no_overlap",
+          "definition": "CREATE INDEX model_pricing_no_overlap ON public.model_pricing USING gist (provider, model, tstzrange(effective_from, effective_to, '[)'::text))"
+        },
+        {
+          "name": "model_pricing_pkey",
+          "definition": "CREATE UNIQUE INDEX model_pricing_pkey ON public.model_pricing USING btree (id)"
+        }
+      ]
+    },
+    {
+      "name": "password_history",
+      "purpose": "Previously used password hashes for reuse prevention.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced account/actor or user budget target."
+        },
+        {
+          "name": "password_hash",
+          "type": "text",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Argon2id password digest; plaintext is never stored."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "password_history_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "password_history_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "password_history_password_hash_not_null",
+          "kind": "n",
+          "definition": "NOT NULL password_hash"
+        },
+        {
+          "name": "password_history_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "password_history_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "password_history_user_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL user_id"
+        },
+        {
+          "name": "password_history_user_id_password_hash_key",
+          "kind": "u",
+          "definition": "UNIQUE (user_id, password_hash)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "password_history_pkey",
+          "definition": "CREATE UNIQUE INDEX password_history_pkey ON public.password_history USING btree (id)"
+        },
+        {
+          "name": "password_history_user_id_password_hash_key",
+          "definition": "CREATE UNIQUE INDEX password_history_user_id_password_hash_key ON public.password_history USING btree (user_id, password_hash)"
+        }
+      ]
+    },
+    {
+      "name": "password_reset_tokens",
+      "purpose": "Hashed, expiring single-use password-reset credentials.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced account/actor or user budget target."
+        },
+        {
+          "name": "token_hash",
+          "type": "character(64)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "SHA-256 digest of the one-time disclosed token."
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Time after which the credential/session is invalid."
+        },
+        {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional time when a reset token was consumed."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "password_reset_tokens_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "password_reset_tokens_expires_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL expires_at"
+        },
+        {
+          "name": "password_reset_tokens_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "password_reset_tokens_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "password_reset_tokens_token_hash_key",
+          "kind": "u",
+          "definition": "UNIQUE (token_hash)"
+        },
+        {
+          "name": "password_reset_tokens_token_hash_not_null",
+          "kind": "n",
+          "definition": "NOT NULL token_hash"
+        },
+        {
+          "name": "password_reset_tokens_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "password_reset_tokens_user_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL user_id"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_password_reset_tokens_user_active",
+          "definition": "CREATE INDEX ix_password_reset_tokens_user_active ON public.password_reset_tokens USING btree (user_id, expires_at DESC) WHERE (used_at IS NULL)"
+        },
+        {
+          "name": "password_reset_tokens_pkey",
+          "definition": "CREATE UNIQUE INDEX password_reset_tokens_pkey ON public.password_reset_tokens USING btree (id)"
+        },
+        {
+          "name": "password_reset_tokens_token_hash_key",
+          "definition": "CREATE UNIQUE INDEX password_reset_tokens_token_hash_key ON public.password_reset_tokens USING btree (token_hash)"
+        }
+      ]
+    },
+    {
+      "name": "project_members",
+      "purpose": "Many-to-many access relationship between users and projects.",
+      "columns": [
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced project/workspace."
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced account/actor or user budget target."
+        },
+        {
+          "name": "added_by",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "User who granted membership, if retained."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "project_members_added_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "project_members_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "project_members_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (project_id, user_id)"
+        },
+        {
+          "name": "project_members_project_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "project_members_project_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL project_id"
+        },
+        {
+          "name": "project_members_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "project_members_user_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL user_id"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_project_members_user",
+          "definition": "CREATE INDEX ix_project_members_user ON public.project_members USING btree (user_id, project_id)"
+        },
+        {
+          "name": "project_members_pkey",
+          "definition": "CREATE UNIQUE INDEX project_members_pkey ON public.project_members USING btree (project_id, user_id)"
+        }
+      ]
+    },
+    {
+      "name": "projects",
+      "purpose": "Owned workspace containing prompts and scoped memberships.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "name",
+          "type": "character varying(160)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Human-readable resource name (migration name for schema_migrations)."
+        },
+        {
+          "name": "key",
+          "type": "character varying(63)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Stable resource lookup key; uniqueness scope is defined by constraints."
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional resource description."
+        },
+        {
+          "name": "owner_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "User owning the project."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Timestamp of the latest mutable state change."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "projects_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "projects_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "projects_key_format",
+          "kind": "c",
+          "definition": "CHECK (((key)::text ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'::text))"
+        },
+        {
+          "name": "projects_key_not_null",
+          "kind": "n",
+          "definition": "NOT NULL key"
+        },
+        {
+          "name": "projects_name_not_blank",
+          "kind": "c",
+          "definition": "CHECK (((length(TRIM(BOTH FROM name)) >= 1) AND (length(TRIM(BOTH FROM name)) <= 160)))"
+        },
+        {
+          "name": "projects_name_not_null",
+          "kind": "n",
+          "definition": "NOT NULL name"
+        },
+        {
+          "name": "projects_owner_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "projects_owner_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL owner_id"
+        },
+        {
+          "name": "projects_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "projects_updated_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL updated_at"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_projects_owner",
+          "definition": "CREATE INDEX ix_projects_owner ON public.projects USING btree (owner_id)"
+        },
+        {
+          "name": "projects_pkey",
+          "definition": "CREATE UNIQUE INDEX projects_pkey ON public.projects USING btree (id)"
+        },
+        {
+          "name": "uq_projects_key",
+          "definition": "CREATE UNIQUE INDEX uq_projects_key ON public.projects USING btree (key)"
+        }
+      ]
+    },
+    {
+      "name": "prompt_versions",
+      "purpose": "Immutable template and configuration snapshots with lineage.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "prompt_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced prompt identity."
+        },
+        {
+          "name": "version_number",
+          "type": "integer",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Monotonically assigned version number within a prompt."
+        },
+        {
+          "name": "parent_version_id",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional predecessor version in the same prompt."
+        },
+        {
+          "name": "template_body",
+          "type": "text",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Immutable prompt template text."
+        },
+        {
+          "name": "variables",
+          "type": "jsonb",
+          "nullable": false,
+          "identity": "",
+          "default": "'[]'::jsonb",
+          "purpose": "Template variable-name snapshot as a JSON array."
+        },
+        {
+          "name": "model_config",
+          "type": "jsonb",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Provider/model/generation settings captured for this version."
+        },
+        {
+          "name": "commit_message",
+          "type": "character varying(500)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Author's explanation of the version change."
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "User who created the resource."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "fk_prompt_versions_parent",
+          "kind": "f",
+          "definition": "FOREIGN KEY (parent_version_id, prompt_id) REFERENCES prompt_versions(id, prompt_id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "prompt_versions_commit_message_not_null",
+          "kind": "n",
+          "definition": "NOT NULL commit_message"
+        },
+        {
+          "name": "prompt_versions_commit_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(TRIM(BOTH FROM commit_message)) > 0))"
+        },
+        {
+          "name": "prompt_versions_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "prompt_versions_created_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "prompt_versions_created_by_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_by"
+        },
+        {
+          "name": "prompt_versions_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "prompt_versions_model_config_not_null",
+          "kind": "n",
+          "definition": "NOT NULL model_config"
+        },
+        {
+          "name": "prompt_versions_model_config_object",
+          "kind": "c",
+          "definition": "CHECK ((jsonb_typeof(model_config) = 'object'::text))"
+        },
+        {
+          "name": "prompt_versions_number_positive",
+          "kind": "c",
+          "definition": "CHECK ((version_number > 0))"
+        },
+        {
+          "name": "prompt_versions_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "prompt_versions_prompt_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "prompt_versions_prompt_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL prompt_id"
+        },
+        {
+          "name": "prompt_versions_template_body_not_null",
+          "kind": "n",
+          "definition": "NOT NULL template_body"
+        },
+        {
+          "name": "prompt_versions_template_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(template_body) > 0))"
+        },
+        {
+          "name": "prompt_versions_variables_array",
+          "kind": "c",
+          "definition": "CHECK ((jsonb_typeof(variables) = 'array'::text))"
+        },
+        {
+          "name": "prompt_versions_variables_not_null",
+          "kind": "n",
+          "definition": "NOT NULL variables"
+        },
+        {
+          "name": "prompt_versions_version_number_not_null",
+          "kind": "n",
+          "definition": "NOT NULL version_number"
+        },
+        {
+          "name": "uq_prompt_versions_id_prompt",
+          "kind": "u",
+          "definition": "UNIQUE (id, prompt_id)"
+        },
+        {
+          "name": "uq_prompt_versions_number",
+          "kind": "u",
+          "definition": "UNIQUE (prompt_id, version_number)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_prompt_versions_history",
+          "definition": "CREATE INDEX ix_prompt_versions_history ON public.prompt_versions USING btree (prompt_id, version_number DESC, id)"
+        },
+        {
+          "name": "ix_prompt_versions_parent",
+          "definition": "CREATE INDEX ix_prompt_versions_parent ON public.prompt_versions USING btree (parent_version_id)"
+        },
+        {
+          "name": "prompt_versions_pkey",
+          "definition": "CREATE UNIQUE INDEX prompt_versions_pkey ON public.prompt_versions USING btree (id)"
+        },
+        {
+          "name": "uq_prompt_versions_id_prompt",
+          "definition": "CREATE UNIQUE INDEX uq_prompt_versions_id_prompt ON public.prompt_versions USING btree (id, prompt_id)"
+        },
+        {
+          "name": "uq_prompt_versions_number",
+          "definition": "CREATE UNIQUE INDEX uq_prompt_versions_number ON public.prompt_versions USING btree (prompt_id, version_number)"
+        }
+      ]
+    },
+    {
+      "name": "prompts",
+      "purpose": "Named prompt identity within a project.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced project/workspace."
+        },
+        {
+          "name": "key",
+          "type": "character varying(63)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Stable resource lookup key; uniqueness scope is defined by constraints."
+        },
+        {
+          "name": "name",
+          "type": "character varying(160)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Human-readable resource name (migration name for schema_migrations)."
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional resource description."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Timestamp of the latest mutable state change."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "prompts_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "prompts_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "prompts_key_format",
+          "kind": "c",
+          "definition": "CHECK (((key)::text ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'::text))"
+        },
+        {
+          "name": "prompts_key_not_null",
+          "kind": "n",
+          "definition": "NOT NULL key"
+        },
+        {
+          "name": "prompts_name_not_blank",
+          "kind": "c",
+          "definition": "CHECK (((length(TRIM(BOTH FROM name)) >= 1) AND (length(TRIM(BOTH FROM name)) <= 160)))"
+        },
+        {
+          "name": "prompts_name_not_null",
+          "kind": "n",
+          "definition": "NOT NULL name"
+        },
+        {
+          "name": "prompts_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "prompts_project_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "prompts_project_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL project_id"
+        },
+        {
+          "name": "prompts_updated_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL updated_at"
+        },
+        {
+          "name": "uq_prompts_id_project",
+          "kind": "u",
+          "definition": "UNIQUE (id, project_id)"
+        },
+        {
+          "name": "uq_prompts_project_key",
+          "kind": "u",
+          "definition": "UNIQUE (project_id, key)"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_prompts_project_updated",
+          "definition": "CREATE INDEX ix_prompts_project_updated ON public.prompts USING btree (project_id, updated_at DESC, id)"
+        },
+        {
+          "name": "prompts_pkey",
+          "definition": "CREATE UNIQUE INDEX prompts_pkey ON public.prompts USING btree (id)"
+        },
+        {
+          "name": "uq_prompts_id_project",
+          "definition": "CREATE UNIQUE INDEX uq_prompts_id_project ON public.prompts USING btree (id, project_id)"
+        },
+        {
+          "name": "uq_prompts_project_key",
+          "definition": "CREATE UNIQUE INDEX uq_prompts_project_key ON public.prompts USING btree (project_id, key)"
+        }
+      ]
+    },
+    {
+      "name": "provider_keys",
+      "purpose": "Encrypted administrator-managed shared provider credentials.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "provider",
+          "type": "character varying(80)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Provider identity; external execution is restricted by application policy."
+        },
+        {
+          "name": "alias",
+          "type": "character varying(120)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Administrator's label for a provider credential."
+        },
+        {
+          "name": "encrypted_secret",
+          "type": "bytea",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Authenticated encrypted API key; never a plaintext response."
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "User who created the resource."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        },
+        {
+          "name": "deactivated_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional time when this provider credential was disabled."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "provider_keys_alias_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(TRIM(BOTH FROM alias)) > 0))"
+        },
+        {
+          "name": "provider_keys_alias_not_null",
+          "kind": "n",
+          "definition": "NOT NULL alias"
+        },
+        {
+          "name": "provider_keys_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "provider_keys_created_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "provider_keys_created_by_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_by"
+        },
+        {
+          "name": "provider_keys_deactivation_after_creation",
+          "kind": "c",
+          "definition": "CHECK (((deactivated_at IS NULL) OR (deactivated_at >= created_at)))"
+        },
+        {
+          "name": "provider_keys_encrypted_secret_not_null",
+          "kind": "n",
+          "definition": "NOT NULL encrypted_secret"
+        },
+        {
+          "name": "provider_keys_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "provider_keys_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "provider_keys_provider_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(TRIM(BOTH FROM provider)) > 0))"
+        },
+        {
+          "name": "provider_keys_provider_not_null",
+          "kind": "n",
+          "definition": "NOT NULL provider"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_provider_keys_provider_created",
+          "definition": "CREATE INDEX ix_provider_keys_provider_created ON public.provider_keys USING btree (provider, created_at DESC, id DESC)"
+        },
+        {
+          "name": "provider_keys_pkey",
+          "definition": "CREATE UNIQUE INDEX provider_keys_pkey ON public.provider_keys USING btree (id)"
+        },
+        {
+          "name": "uq_provider_keys_active_alias",
+          "definition": "CREATE UNIQUE INDEX uq_provider_keys_active_alias ON public.provider_keys USING btree (provider, alias) WHERE (deactivated_at IS NULL)"
+        }
+      ]
+    },
+    {
+      "name": "run_reservations",
+      "purpose": "Idempotent execution admission and cost reconciliation state.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced account/actor or user budget target."
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced project/workspace."
+        },
+        {
+          "name": "prompt_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced prompt identity."
+        },
+        {
+          "name": "version_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced immutable prompt version."
+        },
+        {
+          "name": "idempotency_key",
+          "type": "character varying(128)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "User-scoped execution request deduplication key."
+        },
+        {
+          "name": "request_fingerprint",
+          "type": "character(64)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Digest binding an idempotency key to its request content."
+        },
+        {
+          "name": "claim_token",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Internal execution-admission ownership credential."
+        },
+        {
+          "name": "estimated_cost",
+          "type": "numeric(18,6)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Reserved cost before provider execution."
+        },
+        {
+          "name": "actual_cost",
+          "type": "numeric(18,6)",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Reconciled cost after execution, if known."
+        },
+        {
+          "name": "status",
+          "type": "character varying(20)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Lifecycle state constrained by the relation's enum/checks."
+        },
+        {
+          "name": "error_code",
+          "type": "character varying(80)",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Normalized safe execution failure code, if any."
+        },
+        {
+          "name": "run_id",
+          "type": "uuid",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional execution ledger identity after reconciliation."
+        },
+        {
+          "name": "run_created_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Creation time completing the composite run foreign key."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Timestamp of the latest mutable state change."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "run_reservations_actual_cost_check",
+          "kind": "c",
+          "definition": "CHECK (((actual_cost IS NULL) OR (actual_cost >= (0)::numeric)))"
+        },
+        {
+          "name": "run_reservations_check",
+          "kind": "c",
+          "definition": "CHECK (((run_id IS NULL) = (run_created_at IS NULL)))"
+        },
+        {
+          "name": "run_reservations_claim_token_not_null",
+          "kind": "n",
+          "definition": "NOT NULL claim_token"
+        },
+        {
+          "name": "run_reservations_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "run_reservations_estimated_cost_check",
+          "kind": "c",
+          "definition": "CHECK ((estimated_cost >= (0)::numeric))"
+        },
+        {
+          "name": "run_reservations_estimated_cost_not_null",
+          "kind": "n",
+          "definition": "NOT NULL estimated_cost"
+        },
+        {
+          "name": "run_reservations_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "run_reservations_idempotency_key_check",
+          "kind": "c",
+          "definition": "CHECK ((length((idempotency_key)::text) >= 16))"
+        },
+        {
+          "name": "run_reservations_idempotency_key_not_null",
+          "kind": "n",
+          "definition": "NOT NULL idempotency_key"
+        },
+        {
+          "name": "run_reservations_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "run_reservations_project_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "run_reservations_project_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL project_id"
+        },
+        {
+          "name": "run_reservations_prompt_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "run_reservations_prompt_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL prompt_id"
+        },
+        {
+          "name": "run_reservations_request_fingerprint_check",
+          "kind": "c",
+          "definition": "CHECK ((request_fingerprint ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "name": "run_reservations_request_fingerprint_not_null",
+          "kind": "n",
+          "definition": "NOT NULL request_fingerprint"
+        },
+        {
+          "name": "run_reservations_run_id_run_created_at_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (run_id, run_created_at) REFERENCES runs(id, created_at) ON DELETE RESTRICT"
+        },
+        {
+          "name": "run_reservations_run_id_run_created_at_fkey_1",
+          "kind": "f",
+          "definition": "FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_10(id, created_at) ON DELETE RESTRICT"
+        },
+        {
+          "name": "run_reservations_run_id_run_created_at_fkey_2",
+          "kind": "f",
+          "definition": "FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_11(id, created_at) ON DELETE RESTRICT"
+        },
+        {
+          "name": "run_reservations_status_check",
+          "kind": "c",
+          "definition": "CHECK (((status)::text = ANY ((ARRAY['reserved'::character varying, 'completed'::character varying, 'failed'::character varying, 'uncertain'::character varying, 'blocked'::character varying])::text[])))"
+        },
+        {
+          "name": "run_reservations_status_not_null",
+          "kind": "n",
+          "definition": "NOT NULL status"
+        },
+        {
+          "name": "run_reservations_updated_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL updated_at"
+        },
+        {
+          "name": "run_reservations_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "run_reservations_user_id_idempotency_key_key",
+          "kind": "u",
+          "definition": "UNIQUE (user_id, idempotency_key)"
+        },
+        {
+          "name": "run_reservations_user_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL user_id"
+        },
+        {
+          "name": "run_reservations_version_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "run_reservations_version_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL version_id"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "run_reservations_budget_project_idx",
+          "definition": "CREATE INDEX run_reservations_budget_project_idx ON public.run_reservations USING btree (project_id, created_at) WHERE ((status)::text = ANY ((ARRAY['reserved'::character varying, 'uncertain'::character varying])::text[]))"
+        },
+        {
+          "name": "run_reservations_budget_user_idx",
+          "definition": "CREATE INDEX run_reservations_budget_user_idx ON public.run_reservations USING btree (user_id, created_at) WHERE ((status)::text = ANY ((ARRAY['reserved'::character varying, 'uncertain'::character varying])::text[]))"
+        },
+        {
+          "name": "run_reservations_pkey",
+          "definition": "CREATE UNIQUE INDEX run_reservations_pkey ON public.run_reservations USING btree (id)"
+        },
+        {
+          "name": "run_reservations_user_id_idempotency_key_key",
+          "definition": "CREATE UNIQUE INDEX run_reservations_user_id_idempotency_key_key ON public.run_reservations USING btree (user_id, idempotency_key)"
+        }
+      ]
+    },
+    {
+      "name": "runs",
+      "purpose": "Append-only execution ledger, physically partitioned by creation month.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced account/actor or user budget target."
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced project/workspace."
+        },
+        {
+          "name": "prompt_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced prompt identity."
+        },
+        {
+          "name": "version_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced immutable prompt version."
+        },
+        {
+          "name": "status",
+          "type": "run_status",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Lifecycle state constrained by the relation's enum/checks."
+        },
+        {
+          "name": "provider",
+          "type": "character varying(80)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Provider identity; external execution is restricted by application policy."
+        },
+        {
+          "name": "model",
+          "type": "character varying(160)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Provider-specific model identifier."
+        },
+        {
+          "name": "input_variables",
+          "type": "jsonb",
+          "nullable": false,
+          "identity": "",
+          "default": "'{}'::jsonb",
+          "purpose": "Execution input snapshot as JSON."
+        },
+        {
+          "name": "output_text",
+          "type": "text",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Provider output, if execution produced a result."
+        },
+        {
+          "name": "prompt_tokens",
+          "type": "integer",
+          "nullable": false,
+          "identity": "",
+          "default": "0",
+          "purpose": "Recorded input-token usage."
+        },
+        {
+          "name": "completion_tokens",
+          "type": "integer",
+          "nullable": false,
+          "identity": "",
+          "default": "0",
+          "purpose": "Recorded output-token usage."
+        },
+        {
+          "name": "latency_ms",
+          "type": "integer",
+          "nullable": false,
+          "identity": "",
+          "default": "0",
+          "purpose": "Recorded execution duration in milliseconds."
+        },
+        {
+          "name": "cost",
+          "type": "numeric(18,6)",
+          "nullable": false,
+          "identity": "",
+          "default": "0",
+          "purpose": "Exact decimal cost snapshot; allowed external free executions use zero."
+        },
+        {
+          "name": "error_code",
+          "type": "character varying(80)",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Normalized safe execution failure code, if any."
+        },
+        {
+          "name": "request_id",
+          "type": "character varying(128)",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Correlation identifier connecting the request and audit/execution."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "fk_runs_prompt_project",
+          "kind": "f",
+          "definition": "FOREIGN KEY (prompt_id, project_id) REFERENCES prompts(id, project_id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "fk_runs_version_prompt",
+          "kind": "f",
+          "definition": "FOREIGN KEY (version_id, prompt_id) REFERENCES prompt_versions(id, prompt_id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "runs_completed_shape",
+          "kind": "c",
+          "definition": "CHECK (((status <> 'completed'::run_status) OR ((output_text IS NOT NULL) AND (error_code IS NULL))))"
+        },
+        {
+          "name": "runs_completion_tokens_not_null",
+          "kind": "n",
+          "definition": "NOT NULL completion_tokens"
+        },
+        {
+          "name": "runs_cost_nonnegative",
+          "kind": "c",
+          "definition": "CHECK ((cost >= (0)::numeric))"
+        },
+        {
+          "name": "runs_cost_not_null",
+          "kind": "n",
+          "definition": "NOT NULL cost"
+        },
+        {
+          "name": "runs_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "runs_error_shape",
+          "kind": "c",
+          "definition": "CHECK (((status = 'completed'::run_status) OR (error_code IS NOT NULL)))"
+        },
+        {
+          "name": "runs_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "runs_input_object",
+          "kind": "c",
+          "definition": "CHECK ((jsonb_typeof(input_variables) = 'object'::text))"
+        },
+        {
+          "name": "runs_input_variables_not_null",
+          "kind": "n",
+          "definition": "NOT NULL input_variables"
+        },
+        {
+          "name": "runs_latency_ms_not_null",
+          "kind": "n",
+          "definition": "NOT NULL latency_ms"
+        },
+        {
+          "name": "runs_latency_nonnegative",
+          "kind": "c",
+          "definition": "CHECK ((latency_ms >= 0))"
+        },
+        {
+          "name": "runs_model_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(TRIM(BOTH FROM model)) > 0))"
+        },
+        {
+          "name": "runs_model_not_null",
+          "kind": "n",
+          "definition": "NOT NULL model"
+        },
+        {
+          "name": "runs_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id, created_at)"
+        },
+        {
+          "name": "runs_project_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "runs_project_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL project_id"
+        },
+        {
+          "name": "runs_prompt_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "runs_prompt_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL prompt_id"
+        },
+        {
+          "name": "runs_prompt_tokens_not_null",
+          "kind": "n",
+          "definition": "NOT NULL prompt_tokens"
+        },
+        {
+          "name": "runs_provider_not_blank",
+          "kind": "c",
+          "definition": "CHECK ((length(TRIM(BOTH FROM provider)) > 0))"
+        },
+        {
+          "name": "runs_provider_not_null",
+          "kind": "n",
+          "definition": "NOT NULL provider"
+        },
+        {
+          "name": "runs_status_not_null",
+          "kind": "n",
+          "definition": "NOT NULL status"
+        },
+        {
+          "name": "runs_tokens_nonnegative",
+          "kind": "c",
+          "definition": "CHECK (((prompt_tokens >= 0) AND (completion_tokens >= 0)))"
+        },
+        {
+          "name": "runs_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "runs_user_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL user_id"
+        },
+        {
+          "name": "runs_version_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "runs_version_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL version_id"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_runs_model_created",
+          "definition": "CREATE INDEX ix_runs_model_created ON ONLY public.runs USING btree (provider, model, created_at DESC, id)"
+        },
+        {
+          "name": "ix_runs_project_created",
+          "definition": "CREATE INDEX ix_runs_project_created ON ONLY public.runs USING btree (project_id, created_at DESC, id)"
+        },
+        {
+          "name": "ix_runs_prompt_created",
+          "definition": "CREATE INDEX ix_runs_prompt_created ON ONLY public.runs USING btree (prompt_id, created_at DESC, id)"
+        },
+        {
+          "name": "ix_runs_status_created",
+          "definition": "CREATE INDEX ix_runs_status_created ON ONLY public.runs USING btree (status, created_at DESC, id)"
+        },
+        {
+          "name": "ix_runs_user_created",
+          "definition": "CREATE INDEX ix_runs_user_created ON ONLY public.runs USING btree (user_id, created_at DESC, id)"
+        },
+        {
+          "name": "ix_runs_version_created",
+          "definition": "CREATE INDEX ix_runs_version_created ON ONLY public.runs USING btree (version_id, created_at DESC, id)"
+        },
+        {
+          "name": "runs_pkey",
+          "definition": "CREATE UNIQUE INDEX runs_pkey ON ONLY public.runs USING btree (id, created_at)"
+        }
+      ]
+    },
+    {
+      "name": "schema_migrations",
+      "purpose": "Infrastructure record of applied migration versions/checksums.",
+      "columns": [
+        {
+          "name": "version",
+          "type": "bigint",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Applied migration number."
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Human-readable resource name (migration name for schema_migrations)."
+        },
+        {
+          "name": "checksum",
+          "type": "character(64)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "SHA-256 checksum protecting an applied migration from changes."
+        },
+        {
+          "name": "applied_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Time the migration was applied."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "schema_migrations_applied_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL applied_at"
+        },
+        {
+          "name": "schema_migrations_checksum_not_null",
+          "kind": "n",
+          "definition": "NOT NULL checksum"
+        },
+        {
+          "name": "schema_migrations_name_not_null",
+          "kind": "n",
+          "definition": "NOT NULL name"
+        },
+        {
+          "name": "schema_migrations_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (version)"
+        },
+        {
+          "name": "schema_migrations_version_not_null",
+          "kind": "n",
+          "definition": "NOT NULL version"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "schema_migrations_pkey",
+          "definition": "CREATE UNIQUE INDEX schema_migrations_pkey ON public.schema_migrations USING btree (version)"
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "purpose": "Account identity, display name, credentials and authorization role.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "email",
+          "type": "citext",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Case-insensitive unique account login email."
+        },
+        {
+          "name": "display_name",
+          "type": "character varying(120)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "User-editable name shown across the application."
+        },
+        {
+          "name": "password_hash",
+          "type": "text",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Argon2id password digest; plaintext is never stored."
+        },
+        {
+          "name": "role",
+          "type": "user_role",
+          "nullable": false,
+          "identity": "",
+          "default": "'user'::user_role",
+          "purpose": "Account authorization role: user or admin."
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "nullable": false,
+          "identity": "",
+          "default": "true",
+          "purpose": "Whether the account may authenticate and access resources."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Timestamp of the latest mutable state change."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "users_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "users_display_name_not_blank",
+          "kind": "c",
+          "definition": "CHECK (((length(TRIM(BOTH FROM display_name)) >= 1) AND (length(TRIM(BOTH FROM display_name)) <= 120)))"
+        },
+        {
+          "name": "users_display_name_not_null",
+          "kind": "n",
+          "definition": "NOT NULL display_name"
+        },
+        {
+          "name": "users_email_not_blank",
+          "kind": "c",
+          "definition": "CHECK (((length(TRIM(BOTH FROM (email)::text)) >= 3) AND (length(TRIM(BOTH FROM (email)::text)) <= 320)))"
+        },
+        {
+          "name": "users_email_not_null",
+          "kind": "n",
+          "definition": "NOT NULL email"
+        },
+        {
+          "name": "users_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "users_is_active_not_null",
+          "kind": "n",
+          "definition": "NOT NULL is_active"
+        },
+        {
+          "name": "users_password_hash_not_null",
+          "kind": "n",
+          "definition": "NOT NULL password_hash"
+        },
+        {
+          "name": "users_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "users_role_not_null",
+          "kind": "n",
+          "definition": "NOT NULL role"
+        },
+        {
+          "name": "users_updated_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL updated_at"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_users_admin_list",
+          "definition": "CREATE INDEX ix_users_admin_list ON public.users USING btree (role, is_active, created_at DESC, id DESC)"
+        },
+        {
+          "name": "ix_users_role_active",
+          "definition": "CREATE INDEX ix_users_role_active ON public.users USING btree (role, is_active)"
+        },
+        {
+          "name": "uq_users_email",
+          "definition": "CREATE UNIQUE INDEX uq_users_email ON public.users USING btree (email)"
+        },
+        {
+          "name": "users_pkey",
+          "definition": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)"
+        }
+      ]
+    }
+  ],
+  "views": [
+    {
+      "name": "deployment_history",
+      "kind": "v",
+      "definition": " SELECT deployment.id,\n    deployment.prompt_id,\n    prompt.project_id,\n    deployment.version_id,\n    version.version_number,\n    deployment.environment,\n    deployment.status,\n    deployment.request_note,\n    deployment.review_note,\n    deployment.rollback_reason,\n    deployment.rollback_of_id,\n    deployment.requested_by,\n    deployment.reviewed_by,\n    deployment.requested_at,\n    deployment.reviewed_at,\n    deployment.activated_at\n   FROM deployments deployment\n     JOIN prompts prompt ON prompt.id = deployment.prompt_id\n     JOIN prompt_versions version ON version.id = deployment.version_id;"
+    },
+    {
+      "name": "monthly_costs",
+      "kind": "v",
+      "definition": " SELECT date_trunc('month'::text, created_at) AS month,\n    user_id,\n    project_id,\n    provider,\n    model,\n    count(*) FILTER (WHERE status = 'completed'::run_status) AS completed_runs,\n    count(*) FILTER (WHERE status = 'failed'::run_status) AS failed_runs,\n    count(*) FILTER (WHERE status = 'blocked'::run_status) AS blocked_runs,\n    COALESCE(sum(cost) FILTER (WHERE status = 'completed'::run_status), 0::numeric)::numeric(18,6) AS cost\n   FROM runs\n  GROUP BY (date_trunc('month'::text, created_at)), user_id, project_id, provider, model;"
+    },
+    {
+      "name": "organization_monthly_metrics",
+      "kind": "m",
+      "definition": " SELECT date_trunc('month'::text, created_at) AS month,\n    count(*) AS run_count,\n    count(*) FILTER (WHERE status = 'completed'::run_status) AS completed_runs,\n    count(*) FILTER (WHERE status = 'failed'::run_status) AS failed_runs,\n    count(*) FILTER (WHERE status = 'blocked'::run_status) AS blocked_runs,\n    COALESCE(sum(cost) FILTER (WHERE status = 'completed'::run_status), 0::numeric)::numeric(18,6) AS total_cost,\n    max(created_at) AS refreshed_through\n   FROM runs\n  GROUP BY (date_trunc('month'::text, created_at));"
+    },
+    {
+      "name": "prompt_version_lineage",
+      "kind": "v",
+      "definition": " WITH RECURSIVE lineage AS (\n         SELECT version.id AS descendant_version_id,\n            version.id AS version_id,\n            version.parent_version_id,\n            0 AS depth,\n            ARRAY[version.id] AS path,\n            false AS cycle_detected\n           FROM prompt_versions version\n        UNION ALL\n         SELECT lineage_1.descendant_version_id,\n            parent.id,\n            parent.parent_version_id,\n            lineage_1.depth + 1,\n            lineage_1.path || parent.id,\n            parent.id = ANY (lineage_1.path)\n           FROM lineage lineage_1\n             JOIN prompt_versions parent ON parent.id = lineage_1.parent_version_id\n          WHERE NOT lineage_1.cycle_detected AND lineage_1.depth < 1000\n        )\n SELECT descendant_version_id,\n    version_id,\n    parent_version_id,\n    depth,\n    cycle_detected\n   FROM lineage;"
+    },
+    {
+      "name": "user_monthly_metrics",
+      "kind": "m",
+      "definition": " SELECT date_trunc('month'::text, created_at) AS month,\n    user_id,\n    count(*) AS run_count,\n    count(*) FILTER (WHERE status = 'completed'::run_status) AS completed_runs,\n    count(*) FILTER (WHERE status = 'failed'::run_status) AS failed_runs,\n    count(*) FILTER (WHERE status = 'blocked'::run_status) AS blocked_runs,\n    COALESCE(sum(cost) FILTER (WHERE status = 'completed'::run_status), 0::numeric)::numeric(18,6) AS total_cost,\n    max(created_at) AS refreshed_through\n   FROM runs\n  GROUP BY (date_trunc('month'::text, created_at)), user_id;"
+    }
+  ],
+  "triggers": [
+    {
+      "name": "api_tokens_audit",
+      "definition": "CREATE TRIGGER api_tokens_audit AFTER INSERT OR UPDATE ON public.api_tokens FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
+      "name": "audit_events_are_append_only",
+      "definition": "CREATE TRIGGER audit_events_are_append_only BEFORE DELETE OR UPDATE ON public.audit_events FOR EACH ROW EXECUTE FUNCTION reject_immutable_row_change()"
+    },
+    {
+      "name": "budgets_audit",
+      "definition": "CREATE TRIGGER budgets_audit AFTER INSERT OR DELETE OR UPDATE ON public.budgets FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
+      "name": "budgets_set_updated_at",
+      "definition": "CREATE TRIGGER budgets_set_updated_at BEFORE UPDATE ON public.budgets FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+    },
+    {
+      "name": "deployments_audit",
+      "definition": "CREATE TRIGGER deployments_audit AFTER INSERT OR UPDATE ON public.deployments FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
+      "name": "model_pricing_audit",
+      "definition": "CREATE TRIGGER model_pricing_audit AFTER INSERT ON public.model_pricing FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
+      "name": "project_members_audit",
+      "definition": "CREATE TRIGGER project_members_audit AFTER INSERT OR DELETE ON public.project_members FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
+      "name": "project_members_preserve_owner",
+      "definition": "CREATE TRIGGER project_members_preserve_owner BEFORE DELETE ON public.project_members FOR EACH ROW EXECUTE FUNCTION prevent_project_owner_removal()"
+    },
+    {
+      "name": "projects_add_owner_membership",
+      "definition": "CREATE TRIGGER projects_add_owner_membership AFTER INSERT ON public.projects FOR EACH ROW EXECUTE FUNCTION add_project_owner_membership()"
+    },
+    {
+      "name": "projects_audit",
+      "definition": "CREATE TRIGGER projects_audit AFTER INSERT OR DELETE OR UPDATE ON public.projects FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
+      "name": "projects_set_updated_at",
+      "definition": "CREATE TRIGGER projects_set_updated_at BEFORE UPDATE ON public.projects FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+    },
+    {
+      "name": "prompt_versions_are_immutable",
+      "definition": "CREATE TRIGGER prompt_versions_are_immutable BEFORE DELETE OR UPDATE ON public.prompt_versions FOR EACH ROW EXECUTE FUNCTION reject_immutable_row_change()"
+    },
+    {
+      "name": "prompt_versions_audit",
+      "definition": "CREATE TRIGGER prompt_versions_audit AFTER INSERT ON public.prompt_versions FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
+      "name": "prompts_audit",
+      "definition": "CREATE TRIGGER prompts_audit AFTER INSERT OR DELETE OR UPDATE ON public.prompts FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
+      "name": "prompts_set_updated_at",
+      "definition": "CREATE TRIGGER prompts_set_updated_at BEFORE UPDATE ON public.prompts FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+    },
+    {
+      "name": "provider_keys_audit",
+      "definition": "CREATE TRIGGER provider_keys_audit AFTER INSERT OR UPDATE ON public.provider_keys FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
+      "name": "runs_are_append_only",
+      "definition": "CREATE TRIGGER runs_are_append_only BEFORE DELETE OR UPDATE ON public.runs FOR EACH ROW EXECUTE FUNCTION reject_immutable_row_change()"
+    },
+    {
+      "name": "users_audit",
+      "definition": "CREATE TRIGGER users_audit AFTER INSERT OR DELETE OR UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
+      "name": "users_password_history",
+      "definition": "CREATE TRIGGER users_password_history AFTER INSERT OR UPDATE OF password_hash ON public.users FOR EACH ROW EXECUTE FUNCTION record_password_history()"
+    },
+    {
+      "name": "users_preserve_last_active_admin",
+      "definition": "CREATE TRIGGER users_preserve_last_active_admin BEFORE DELETE OR UPDATE OF role, is_active ON public.users FOR EACH ROW EXECUTE FUNCTION preserve_last_active_admin()"
+    },
+    {
+      "name": "users_set_updated_at",
+      "definition": "CREATE TRIGGER users_set_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+    }
+  ],
+  "procedure": [
+    {
+      "definition": "CREATE OR REPLACE PROCEDURE public.perform_system_maintenance(IN p_stale_reservation_age interval DEFAULT '00:10:00'::interval, IN p_security_retention interval DEFAULT '30 days'::interval, IN p_idempotency_retention interval DEFAULT '30 days'::interval)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public'\nAS $procedure$\nBEGIN\n    IF p_stale_reservation_age <= INTERVAL '0 seconds'\n       OR p_security_retention <= INTERVAL '0 seconds'\n       OR p_idempotency_retention <= INTERVAL '0 seconds' THEN\n        RAISE EXCEPTION 'maintenance intervals must be positive' USING ERRCODE = '22023';\n    END IF;\n\n    PERFORM pg_advisory_xact_lock(hashtext('promptvault_system_maintenance'));\n\n    -- A process can disappear after sending a paid request but before recording\n    -- the response. Preserve the reserved amount and require operator review.\n    UPDATE run_reservations\n    SET status = 'uncertain',\n        error_code = 'execution_interrupted',\n        updated_at = CURRENT_TIMESTAMP\n    WHERE status = 'reserved'\n      AND created_at < CURRENT_TIMESTAMP - p_stale_reservation_age;\n\n    DELETE FROM auth_sessions\n    WHERE expires_at < CURRENT_TIMESTAMP - p_security_retention\n       OR revoked_at < CURRENT_TIMESTAMP - p_security_retention;\n\n    DELETE FROM password_reset_tokens\n    WHERE (used_at IS NOT NULL AND used_at < CURRENT_TIMESTAMP - p_security_retention)\n       OR expires_at < CURRENT_TIMESTAMP - p_security_retention;\n\n    DELETE FROM run_reservations\n    WHERE status IN ('completed', 'failed', 'blocked')\n      AND updated_at < CURRENT_TIMESTAMP - p_idempotency_retention;\n\n    PERFORM create_run_partition(\n        (date_trunc('month', CURRENT_DATE) + INTERVAL '1 month')::date\n    );\n\n    REFRESH MATERIALIZED VIEW organization_monthly_metrics;\n    REFRESH MATERIALIZED VIEW user_monthly_metrics;\nEND;\n$procedure$\n"
+    }
+  ],
+  "joins": [
+    {
+      "project": "approval-race-26500b6621b34f7f993def33647c78d3",
+      "prompt": "approval-race",
+      "version_number": 1
+    },
+    {
+      "project": "budget-fixture-mv5guvy0",
+      "prompt": "budget-fixture",
+      "version_number": 1
+    },
+    {
+      "project": "budget-fixture-mv5gv9pi",
+      "prompt": "budget-fixture",
+      "version_number": 1
+    },
+    {
+      "project": "checkout-assistant",
+      "prompt": "support-reply",
+      "version_number": 1
+    },
+    {
+      "project": "live-workspace-mv5gv69w",
+      "prompt": "live-reply-mv5gv69w",
+      "version_number": 1
+    },
+    {
+      "project": "live-workspace-mv5gv69w",
+      "prompt": "live-reply-mv5gv69w",
+      "version_number": 2
+    },
+    {
+      "project": "live-workspace-mv5gv69w",
+      "prompt": "live-reply-mv5gv69w",
+      "version_number": 3
+    },
+    {
+      "project": "live-workspace-mv5gvk6h",
+      "prompt": "live-reply-mv5gvk6h",
+      "version_number": 1
+    },
+    {
+      "project": "live-workspace-mv5gvk6h",
+      "prompt": "live-reply-mv5gvk6h",
+      "version_number": 2
+    },
+    {
+      "project": "live-workspace-mv5gvk6h",
+      "prompt": "live-reply-mv5gvk6h",
+      "version_number": 3
+    },
+    {
+      "project": "release-project-mv5gv169",
+      "prompt": "release-reply-mv5gv169",
+      "version_number": 1
+    },
+    {
+      "project": "release-project-mv5gv169",
+      "prompt": "release-reply-mv5gv169",
+      "version_number": 2
+    },
+    {
+      "project": "release-project-mv5gv169",
+      "prompt": "release-reply-mv5gv169",
+      "version_number": 3
+    },
+    {
+      "project": "release-project-mv5gvf55",
+      "prompt": "release-reply-mv5gvf55",
+      "version_number": 1
+    },
+    {
+      "project": "release-project-mv5gvf55",
+      "prompt": "release-reply-mv5gvf55",
+      "version_number": 2
+    },
+    {
+      "project": "release-project-mv5gvf55",
+      "prompt": "release-reply-mv5gvf55",
+      "version_number": 3
+    },
+    {
+      "project": "version-race-308bd12067364e42b3302a080c147d29",
+      "prompt": "race-prompt",
+      "version_number": 1
+    },
+    {
+      "project": "version-race-308bd12067364e42b3302a080c147d29",
+      "prompt": "race-prompt",
+      "version_number": 2
+    },
+    {
+      "project": "version-race-308bd12067364e42b3302a080c147d29",
+      "prompt": "race-prompt",
+      "version_number": 3
+    },
+    {
+      "project": "version-race-308bd12067364e42b3302a080c147d29",
+      "prompt": "race-prompt",
+      "version_number": 4
+    },
+    {
+      "project": "version-race-308bd12067364e42b3302a080c147d29",
+      "prompt": "race-prompt",
+      "version_number": 5
+    }
+  ],
+  "aggregates": [
+    {
+      "status": "completed",
+      "runs": 7,
+      "cost": "0.000066"
+    },
+    {
+      "status": "blocked",
+      "runs": 2,
+      "cost": "0.000000"
+    }
+  ],
+  "view_samples": [
+    {
+      "provider": "mock",
+      "model": "deterministic-v1",
+      "completed_runs": 1,
+      "cost": "0.000000"
+    },
+    {
+      "provider": "mock",
+      "model": "deterministic-v1",
+      "completed_runs": 1,
+      "cost": "0.000033"
+    },
+    {
+      "provider": "mock",
+      "model": "deterministic-v1",
+      "completed_runs": 4,
+      "cost": "0.000000"
+    },
+    {
+      "provider": "mock",
+      "model": "deterministic-v1",
+      "completed_runs": 1,
+      "cost": "0.000033"
+    },
+    {
+      "provider": "mock",
+      "model": "deterministic-v1",
+      "completed_runs": 0,
+      "cost": "0.000000"
+    }
+  ],
+  "query_plan": {
+    "QUERY PLAN": [
+      {
+        "Plan": {
+          "Node Type": "Limit",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Startup Cost": 0.67,
+          "Total Cost": 8.69,
+          "Plan Rows": 1,
+          "Plan Width": 20,
+          "Actual Startup Time": 0.005,
+          "Actual Total Time": 0.005,
+          "Actual Rows": 3.0,
+          "Actual Loops": 1,
+          "Disabled": false,
+          "Shared Hit Blocks": 4,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0,
+          "Plans": [
+            {
+              "Node Type": "Limit",
+              "Parent Relationship": "InitPlan",
+              "Subplan Name": "InitPlan 1",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 0.14,
+              "Total Cost": 0.53,
+              "Plan Rows": 1,
+              "Plan Width": 16,
+              "Actual Startup Time": 0.001,
+              "Actual Total Time": 0.001,
+              "Actual Rows": 1.0,
+              "Actual Loops": 1,
+              "Disabled": false,
+              "Shared Hit Blocks": 2,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "Plans": [
+                {
+                  "Node Type": "Index Only Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Scan Direction": "Forward",
+                  "Index Name": "uq_prompts_id_project",
+                  "Relation Name": "prompts",
+                  "Alias": "prompts",
+                  "Startup Cost": 0.14,
+                  "Total Cost": 50.09,
+                  "Plan Rows": 130,
+                  "Plan Width": 16,
+                  "Actual Startup Time": 0.001,
+                  "Actual Total Time": 0.001,
+                  "Actual Rows": 1.0,
+                  "Actual Loops": 1,
+                  "Disabled": false,
+                  "Heap Fetches": 1,
+                  "Index Searches": 1,
+                  "Shared Hit Blocks": 2,
+                  "Shared Read Blocks": 0,
+                  "Shared Dirtied Blocks": 0,
+                  "Shared Written Blocks": 0,
+                  "Local Hit Blocks": 0,
+                  "Local Read Blocks": 0,
+                  "Local Dirtied Blocks": 0,
+                  "Local Written Blocks": 0,
+                  "Temp Read Blocks": 0,
+                  "Temp Written Blocks": 0
+                }
+              ]
+            },
+            {
+              "Node Type": "Index Only Scan",
+              "Parent Relationship": "Outer",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Scan Direction": "Forward",
+              "Index Name": "ix_prompt_versions_history",
+              "Relation Name": "prompt_versions",
+              "Alias": "prompt_versions",
+              "Startup Cost": 0.14,
+              "Total Cost": 8.16,
+              "Plan Rows": 1,
+              "Plan Width": 20,
+              "Actual Startup Time": 0.005,
+              "Actual Total Time": 0.005,
+              "Actual Rows": 3.0,
+              "Actual Loops": 1,
+              "Disabled": false,
+              "Index Cond": "(prompt_id = (InitPlan 1).col1)",
+              "Rows Removed by Index Recheck": 0,
+              "Heap Fetches": 3,
+              "Index Searches": 1,
+              "Shared Hit Blocks": 4,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0
+            }
+          ]
+        },
+        "Planning": {
+          "Shared Hit Blocks": 5,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "Planning Time": 0.03,
+        "Triggers": [],
+        "Execution Time": 0.009
+      }
+    ]
+  },
+  "demonstrations": {
+    "crud": "insert/read/update/delete passed",
+    "owner_membership_trigger": 1,
+    "rollback": "savepoint restored prior value",
+    "invalid_foreign_key": "23503 rejected",
+    "cascade_delete": "membership removed",
+    "audit_trigger": [
+      {
+        "action": "delete",
+        "events": 1
+      },
+      {
+        "action": "insert",
+        "events": 1
+      },
+      {
+        "action": "update",
+        "events": 1
+      }
+    ],
+    "procedure_call": "perform_system_maintenance succeeded",
+    "cleanup": "all demonstration writes rolled back"
+  },
+  "execution_fixture": "rollback-only synthetic mock row; no provider call",
+  "source_sha256": {
+    "scripts/collect-academic-evidence.py": "aede1df6a9e30fcf59185e737ccdceae6a6bfc38b9b4ff80c349c5ea28a42c7b",
+    "docs/erd.md": "10408e8f77cee28f39168509662b51eac5ff7b014e960cd5b468e5884229a923",
+    "docs/normalization.md": "dbfe456ae94923574e950890c462145c43c2be5ab75d173b3ca8fa7ae1dc2d85",
+    "db/migrations/001_extensions_enums.sql": "12d3e8e701813d581ad6d253aca74411affb0684630a9d5b1b079dc38b128251",
+    "db/migrations/002_tables.sql": "c53b345ca785711c0694c2656cbf81c64362e02f6d9ae7992bb8c28f47a5d73c",
+    "db/migrations/003_constraints_indexes.sql": "d3605390661c35bcaf711b55e3f5cf63501fdcddd22cc6e0837aa6cdbd1c1fc1",
+    "db/migrations/004_partitions.sql": "855a0ec506a58e1634fb3ffd7cc32e10f31cab525dab54fdeb5b5d6abf11dc29",
+    "db/migrations/005_triggers.sql": "d25d500ff878a57910c352d3997216ecd467bc748e4ec03f63d489dea44cef03",
+    "db/migrations/006_functions_procedures.sql": "550ce8f1b34be51ebd27a0acb913fb258531903902eca2fc155f6ef8d75653ff",
+    "db/migrations/007_views.sql": "3b1afa39926c7445d33148da3b9f1e38c0d4c6305157d83be78365a1690040c3",
+    "db/migrations/008_materialized_views.sql": "53fc8188fafaa5d9640a79dffa63cc9f0bec1c915adfe2b8c67f8cf400e95828",
+    "db/migrations/009_roles_grants.sql": "dccd5f41e3c7c607ed8bb14daea592104210931ccffd604743376c8e3cc37a49",
+    "db/migrations/010_seed.sql": "1dc8f5da665fe8e232df722df2b36c218abae8377e5df58ec8eced2ca3f5e02f",
+    "db/migrations/011_run_budget_boundary.sql": "0cb4234c8298df737e3bd6a6500348ab1f7d36c6e52c1e11ac888429081ef856",
+    "db/migrations/012_deployment_boundaries.sql": "749e4c0d6eff87a159dfe87555aca04c966fb9cd976aff7ffad85f2760b4a398",
+    "db/migrations/013_governance_boundaries.sql": "ef35991b2a40550d2e0b6d682a0443ebeb1aff4f7c8ec9a5e1883d90f6c9b3b2",
+    "db/migrations/014_stabilization_constraints_indexes.sql": "fb3975e9f197b1f297d57d9ddbde3acb5cf056e0af40a05506fa0f7070166fad",
+    "db/migrations/015_password_reset_tokens.sql": "56a0ddcb11eff458209bdac9dcb92abd1d5215cc17d0ab725069002b43cf201b",
+    "db/migrations/016_password_reset_boundary.sql": "af8f402b305515f214495b6439dfffdbfe6264e69ad2a6eeca5eb998d4e3361b",
+    "db/migrations/017_allow_admin_self_transition.sql": "45e831b91e3de05f77867840a980c796080356e11411ee0d183a9907b818ee9e",
+    "db/migrations/018_password_history.sql": "06236bd5bb67be9b7f987af3f57867baf3aa9bcf378ac40cbf5be69e302c7af2",
+    "db/migrations/019_execution_reservations.sql": "c2b4a29511e7c60fcdb9cd714d3b0c021ee4279d78cb084754c7a86f8ebc57f6",
+    "db/migrations/020_auth_sessions.sql": "a63f01dd2d6f187bb7b6b484b77abe153b85dae722aa1d547206616bf4449475",
+    "db/migrations/021_system_maintenance.sql": "42fea185279cb30b378ea61d5ca7a983ce80f0dc979eff6068601dc4f0efdecf",
+    "db/migrations/022_account_lifecycle.sql": "507dd5252264ce53a3d0b4793fe2b8f5993e1bdf6b76fa5dd378a0e5cba95f0a",
+    "db/migrations/023_self_profile.sql": "4f11d55d22ae0fd6e18eb1b215c85aa91854b8247fde353f8f57f4f2c12252b5"
+  },
+  "dictionary_sha256": "0396a56925243788b4c1fc3524122447cd1098bb95bc6b971589cfa2af8c4134"
+}

@@ -8,6 +8,8 @@ from pathlib import Path
 from string import Template
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+import certifi
+
 from api.app.config import Settings
 
 _RESET_TEMPLATE = Template(
@@ -18,6 +20,14 @@ _LOGO_PNG = (Path(__file__).parent / "templates" / "assets" / "promptvault-logo.
 
 class EmailDeliveryError(RuntimeError):
     """Raised when a configured SMTP server cannot deliver a message."""
+
+
+def _smtp_tls_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    # Some local Python installations have an empty system trust store. Add the
+    # same maintained public CA bundle used by HTTPX without removing custom CAs.
+    context.load_verify_locations(cafile=certifi.where())
+    return context
 
 
 def _reset_url(settings: Settings, token: str) -> str:
@@ -68,7 +78,7 @@ def send_password_reset_email(settings: Settings, recipient: str, token: str) ->
                 settings.smtp_host,
                 settings.smtp_port,
                 timeout=settings.smtp_timeout_seconds,
-                context=ssl.create_default_context(),
+                context=_smtp_tls_context(),
             )
         else:
             client = smtplib.SMTP(
@@ -79,7 +89,7 @@ def send_password_reset_email(settings: Settings, recipient: str, token: str) ->
         with client:
             client.ehlo()
             if settings.smtp_starttls:
-                client.starttls(context=ssl.create_default_context())
+                client.starttls(context=_smtp_tls_context())
                 client.ehlo()
             if settings.smtp_username and settings.smtp_password:
                 client.login(settings.smtp_username, settings.smtp_password.get_secret_value())

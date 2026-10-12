@@ -198,3 +198,38 @@ def test_production_requires_distributed_rate_limit_store() -> None:
 
     with pytest.raises(ValidationError, match="RATE_LIMIT_REDIS_URL"):
         Settings(**values)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://api.deepseek.com/v1",
+        "https://other-provider.example/v1",
+        "https://generativelanguage.googleapis.com:8443/v1beta",
+    ],
+)
+def test_production_cannot_redirect_gemini_to_another_provider(url: str) -> None:
+    with pytest.raises(ValueError, match="official Gemini host"):
+        Settings(
+            environment="production",
+            database_url="postgresql://app:password@db/promptvault",
+            database_role="promptvault_app",
+            secret_key="production-test-secret-at-least-32-characters",
+            provider_encryption_key="independent-provider-key-at-least-32-characters",
+            cors_origins="https://app.example.com",
+            rate_limit_redis_url="redis://redis:6379/0",
+            gemini_api_base_url=url,
+            _env_file=None,
+        )
+
+
+@pytest.mark.parametrize("environment", ["development", "test"])
+def test_local_project_cannot_replace_gemini_with_another_provider(environment: str) -> None:
+    with pytest.raises(ValueError, match="official Gemini host"):
+        Settings(
+            **{
+                **BASE,
+                "environment": environment,
+                "gemini_api_base_url": "https://api.deepseek.com/v1",
+            }
+        )

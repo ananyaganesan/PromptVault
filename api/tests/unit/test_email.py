@@ -1,4 +1,5 @@
 import smtplib
+import ssl
 
 import pytest
 from api.app.config import Settings
@@ -8,11 +9,12 @@ from api.app.email import EmailDeliveryError, send_password_reset_email
 class FakeSMTP:
     instances: list["FakeSMTP"] = []
 
-    def __init__(self, host: str, port: int, timeout: float, **_: object) -> None:
+    def __init__(self, host: str, port: int, timeout: float, **kwargs: object) -> None:
         self.host = host
         self.port = port
         self.timeout = timeout
         self.started_tls = False
+        self.tls_context = kwargs.get('context')
         self.login_values: tuple[str, str] | None = None
         self.messages = []
         self.__class__.instances.append(self)
@@ -26,8 +28,9 @@ class FakeSMTP:
     def ehlo(self) -> None:
         return None
 
-    def starttls(self, **_: object) -> None:
+    def starttls(self, **kwargs: object) -> None:
         self.started_tls = True
+        self.tls_context = kwargs.get('context')
 
     def login(self, username: str, password: str) -> None:
         self.login_values = (username, password)
@@ -148,3 +151,24 @@ def test_password_reset_email_hides_authentication_failure(
     )
     with pytest.raises(EmailDeliveryError, match="^SMTP delivery failed$"):
         send_password_reset_email(settings, "alex@example.com", "reset-token")
+
+
+@pytest.mark.parametrize('implicit_tls', [False, True])
+def test_smtp_verifies_certificates_when_python_system_trust_store_is_empty(
+    monkeypatch: pytest.MonkeyPatch, implicit_tls: bool,
+) -> None:
+    FakeSMTP.instances.clear()
+    monkeypatch.setattr('api.app.email.smtplib.SMTP', FakeSMTP)
+    monkeypatch.setattr('api.app.email.smtplib.SMTP_SSL', FakeSMTP)
+    monkeypatch.setattr('api.app.email.ssl.create_default_context',
+                        lambda: ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
+    settings = Settings(
+        _env_file=None, database_url='postgresql://localhost/promptvault', secret_key='test-secret',
+        smtp_host='smtp.example.com', smtp_port=465 if implicit_tls else 587,
+        smtp_ssl=implicit_tls, smtp_starttls=not implicit_tls, smtp_from_email='sender@example.com',
+    )
+    send_password_reset_email(settings, 'alex@example.com', 'reset-token')
+    context = FakeSMTP.instances[0].tls_context
+    assert context.cert_store_stats()['x509_ca'] > 0
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True

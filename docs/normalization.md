@@ -32,7 +32,7 @@ Audit before/after documents are JSONB snapshots. The database trigger removes `
 | `runs` | `(id,created_at) → immutable execution snapshot` | 3NF; provider/model/cost are intentional historical facts, not current pricing derivations |
 | `audit_events` | `id → actor,action,entity,snapshots,time` | 3NF append-only event relation |
 | `password_reset_tokens`, `auth_sessions` | token/session ID determines one user's lifecycle metadata | BCNF |
-| `password_history` | `(user_id,password_hash) → created_at` | BCNF |
+| `password_history` | `id → user_id,password_hash,created_at`; `(user_id,password_hash) → id,created_at` | BCNF; UUID primary key and unique user/hash alternate key |
 | `run_reservations` | `id → request/target/cost/state`; `(user_id,idempotency_key) → same` | BCNF; actual cost/run reference appear only after reconciliation |
 | `schema_migrations` | `version → name,checksum,applied_at` | BCNF tracking relation |
 

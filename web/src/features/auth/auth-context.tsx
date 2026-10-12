@@ -28,6 +28,7 @@ type AuthValue = {
   restoring: boolean
   login: (request: LoginRequest) => Promise<UserSummary>
   register: (request: RegisterRequest) => Promise<UserSummary>
+  updateProfile: (displayName: string) => Promise<UserSummary>
   logout: () => void
 }
 const AuthContext = createContext<AuthValue | null>(null)
@@ -89,6 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(account)
       setRestoring(false)
       return account
+    },
+    async updateProfile(displayName) {
+      const token = currentToken.current
+      if (!token) throw new Error('Sign in before updating your profile.')
+      const updated = frontendUser(await authApi.updateProfile(displayName))
+      if (currentToken.current !== token) throw new Error('Your session changed. Sign in again.')
+      setUser(updated)
+      return updated
     },
     logout() {
       void authApi.logout().catch(() => undefined)

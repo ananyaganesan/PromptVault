@@ -3,7 +3,7 @@
 from typing import Annotated
 
 from api.app.db.pool import PoolProtocol, get_pool
-from api.app.db.transactions import DatabaseConnection, get_connection
+from api.app.db.transactions import DatabaseConnection, get_connection, get_snapshot_connection
 from api.app.dependencies.request_context import get_request_id
 from api.app.repositories.budgets import BudgetRepository
 from api.app.repositories.runs import RunRepository
@@ -23,6 +23,7 @@ def get_run_execution_service(
         request.app.state.settings.resolved_provider_encryption_key,
         request.app.state.settings.gemini_api_base_url,
         request.app.state.settings.max_concurrent_runs_per_user,
+        allow_mock=request.app.state.settings.environment in {"development", "test"},
     )
 
 
@@ -33,7 +34,7 @@ def get_run_query_service(
 
 
 def get_analytics_service(
-    connection: Annotated[DatabaseConnection, Depends(get_connection)],
+    connection: Annotated[DatabaseConnection, Depends(get_snapshot_connection)],
 ) -> AnalyticsService:
     return AnalyticsService(RunRepository(connection), BudgetRepository(connection))
 

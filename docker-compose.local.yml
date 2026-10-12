@@ -1,0 +1,16 @@
+# Local app containers reuse the PostgreSQL installation visible in pgAdmin.
+# Start with: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+# The db container is opt-in here; its volume is never removed by this override.
+services:
+  db:
+    profiles: [isolated-database]
+
+  migrate:
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-promptvault}:${POSTGRES_PASSWORD:-promptvault}@host.docker.internal:5432/${POSTGRES_DB:-promptvault}
+    depends_on: !reset {}
+    command: [python, scripts/run-migrations.py]
+
+  api:
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-promptvault}:${POSTGRES_PASSWORD:-promptvault}@host.docker.internal:5432/${POSTGRES_DB:-promptvault}

@@ -8,7 +8,12 @@ from urllib.parse import quote
 
 import httpx
 from api.app.providers.base import ProviderRequest, ProviderResult
-from api.app.providers.errors import ProviderExecutionError, ProviderTimeoutError
+from api.app.providers.errors import (
+    ProviderCredentialError,
+    ProviderExecutionError,
+    ProviderQuotaError,
+    ProviderTimeoutError,
+)
 
 _DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
@@ -22,24 +27,24 @@ class GeminiProvider:
 
     async def execute(self, request: ProviderRequest) -> ProviderResult:
         started = monotonic()
-        url = (
-            f"{self._base_url}/models/{quote(request.model, safe='')}:generateContent"
-        )
+        url = f"{self._base_url}/models/{quote(request.model, safe='')}:generateContent"
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=None) as client:
                 response = await client.post(
                     url,
                     headers={"x-goog-api-key": self._api_key},
                     json={
-                        "contents": [
-                            {"role": "user", "parts": [{"text": request.prompt}]}
-                        ],
+                        "contents": [{"role": "user", "parts": [{"text": request.prompt}]}],
                         "generationConfig": {
                             "temperature": request.temperature,
                             "maxOutputTokens": request.max_output_tokens,
                         },
                     },
                 )
+                if response.status_code == 429:
+                    raise ProviderQuotaError("provider quota reached")
+                if response.status_code in {401, 403}:
+                    raise ProviderCredentialError("provider credentials were rejected")
                 response.raise_for_status()
         except httpx.TimeoutException as exc:
             raise ProviderTimeoutError("provider request timed out") from exc
@@ -54,11 +59,7 @@ class GeminiProvider:
             usage = payload["usageMetadata"]
             prompt_tokens = usage["promptTokenCount"]
             completion_tokens = usage["candidatesTokenCount"]
-            if (
-                not output
-                or not isinstance(prompt_tokens, int)
-                or not isinstance(completion_tokens, int)
-            ):
+            if not output or type(prompt_tokens) is not int or type(completion_tokens) is not int:
                 raise ValueError
         except (IndexError, KeyError, TypeError, ValueError) as exc:
             raise ProviderExecutionError("provider returned an invalid response") from exc

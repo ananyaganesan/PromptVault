@@ -7,3 +7,11 @@ class ProviderExecutionError(Exception):
 
 class ProviderTimeoutError(ProviderExecutionError):
     """A provider exceeded its bounded execution time."""
+
+
+class ProviderQuotaError(ProviderExecutionError):
+    """Provider free-tier quota or rate limit rejected a call."""
+
+
+class ProviderCredentialError(ProviderExecutionError):
+    """Provider rejected the configured credentials."""

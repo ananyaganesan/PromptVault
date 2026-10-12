@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from api.app.errors import AppError
+from api.app.providers.policy import require_allowed_provider
 from api.app.repositories.admin import AdminRepository
 from api.app.repositories.users import UserRecord
 from api.app.schemas.admin import (
@@ -68,9 +69,11 @@ class AdminGovernanceService:
         repository: AdminRepository,
         request_id: str,
         provider_encryption_key: str,
+        allow_mock: bool = False,
     ) -> None:
         self.repository = repository
         self.request_id = request_id
+        self.allow_mock = allow_mock
         self.provider_encryption_key = provider_encryption_key
 
     async def list_users(
@@ -264,6 +267,7 @@ class AdminGovernanceService:
     async def create_pricing(
         self, payload: ModelPricingCreate, actor: UserRecord
     ) -> ModelPricingResponse:
+        require_allowed_provider(payload.provider, allow_mock=self.allow_mock)
         await self.repository.set_audit_context(actor.id, self.request_id)
         try:
             return await self.repository.create_pricing(

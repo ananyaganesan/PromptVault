@@ -7,6 +7,12 @@ const api = process.env.E2E_API_BASE_URL ?? 'http://localhost:8000/api/v1'
 const model = { provider: 'mock', model: 'deterministic-v1', temperature: 0, max_output_tokens: 100 }
 const suffix = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 
+test.beforeAll(() => {
+  // This suite creates accounts and workflow records; require an isolated database.
+  const name = databaseRows('SELECT current_database() AS name')[0].name
+  expect(String(name), 'Freshness acceptance requires a database ending in _test').toMatch(/_test$/)
+})
+
 async function signIn(page: Page, role: 'user' | 'admin' = 'user') {
   await page.goto('/login')
   await page.getByLabel('Email address').fill(`${role}@promptvault.dev`)
@@ -24,6 +30,8 @@ async function fixture(request: APIRequestContext, jwt: string, key: string) {
   const projectResponse = await request.post(`${api}/projects`, { headers, data: { name: `Audit ${key}`, key: `audit-${key}` } })
   expect(projectResponse.status()).toBe(201)
   const project = await projectResponse.json()
+  // Detect accidentally pairing an API with a different SQL database immediately.
+  expect(databaseRows('SELECT id FROM projects WHERE id=%s', [project.id])).toHaveLength(1)
   const promptResponse = await request.post(`${api}/projects/${project.id}/prompts`, { headers, data: {
     name: `Reply ${key}`, key: `reply-${key}`, template_body: 'Answer {{message}}.', model_config: model, commit_message: 'Initial',
   } })
@@ -46,7 +54,13 @@ test('project/version mutations, cross-user refresh, lineage and revoked members
   await page.getByRole('button', { name: 'Save settings' }).click()
   await expect(page.getByRole('heading', { name: updatedName })).toBeVisible()
   expect(databaseRows('SELECT name, key, member_count FROM (SELECT p.*, (SELECT count(*) FROM project_members m WHERE m.project_id=p.id) member_count FROM projects p) q WHERE id=%s', [projectId])[0]).toMatchObject({ name: updatedName, key: `audit-${key}`, member_count: 1 })
-  await page.getByRole('link', { name: 'Projects', exact: true }).click()
+  const navigation = page.getByRole('button', { name: 'Open navigation', exact: true })
+  if (await navigation.isVisible()) {
+    await navigation.click()
+    await page.getByRole('navigation', { name: 'Mobile navigation' }).getByRole('link', { name: 'Projects', exact: true }).click()
+  } else {
+    await page.getByRole('link', { name: 'Projects', exact: true }).click()
+  }
   await page.getByRole('textbox', { name: 'Search projects' }).fill(key)
   await refresh(page)
   await expect(page.getByRole('textbox', { name: 'Search projects' })).toHaveValue(key)
@@ -82,11 +96,16 @@ test('project/version mutations, cross-user refresh, lineage and revoked members
     const versions = databaseRows('SELECT id, version_number, parent_version_id, template_body FROM prompt_versions WHERE prompt_id=%s ORDER BY version_number', [promptId])
     expect(versions.map((row) => row.version_number)).toEqual([1, 2])
     expect(versions[1].parent_version_id).toBe(versions[0].id)
+    await page.getByLabel('Prompt template').fill('My unsaved {{message}} draft')
+    await page.getByLabel('Commit message').fill('Unsaved explanation')
     expect((await request.post(`${api}/prompts/${promptId}/versions`, { headers: { Authorization: `Bearer ${memberSession.access_token}` }, data: {
       parent_version_id: versions[1].id, template_body: 'Answer {{message}} with next steps.', model_config: model, commit_message: 'Member adds next steps',
     } })).status()).toBe(201)
     await refresh(page)
     await expect(page.getByRole('link', { name: /v3 Current/ })).toBeVisible()
+    await expect(page.getByLabel('Prompt template')).toHaveValue('My unsaved {{message}} draft')
+    await expect(page.getByLabel('Commit message')).toHaveValue('Unsaved explanation')
+    await expect(page.getByRole('button', { name: 'Save new version' })).toBeDisabled()
     await page.getByRole('link', { name: /v3 Current/ }).click()
     await expect(page.getByLabel('Template snapshot')).toHaveValue('Answer {{message}} with next steps.')
     await page.getByRole('button', { name: 'Compare versions' }).click()
@@ -103,8 +122,114 @@ test('project/version mutations, cross-user refresh, lineage and revoked members
     expect((await request.delete(`${api}/projects/${projectId}/members/${memberSession.user.id}`, { headers: ownerHeaders })).status()).toBe(204)
     await refresh(member)
     await expect(member.getByText('Project not found', { exact: true })).toBeVisible()
-    expect((await request.get(`${api}/projects/${projectId}`, { headers: { Authorization: `Bearer ${memberSession.access_token}` } })).status()).toBe(404)
+    expect((await request.get(`${api}/projects/${projectId}`, { headers: { Authorization: `Bearer ${memberSession.access_token}` } })).status()).toBe(403)
     expect((await request.get(`${api}/versions/${latest.id}`, { headers: { Authorization: `Bearer ${memberSession.access_token}` } })).status()).toBe(404)
+  } finally { await context.close() }
+})
+
+async function reconcilePages(request: APIRequestContext, headers: Record<string, string>, path: string, sql: string, parameters: unknown[] = []) {
+  const expected = databaseRows(sql, parameters).map((row) => row.id).sort()
+  const ids: string[] = []
+  for (let number = 1; ; number += 1) {
+    const response = await request.get(`${api}${path}`, { headers, params: { page: number, page_size: 25 } })
+    expect(response.status()).toBe(200)
+    const data = await response.json()
+    expect(data.total).toBe(expected.length)
+    expect(data.page).toBe(number)
+    ids.push(...data.items.map((item: { id: string }) => item.id))
+    if (ids.length >= data.total) break
+    expect(data.items).toHaveLength(25)
+  }
+  expect(ids.sort()).toEqual(expected)
+  expect(new Set(ids).size).toBe(ids.length)
+}
+
+test('records beyond 100 reconcile across projects, versions, runs, approvals and active deployments', async ({ page, request, browser }) => {
+  test.setTimeout(240_000)
+  const jwt = await signIn(page)
+  const headers = { Authorization: `Bearer ${jwt}` }
+  const actor = await (await request.get(`${api}/auth/me`, { headers })).json()
+  const key = suffix()
+  let first: Awaited<ReturnType<typeof fixture>> | undefined
+  for (let index = 0; index < 101; index += 1) {
+    const item = await fixture(request, jwt, `${key}-${index}`)
+    first ??= item
+    for (const environment of ['dev', 'prod']) {
+      expect((await request.post(`${api}/deployments`, { headers, data: { version_id: item.prompt.latest_version.id, environment } })).status()).toBe(201)
+    }
+    expect((await request.post(`${api}/runs`, { headers, data: { version_id: item.prompt.latest_version.id, variables: { message: `Boundary ${index}` } } })).status()).toBe(201)
+  }
+  const { project, prompt } = first!
+  let parent = prompt.latest_version.id
+  for (let number = 2; number <= 101; number += 1) {
+    const response = await request.post(`${api}/prompts/${prompt.id}/versions`, { headers, data: {
+      parent_version_id: parent, template_body: `Version ${number}: {{message}}`, model_config: model, commit_message: `Boundary version ${number}`,
+    } })
+    expect(response.status()).toBe(201)
+    parent = (await response.json()).id
+  }
+  await reconcilePages(request, headers, '/projects', 'SELECT project_id AS id FROM project_members WHERE user_id=%s', [actor.id])
+  await reconcilePages(request, headers, `/prompts/${prompt.id}/versions`, 'SELECT id FROM prompt_versions WHERE prompt_id=%s', [prompt.id])
+  await reconcilePages(request, headers, '/runs?status=completed&model=deterministic-v1', "SELECT r.id FROM runs r WHERE r.status='completed' AND r.model='deterministic-v1' AND EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id=r.project_id AND pm.user_id=%s)", [actor.id])
+  await reconcilePages(request, headers, '/deployments?status=active&environment=dev', "SELECT d.id FROM deployments d JOIN prompts p ON p.id=d.prompt_id WHERE d.status='active' AND d.environment='dev' AND EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id=p.project_id AND pm.user_id=%s)", [actor.id])
+  await page.goto('/projects')
+  await refresh(page)
+  await page.getByRole('textbox', { name: 'Search projects' }).fill(`${key}-0`)
+  await expect(page.getByRole('heading', { name: project.name, exact: true })).toBeVisible()
+  await page.goto(`/prompts/${prompt.id}`)
+  await expect(page.getByRole('link', { name: /v101 Current/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^v1 / })).toBeVisible()
+  await page.goto(`/projects/${project.id}`)
+  await expect(page.getByText(/^Active: .*development/)).toBeVisible()
+  const adminContext = await browser.newContext({ baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173' })
+  try {
+    const admin = await adminContext.newPage()
+    const adminJwt = await signIn(admin, 'admin')
+    await reconcilePages(request, { Authorization: `Bearer ${adminJwt}` }, '/admin/deployments/pending', "SELECT id FROM deployments WHERE status='pending' AND environment='prod'")
+    await admin.goto('/admin/approvals')
+    await expect(admin.getByRole('link', { name: `${prompt.key} v1 → Production`, exact: true })).toBeVisible()
+    const count = databaseRows("SELECT count(*) AS count FROM deployments WHERE status='pending' AND environment='prod'")[0].count
+    await expect(admin.locator('tbody tr')).toHaveCount(Number(count))
+  } finally { await adminContext.close() }
+})
+
+test('an unrelated account sees no restricted records, counts or run output', async ({ page, request, browser }) => {
+  const jwt = await signIn(page)
+  const { project, prompt, headers } = await fixture(request, jwt, suffix())
+  const runResponse = await request.post(`${api}/runs`, { headers, data: { version_id: prompt.latest_version.id, variables: { message: 'Private output' } } })
+  expect(runResponse.status()).toBe(201)
+  const run = await runResponse.json()
+  const registration = await request.post(`${api}/auth/register`, { data: { display_name: 'Unrelated account', email: `unrelated-${suffix()}@example.com`, password: 'UnrelatedPassword2026!' } })
+  expect(registration.status()).toBe(201)
+  const session = await registration.json()
+  const unrelatedHeaders = { Authorization: `Bearer ${session.access_token}` }
+  for (const path of ['/projects', '/runs', '/deployments']) {
+    const response = await request.get(`${api}${path}`, { headers: unrelatedHeaders })
+    expect(response.status()).toBe(200)
+    expect(await response.json()).toMatchObject({ total: 0, items: [] })
+  }
+  for (const [path, status] of [
+    [`/projects/${project.id}`, 403], [`/projects/${project.id}/prompts`, 403],
+    [`/prompts/${prompt.id}/versions`, 404], [`/versions/${prompt.latest_version.id}`, 404],
+    [`/runs/${run.id}`, 404], ['/admin/deployments/pending', 403],
+  ] as const) {
+    const response = await request.get(`${api}${path}`, { headers: unrelatedHeaders })
+    expect(response.status()).toBe(status)
+    expect(await response.text()).not.toContain('Private output')
+  }
+  const dashboardResponse = await request.get(`${api}/dashboard/me`, { headers: unrelatedHeaders })
+  expect(dashboardResponse.status()).toBe(200)
+  expect(await dashboardResponse.json()).toMatchObject({ project_count: 0, prompt_count: 0, run_count: 0, pending_approval_count: 0, recent_runs: [] })
+  const context = await browser.newContext({ baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173' })
+  try {
+    const unrelated = await context.newPage()
+    await unrelated.goto('/login')
+    await unrelated.evaluate((token) => sessionStorage.setItem('promptvault.api.session', token), session.access_token)
+    await unrelated.goto('/dashboard')
+    await expect(unrelated.getByText('No personal runs yet')).toBeVisible()
+    await unrelated.goto(`/runs/${run.id}`)
+    await expect(unrelated.getByRole('heading', { name: 'Could not load this run' })).toBeVisible()
+    await expect(unrelated.getByText('Private output', { exact: true })).toHaveCount(0)
   } finally { await context.close() }
 })
 
@@ -144,6 +269,33 @@ test('mock runs, counts and timestamps reconcile; refresh and retry preserve pag
   await expect(page.getByLabel('Run model')).toHaveValue(model.model)
   await expect(page.locator('tbody tr')).toHaveCount(2)
 
+  let releaseOlder!: () => void
+  let olderArrived!: () => void
+  let olderFinished!: () => void
+  const held = new Promise<void>((resolve) => { releaseOlder = resolve })
+  const arrived = new Promise<void>((resolve) => { olderArrived = resolve })
+  const finished = new Promise<void>((resolve) => { olderFinished = resolve })
+  await page.route('**/api/v1/runs?**', async (route) => {
+    if (new URL(route.request().url()).searchParams.get('status') !== 'failed') return route.continue()
+    const response = await route.fetch()
+    olderArrived()
+    await held
+    await route.fulfill({ response })
+    olderFinished()
+  })
+  try {
+    await page.getByLabel('Run status').selectOption('failed')
+    await arrived
+    await page.getByLabel('Run status').selectOption('completed')
+    await expect(page.locator('.run-pagination')).toContainText('12 runs · page 1')
+    releaseOlder()
+    await finished
+    await expect(page.locator('.run-pagination')).toContainText('12 runs · page 1')
+    await expect(page.getByLabel('Run status')).toHaveValue('completed')
+  } finally { releaseOlder(); await page.unroute('**/api/v1/runs?**') }
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
+  await expect(page.locator('.run-pagination')).toContainText('12 runs · page 2')
+
   let failed = false
   await page.route('**/api/v1/runs?**', async (route) => {
     if (!failed) { failed = true; await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'unavailable', message: 'Temporary acceptance-test outage' }) }) }
@@ -158,7 +310,9 @@ test('mock runs, counts and timestamps reconcile; refresh and retry preserve pag
   await page.unroute('**/api/v1/runs?**')
   await page.goto('/dashboard')
   const actor = await (await request.get(`${api}/auth/me`, { headers })).json()
-  const total = databaseRows("SELECT count(*) count FROM runs WHERE user_id=%s AND created_at>=date_trunc('month',now()) AND created_at<date_trunc('month',now())+interval '1 month'", [actor.id])[0].count
+  const dashboard = await (await request.get(`${api}/dashboard/me`, { headers })).json()
+  const total = databaseRows("SELECT count(*) count FROM runs WHERE user_id=%s AND created_at >= (%s::date::timestamp AT TIME ZONE %s) AND created_at < ((%s::date + interval '1 month') AT TIME ZONE %s)", [actor.id, `${dashboard.month}-01`, dashboard.timezone, `${dashboard.month}-01`, dashboard.timezone])[0].count
+  expect(dashboard.run_count).toBe(total)
   await expect(page.locator('.stat').filter({ has: page.getByText('YOUR RUNS', { exact: true }) }).locator('strong')).toHaveText(String(total))
   const recent = databaseRows('SELECT id FROM runs WHERE user_id=%s ORDER BY created_at DESC,id DESC LIMIT 4', [actor.id])
   await expect(page.locator('.activity')).toHaveCount(4)

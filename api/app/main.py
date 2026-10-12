@@ -26,6 +26,7 @@ from api.app.routers.health import router as health_router
 from api.app.routers.metrics import router as metrics_router
 from api.app.routers.projects import router as projects_router
 from api.app.routers.prompts import router as prompts_router
+from api.app.routers.providers import router as providers_router
 from api.app.routers.runs import router as runs_router
 from api.app.routers.serve import router as serve_router
 from api.app.routers.tokens import router as tokens_router
@@ -102,6 +103,7 @@ def create_app(
     application.include_router(prompts_router)
     application.include_router(versions_router)
     application.include_router(runs_router)
+    application.include_router(providers_router)
     application.include_router(dashboard_router)
     application.include_router(deployments_router)
     application.include_router(admin_router)

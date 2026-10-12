@@ -159,11 +159,14 @@ def test_admin_users_dashboard_and_organization_runs(
     assert stale_admin_session.json()["code"] == "invalid_token"
     user_headers = login_user(admin_client, user["email"])
     assert admin_client.get("/api/v1/auth/me", headers=user_headers).json()["role"] == "user"
-    assert admin_client.patch(
-        f"/api/v1/admin/users/{user['id']}",
-        headers=admin_headers,
-        json={"role": "admin"},
-    ).status_code == 200
+    assert (
+        admin_client.patch(
+            f"/api/v1/admin/users/{user['id']}",
+            headers=admin_headers,
+            json={"role": "admin"},
+        ).status_code
+        == 200
+    )
     deactivated = admin_client.patch(
         f"/api/v1/admin/users/{user['id']}",
         headers=admin_headers,
@@ -272,20 +275,21 @@ def test_concurrent_admin_cross_deactivation_returns_safe_loser_response(
 
     barrier = Barrier(2)
 
-    def deactivate(headers: dict[str, str], target_id: object) -> int:
+    def deactivate(headers: dict[str, str], target_id: object) -> tuple[int, str | None]:
         barrier.wait()
         try:
-            return admin_client.patch(
+            response = admin_client.patch(
                 f"/api/v1/admin/users/{target_id}",
                 headers=headers,
                 json={"is_active": False},
-            ).status_code
+            )
+            return response.status_code, response.json().get("code")
         except Exception:  # pragma: no cover - proves the pre-fix server exception
-            return 500
+            return 500, "internal_error"
 
     try:
         with ThreadPoolExecutor(max_workers=2) as executor:
-            statuses = list(
+            outcomes = list(
                 executor.map(
                     lambda arguments: deactivate(*arguments),
                     (
@@ -294,7 +298,15 @@ def test_concurrent_admin_cross_deactivation_returns_safe_loser_response(
                     ),
                 )
             )
-        assert sorted(statuses) == [200, 401]
+        assert sum(status == 200 for status, _ in outcomes) == 1
+        denial = next(outcome for outcome in outcomes if outcome[0] != 200)
+        # Revocation may win before authentication, between its reads, or after
+        # authentication but before the locked admin mutation. Every path denies.
+        assert denial in {
+            (401, "invalid_token"),
+            (403, "inactive_user"),
+            (403, "forbidden"),
+        }
         with psycopg.connect(seeded_database_url) as connection:
             active_count = connection.execute(
                 "SELECT count(*) FROM users WHERE role = 'admin' AND is_active"
@@ -347,9 +359,7 @@ def test_admin_provider_keys_budgets_and_effective_pricing(
         ).fetchone()[0]
     assert plaintext.encode() not in encrypted
     assert (
-        decrypt_provider_secret(
-            bytes(encrypted), "test-provider-encryption-key-at-least-32-chars"
-        )
+        decrypt_provider_secret(bytes(encrypted), "test-provider-encryption-key-at-least-32-chars")
         == plaintext
     )
 
@@ -373,9 +383,7 @@ def test_admin_provider_keys_budgets_and_effective_pricing(
         headers=admin_headers,
         params={"provider": provider},
     )
-    assert key_metadata["id"] in {
-        item["id"] for item in filtered_keys.json()["items"]
-    }
+    assert key_metadata["id"] in {item["id"] for item in filtered_keys.json()["items"]}
     revoked_key = admin_client.delete(
         f"/api/v1/admin/provider-keys/{key_metadata['id']}", headers=admin_headers
     )
@@ -422,9 +430,12 @@ def test_admin_provider_keys_budgets_and_effective_pricing(
     )
     assert updated_budget.status_code == 200
     assert Decimal(updated_budget.json()["monthly_limit"]) == Decimal("80")
-    assert admin_client.delete(
-        f"/api/v1/admin/budgets/{budget['id']}", headers=admin_headers
-    ).status_code == 204
+    assert (
+        admin_client.delete(
+            f"/api/v1/admin/budgets/{budget['id']}", headers=admin_headers
+        ).status_code
+        == 204
+    )
 
     model = f"governance-model-{uuid4().hex}"
     effective_from = datetime.now(UTC) + timedelta(days=1)
@@ -510,9 +521,7 @@ def test_admin_maintenance_reports_and_executes_idempotent_operations(
     admin_headers = login_admin(admin_client)
     assert admin_client.get("/api/v1/admin/maintenance", headers=user_headers).status_code == 403
 
-    status_response = admin_client.get(
-        "/api/v1/admin/maintenance", headers=admin_headers
-    )
+    status_response = admin_client.get("/api/v1/admin/maintenance", headers=admin_headers)
     assert status_response.status_code == 200
     status_body = status_response.json()
     assert {item["name"] for item in status_body["materialized_views"]} == {
@@ -526,9 +535,7 @@ def test_admin_maintenance_reports_and_executes_idempotent_operations(
     }
     assert "provider_secrets" not in status_response.text
 
-    refreshed = admin_client.post(
-        "/api/v1/admin/maintenance/refresh-views", headers=admin_headers
-    )
+    refreshed = admin_client.post("/api/v1/admin/maintenance/refresh-views", headers=admin_headers)
     assert refreshed.status_code == 202
     assert refreshed.json()["status"] == "completed"
     partition = admin_client.post(
@@ -540,9 +547,7 @@ def test_admin_maintenance_reports_and_executes_idempotent_operations(
     assert partition.status_code == repeated.status_code == 200
     assert partition.json()["partition_name"] == repeated.json()["partition_name"]
 
-    updated_status = admin_client.get(
-        "/api/v1/admin/maintenance", headers=admin_headers
-    ).json()
+    updated_status = admin_client.get("/api/v1/admin/maintenance", headers=admin_headers).json()
     assert all(
         item["status"] == "completed" and item["last_completed_at"] is not None
         for item in updated_status["maintenance_jobs"]

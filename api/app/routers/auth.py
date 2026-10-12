@@ -4,6 +4,7 @@ from typing import Annotated
 
 from api.app.db.transactions import DatabaseConnection, get_connection
 from api.app.dependencies.auth import CurrentUser, bearer_scheme
+from api.app.dependencies.query import allow_query_parameters
 from api.app.dependencies.request_context import get_request_id
 from api.app.errors import ErrorEnvelope
 from api.app.repositories.users import UserRepository
@@ -16,7 +17,7 @@ from api.app.schemas.auth import (
     RegisterRequest,
     SessionResponse,
 )
-from api.app.schemas.users import UserResponse
+from api.app.schemas.users import ProfileUpdate, UserResponse
 from api.app.security import decode_access_token
 from api.app.services.auth import AuthService
 from fastapi import APIRouter, Depends, Request, Response, status
@@ -135,3 +136,22 @@ async def confirm_password_reset(
 )
 async def me(current_user: CurrentUser) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+@router.patch(
+    "/me",
+    response_model=UserResponse,
+    responses={401: {"model": ErrorEnvelope}, 403: {"model": ErrorEnvelope}},
+    dependencies=[Depends(allow_query_parameters())],
+)
+async def update_profile(
+    payload: ProfileUpdate,
+    request: Request,
+    current_user: CurrentUser,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
+    service: Annotated[AuthService, Depends(get_auth_service)],
+) -> UserResponse:
+    claims = decode_access_token(credentials.credentials, request.app.state.settings)
+    return await service.update_profile(
+        payload, current_user, claims.token_id, get_request_id(request)
+    )

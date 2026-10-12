@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
+from api.app.repositories.pagination import read_page
 from api.app.schemas.deployments import (
     DeploymentEnvironment,
     DeploymentResponse,
@@ -192,16 +193,11 @@ class DeploymentRepository:
                 where.append(clause)
                 parameters.append(value)
         where_sql = " AND ".join(where)
-        count_cursor = await self.connection.execute(
-            f"""SELECT count(*) AS total FROM deployments d
+        rows, total = await read_page(
+            self.connection,
+            count_query=f"""SELECT count(*) AS total FROM deployments d
                 JOIN prompts p ON p.id = d.prompt_id WHERE {where_sql}""",
-            tuple(parameters),
-        )
-        total_row = await count_cursor.fetchone()
-        if total_row is None:
-            raise RuntimeError("deployment count returned no row")
-        cursor = await self.connection.execute(
-            f"""
+            items_query=f"""
             SELECT {_DEPLOYMENT_COLUMNS}
             FROM deployments d
             JOIN prompts p ON p.id = d.prompt_id
@@ -212,11 +208,12 @@ class DeploymentRepository:
             ORDER BY d.requested_at DESC, d.id DESC
             LIMIT %s OFFSET %s
             """,
-            (*parameters, page_size, (page - 1) * page_size),
+            parameters=parameters,
+            page=page,
+            page_size=page_size,
+            order_by='requested_at DESC, id DESC',
         )
-        return [_deployment_from_row(row) for row in await cursor.fetchall()], int(
-            total_row["total"]
-        )
+        return [_deployment_from_row(row) for row in rows], total
 
     async def timeline(
         self, prompt_id: UUID, environment: DeploymentEnvironment

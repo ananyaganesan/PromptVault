@@ -1,0 +1,50 @@
+{
+  "captured_at": "2026-10-11T08:42:54.911357+00:00",
+  "baseline_revision": "841a95924045e221bd7042af176f0000cfeccdee",
+  "source": "working tree with A2 acceptance additions; isolated local stack; fixtures accumulated across repeated runs",
+  "checks": {
+    "projects": {
+      "api_total": 214,
+      "sql_total": 214,
+      "sql": "SELECT count(*) AS count FROM project_members WHERE user_id=%s"
+    },
+    "completed_mock_runs": {
+      "api_total": 247,
+      "sql_total": 247,
+      "sql": "SELECT count(*) AS count FROM runs r WHERE status='completed' AND model='deterministic-v1' AND (user_id=%s OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id=r.project_id AND pm.user_id=%s))"
+    },
+    "active_development_deployments": {
+      "api_total": 202,
+      "sql_total": 202,
+      "sql": "SELECT count(*) AS count FROM deployments d JOIN prompts p ON p.id=d.prompt_id WHERE status='active' AND environment='dev' AND EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id=p.project_id AND pm.user_id=%s)"
+    },
+    "pending_approvals": {
+      "api_total": 202,
+      "sql_total": 202,
+      "sql": "SELECT count(*) AS count FROM deployments WHERE status='pending' AND environment='prod'"
+    },
+    "version_history": {
+      "api_total": 101,
+      "sql_total": 101,
+      "sql": "SELECT count(*) AS count FROM prompt_versions WHERE prompt_id=%s"
+    },
+    "dashboard_and_recent_activity": {
+      "api_total": 247,
+      "sql_total": 247,
+      "month": "2026-10",
+      "timezone": "UTC",
+      "api_ids": [
+        "b9741d71-419b-424c-9de2-e84750b918e7",
+        "333136ee-8c48-478f-87c6-1caf3bf81da9",
+        "af797f5a-0b54-4e87-988a-0c9c9a4e30ec",
+        "36bb611f-476c-4695-bb05-942a327fcbf1"
+      ],
+      "sql_ids": [
+        "b9741d71-419b-424c-9de2-e84750b918e7",
+        "333136ee-8c48-478f-87c6-1caf3bf81da9",
+        "af797f5a-0b54-4e87-988a-0c9c9a4e30ec",
+        "36bb611f-476c-4695-bb05-942a327fcbf1"
+      ]
+    }
+  }
+}

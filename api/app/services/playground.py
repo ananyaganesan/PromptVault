@@ -12,8 +12,15 @@ from uuid import UUID, uuid4
 from api.app.db.pool import PoolProtocol
 from api.app.errors import AppError
 from api.app.providers.base import ProviderRequest, execute_with_timeout
-from api.app.providers.errors import ProviderExecutionError, ProviderTimeoutError
+from api.app.providers.catalog import require_free_model
+from api.app.providers.errors import (
+    ProviderCredentialError,
+    ProviderExecutionError,
+    ProviderQuotaError,
+    ProviderTimeoutError,
+)
 from api.app.providers.factory import get_provider
+from api.app.providers.policy import require_allowed_provider
 from api.app.repositories.pricing import EffectivePrice, PricingRepository
 from api.app.repositories.provider_keys import ProviderKeyRepository
 from api.app.repositories.runs import ExecutionReservation, RunRepository, RunTarget
@@ -78,9 +85,11 @@ class RunExecutionService:
         provider_encryption_key: str,
         gemini_api_base_url: str,
         max_concurrent_runs_per_user: int,
+        allow_mock: bool = False,
     ) -> None:
         self.pool = pool
         self.request_id = request_id
+        self.allow_mock = allow_mock
         self.provider_timeout_seconds = provider_timeout_seconds
         self.provider_encryption_key = provider_encryption_key
         self.gemini_api_base_url = gemini_api_base_url
@@ -102,9 +111,7 @@ class RunExecutionService:
         except InvalidVariablesError as exc:
             field_errors: dict[str, list[str]] = {}
             if exc.missing:
-                field_errors["body.variables"] = [
-                    f"Missing variables: {', '.join(exc.missing)}"
-                ]
+                field_errors["body.variables"] = [f"Missing variables: {', '.join(exc.missing)}"]
             if exc.extra:
                 field_errors.setdefault("body.variables", []).append(
                     f"Unexpected variables: {', '.join(exc.extra)}"
@@ -124,6 +131,12 @@ class RunExecutionService:
             ) from exc
 
         config = target.model_configuration
+        if config.provider != "mock":
+            model = require_free_model(config)
+            if len(prompt) > model.max_input_characters:
+                raise AppError(
+                    422, "validation_error", "Rendered prompt exceeds this model's limit"
+                )
         claim_token = uuid4()
         fingerprint = hashlib.sha256(
             json.dumps(
@@ -198,6 +211,7 @@ class RunExecutionService:
                     config.provider,
                     credential=credential,
                     gemini_base_url=self.gemini_api_base_url,
+                    allow_mock=self.allow_mock,
                 ),
                 ProviderRequest(
                     prompt=prompt,
@@ -219,6 +233,29 @@ class RunExecutionService:
                 error_code="provider_timeout",
             )
             raise AppError(504, "provider_timeout", "Provider request timed out") from exc
+        except (ProviderQuotaError, ProviderCredentialError) as exc:
+            code = (
+                "provider_quota_exceeded"
+                if isinstance(exc, ProviderQuotaError)
+                else "provider_configuration_error"
+            )
+            recorded = await self._record_failure(
+                actor, target, payload.variables, code, executed_at
+            )
+            await self._finalize(
+                reservation.id,
+                status="failed",
+                actual_cost=Decimal("0"),
+                run=recorded,
+                error_code=code,
+            )
+            raise AppError(
+                429 if isinstance(exc, ProviderQuotaError) else 503,
+                code,
+                "Provider free-tier quota reached. Try again later."
+                if isinstance(exc, ProviderQuotaError)
+                else "Provider credentials were rejected. Ask an administrator to update the key.",
+            ) from exc
         except ProviderExecutionError as exc:
             recorded = await self._record_failure(
                 actor, target, payload.variables, "provider_error", executed_at
@@ -312,7 +349,9 @@ class RunExecutionService:
             connection = cast(AsyncConnection[dict[str, Any]], raw_connection)
             async with connection.transaction():
                 runs = RunRepository(connection)
-                if not await runs.lock_execution_access(target.version_id, actor.id):
+                if not await runs.lock_execution_access(
+                    target.version_id, actor.id, for_reservation=True
+                ):
                     raise AppError(404, "not_found", "Prompt version was not found")
                 return await runs.reserve_execution(
                     user_id=actor.id,
@@ -368,11 +407,21 @@ class RunExecutionService:
                 if target is None:
                     raise AppError(404, "not_found", "Prompt version was not found")
                 config = target.model_configuration
+                require_allowed_provider(config.provider, allow_mock=self.allow_mock)
                 price = await PricingRepository(connection).get_effective(
                     config.provider,
                     config.model,
                     executed_at,
                 )
+                if config.provider != "mock":
+                    require_free_model(config)
+                    if price is not None and (
+                        price.input_price_per_million != 0 or price.output_price_per_million != 0
+                    ):
+                        raise AppError(
+                            409, "model_not_free", "Paid model configuration is not allowed"
+                        )
+                    price = EffectivePrice(Decimal("0"), Decimal("0"))
                 if price is None:
                     raise AppError(
                         409,
@@ -381,9 +430,9 @@ class RunExecutionService:
                     )
                 credential = None
                 if config.provider != "mock":
-                    encrypted = await ProviderKeyRepository(
-                        connection
-                    ).newest_active_secret(config.provider)
+                    encrypted = await ProviderKeyRepository(connection).newest_active_secret(
+                        config.provider
+                    )
                     if encrypted is None:
                         raise AppError(
                             409,

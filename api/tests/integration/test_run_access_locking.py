@@ -35,3 +35,31 @@ async def test_run_recording_access_lock_blocks_concurrent_user_deactivation(
         finally:
             admin_connection.rollback()
             admin_connection.close()
+
+
+@pytest.mark.database
+@pytest.mark.asyncio
+async def test_reservation_access_serializes_admissions_before_lock_upgrade(
+    seeded_database_url: str,
+) -> None:
+    async with await psycopg.AsyncConnection.connect(
+        seeded_database_url, row_factory=dict_row,
+    ) as first, await psycopg.AsyncConnection.connect(
+        seeded_database_url, row_factory=dict_row,
+    ) as second:
+        async with first.transaction():
+            assert await RunRepository(first).lock_execution_access(
+                VERSION_ID, USER_ID, for_reservation=True,
+            )
+            # A second admission must wait before it can acquire a shared user
+            # lock; otherwise both reservations can deadlock on lock upgrade.
+            with pytest.raises(psycopg.errors.LockNotAvailable):
+                async with second.transaction():
+                    await second.execute("SET LOCAL lock_timeout = '100ms'")
+                    await RunRepository(second).lock_execution_access(
+                        VERSION_ID, USER_ID, for_reservation=True,
+                    )
+        async with second.transaction():
+            assert await RunRepository(second).lock_execution_access(
+                VERSION_ID, USER_ID, for_reservation=True,
+            )

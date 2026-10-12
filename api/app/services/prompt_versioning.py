@@ -4,6 +4,8 @@ import re
 from uuid import UUID
 
 from api.app.errors import AppError
+from api.app.providers.catalog import require_free_model
+from api.app.providers.policy import require_allowed_provider
 from api.app.repositories.projects import ProjectRepository
 from api.app.repositories.prompts import PromptRepository
 from api.app.repositories.users import UserRecord
@@ -55,11 +57,13 @@ class PromptVersioningService:
         versions: VersionRepository,
         projects: ProjectRepository,
         request_id: str,
+        allow_mock: bool = False,
     ) -> None:
         self.prompts = prompts
         self.versions = versions
         self.projects = projects
         self.request_id = request_id
+        self.allow_mock = allow_mock
 
     async def _require_prompt_metadata(
         self, prompt_id: UUID, actor: UserRecord
@@ -83,6 +87,9 @@ class PromptVersioningService:
     async def create_prompt(
         self, project_id: UUID, payload: PromptCreate, actor: UserRecord
     ) -> PromptResponse:
+        require_allowed_provider(payload.model_configuration.provider, allow_mock=self.allow_mock)
+        if payload.model_configuration.provider != "mock":
+            require_free_model(payload.model_configuration)
         if not await self.projects.lock_member_access(project_id, actor.id, actor.role):
             raise AppError(404, "not_found", "Project was not found")
         await self.projects.set_audit_context(actor.id, self.request_id)
@@ -130,6 +137,8 @@ class PromptVersioningService:
         return Page(items=items, page=page, page_size=page_size, total=total)
 
     async def get_prompt(self, prompt_id: UUID, actor: UserRecord) -> PromptResponse:
+        if not await self.prompts.lock_member_access(prompt_id, actor.id, actor.role):
+            raise AppError(404, "not_found", "Prompt was not found")
         await self._require_prompt_metadata(prompt_id, actor)
         return await self._prompt_response(prompt_id)
 
@@ -159,6 +168,9 @@ class PromptVersioningService:
         payload: PromptVersionCreate,
         actor: UserRecord,
     ) -> PromptVersionResponse:
+        require_allowed_provider(payload.model_configuration.provider, allow_mock=self.allow_mock)
+        if payload.model_configuration.provider != "mock":
+            require_free_model(payload.model_configuration)
         if not await self.prompts.lock_member_access(prompt_id, actor.id, actor.role):
             raise AppError(404, "not_found", "Prompt was not found")
         await self.projects.set_audit_context(actor.id, self.request_id)
@@ -196,9 +208,7 @@ class PromptVersioningService:
         )
         return Page(items=items, page=page, page_size=page_size, total=total)
 
-    async def require_version(
-        self, version_id: UUID, actor: UserRecord
-    ) -> PromptVersionResponse:
+    async def require_version(self, version_id: UUID, actor: UserRecord) -> PromptVersionResponse:
         version = await self.versions.get_scoped(version_id, actor.id, actor.role)
         if version is None:
             raise AppError(404, "not_found", "Prompt version was not found")
@@ -238,6 +248,8 @@ class PromptVersioningService:
         )
 
     async def lineage(self, version_id: UUID, actor: UserRecord) -> VersionLineageResponse:
-        await self.require_version(version_id, actor)
+        version = await self.require_version(version_id, actor)
+        if not await self.prompts.lock_member_access(version.prompt_id, actor.id, actor.role):
+            raise AppError(404, "not_found", "Prompt version was not found")
         items, cycle_detected = await self.versions.lineage(version_id)
         return VersionLineageResponse(items=items, cycle_detected=cycle_detected)

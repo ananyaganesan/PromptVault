@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from api.app.dependencies.auth import CurrentUser
+from api.app.dependencies.auth import SnapshotCurrentUser
 from api.app.dependencies.query import allow_query_parameters
 from api.app.dependencies.runs import DashboardService
 from api.app.errors import error_responses
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
     dependencies=[Depends(allow_query_parameters("month"))],
 )
 async def personal_dashboard(
-    current_user: CurrentUser,
+    current_user: SnapshotCurrentUser,
     service: DashboardService,
     month: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}$")] = None,
 ) -> PersonalDashboardResponse:

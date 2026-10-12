@@ -265,3 +265,61 @@ Budgets require exactly one target. Model prices require both input and output a
 ## Universal acceptance rules
 
 Every endpoint requires Pydantic validation, stable OpenAPI documentation, correct authorization, parameterized SQL, bounded paging where applicable, safe errors, and tests for success, validation, anonymous, forbidden, missing, conflict, and database failure. Mutating operations prove complete rollback on failure.
+
+## Fixed provider scope (2026-10-12)
+
+External providers are permanently limited to `gemini`, `openrouter`, and `groq`
+for this project and its demonstration. Prompt/version model configuration,
+provider-key creation and model-pricing creation reject all other external provider
+names with `422 validation_error`. DeepSeek is excluded. There is no configurable
+extension or fallback to another external provider. Provider keys can be stored for
+all three selected providers; OpenRouter/Groq chat-completions adapters are implemented.
+
+The internal `mock` adapter is accepted only in development/test workflows.
+Production rejects mock prompt/version writes, pricing writes and execution.
+Factory dispatch requires an explicit internal allowance for mock. Existing mock
+records can remain readable for historical inspection but cannot execute in production.
+
+Only verified free-access models/routes are in project scope. Discovery/free-route
+eligibility is still part of A1; this allowlist change does not certify arbitrary
+model identifiers as free. No payment or automatic paid fallback is authorized.
+
+## Local free-provider discovery and execution
+
+`GET /api/v1/providers/models` requires an active session. It returns exactly
+Gemini, OpenRouter and Groq, reviewed text-model IDs and labels, model limits,
+credential availability, availability reasons, free-tier quota guidance and the
+application's timeout/concurrency limits. Credentials are shared project keys
+managed through the existing Super Admin provider-key API. Discovery returns no
+key, ciphertext, key ID or alias. A saved key's presence is not proof it is valid.
+
+External prompt/version writes and runs accept only the reviewed model catalog.
+Free-access runs use zero accounting prices without requiring an admin pricing row.
+A nonzero effective database price returns `409 model_not_free` before reservation
+or HTTP execution; unlisted models return `409 model_not_available`. Model-specific
+input/output limits are checked before a provider call. Internal mock accounting
+and its existing test paths remain unchanged.
+
+OpenRouter calls carry `provider.max_price` of zero and disable fallback. Gemini
+and Groq keys must belong to free-tier accounts; the application cannot infer those
+accounts' billing tiers from an API key. No payment/credit flow or automatic model,
+provider, paid-tier or failed-request fallback exists. Provider `429` is translated
+to `429 provider_quota_exceeded`; rejected credentials to `503
+provider_configuration_error`. Both record failed zero-cost runs. Timeouts and
+other uncertain external outcomes preserve the existing no-replay reservation rule.
+
+Playground provider/model/temperature/output-limit edits create a new immutable
+prompt version through the existing version API. Run submission is disabled until
+that configuration is saved. `/runs` still receives only `version_id` and variables,
+so the recorded run identifies the configuration that actually executed.
+
+## Self-profile update
+
+`PATCH /api/v1/auth/me` accepts `{ "display_name": "Name" }` only and returns
+User. It requires an active, unrevoked session; the user ID is derived from that
+session. Names are trimmed and must contain 1–120 characters. Email, role, password,
+status and target-user fields are rejected with 422. Database function
+`update_self_display_name` holds user/session locks and updates only the existing
+name column without granting broad users-table UPDATE permission. The change is
+attributed through the existing redacted audit trigger. `GET /auth/me` returns the
+persisted name; frontend auth context and navigation identity refresh after saving.

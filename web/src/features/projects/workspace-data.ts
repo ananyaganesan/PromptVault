@@ -5,6 +5,7 @@ import type { Page } from '../../types/api'
 import { apiClient } from '../../lib/api/client'
 import { useDemoData } from '../../lib/runtime'
 import { refreshLiveData } from '../../lib/live-refresh'
+import { readAllPages } from '../../lib/api/pagination'
 
 export const projectStore: Project[] = [
   { id: 'checkout', key: 'checkout-assistant', name: 'Checkout Assistant', description: 'Prompts for the checkout support experience.', prompt_count: 3, member_count: 5, monthly_spend: '$0.0140', updated_at: '2025-08-28T10:30:00Z', is_owner: true, created_at: '2025-08-01T09:00:00Z', owner_id: 'usr_demo_admin' },
@@ -37,9 +38,9 @@ export const promptStore: Prompt[] = [
 
 export const versionStore: Record<string, PromptVersion[]> = {
   'checkout-reply': [
-    { id: 'checkout-v3', prompt_id: 'checkout-reply', version_number: 3, parent_version_id: 'checkout-v2', template: 'You are a helpful checkout support assistant.\n\nCustomer message:\n{{customer_message}}\n\nOrder context:\n{{order_context}}\n\nRespond with a concise, reassuring answer.', variables: checkoutVariables, model_config: { provider: 'openai', model: 'gpt-4o-mini', temperature: 0.3, max_output_tokens: 300 }, commit_message: 'Add order context variable', created_by: 'alex', created_by_name: 'Alex Morgan', created_at: '2025-08-28T10:30:00Z' },
-    { id: 'checkout-v2', prompt_id: 'checkout-reply', version_number: 2, parent_version_id: 'checkout-v1', template: 'You are a helpful checkout support assistant.\n\nCustomer message:\n{{customer_message}}\n\nRespond with a clear, reassuring answer.', variables: [checkoutVariables[0]], model_config: { provider: 'openai', model: 'gpt-4o-mini', temperature: 0.3, max_output_tokens: 300 }, commit_message: 'Improve tone instructions', created_by: 'ananya', created_by_name: 'Ananya Ganesan', created_at: '2025-08-24T10:30:00Z' },
-    { id: 'checkout-v1', prompt_id: 'checkout-reply', version_number: 1, parent_version_id: null, template: 'Answer this customer checkout question:\n{{customer_message}}', variables: [checkoutVariables[0]], model_config: { provider: 'openai', model: 'gpt-4o-mini', temperature: 0.5, max_output_tokens: 200 }, commit_message: 'Initial prompt version', created_by: 'alex', created_by_name: 'Alex Morgan', created_at: '2025-08-18T09:00:00Z' },
+    { id: 'checkout-v3', prompt_id: 'checkout-reply', version_number: 3, parent_version_id: 'checkout-v2', template: 'You are a helpful checkout support assistant.\n\nCustomer message:\n{{customer_message}}\n\nOrder context:\n{{order_context}}\n\nRespond with a concise, reassuring answer.', variables: checkoutVariables, model_config: { provider: 'mock', model: 'deterministic-v1', temperature: 0.3, max_output_tokens: 300 }, commit_message: 'Add order context variable', created_by: 'alex', created_by_name: 'Alex Morgan', created_at: '2025-08-28T10:30:00Z' },
+    { id: 'checkout-v2', prompt_id: 'checkout-reply', version_number: 2, parent_version_id: 'checkout-v1', template: 'You are a helpful checkout support assistant.\n\nCustomer message:\n{{customer_message}}\n\nRespond with a clear, reassuring answer.', variables: [checkoutVariables[0]], model_config: { provider: 'mock', model: 'deterministic-v1', temperature: 0.3, max_output_tokens: 300 }, commit_message: 'Improve tone instructions', created_by: 'ananya', created_by_name: 'Ananya Ganesan', created_at: '2025-08-24T10:30:00Z' },
+    { id: 'checkout-v1', prompt_id: 'checkout-reply', version_number: 1, parent_version_id: null, template: 'Answer this customer checkout question:\n{{customer_message}}', variables: [checkoutVariables[0]], model_config: { provider: 'mock', model: 'deterministic-v1', temperature: 0.5, max_output_tokens: 200 }, commit_message: 'Initial prompt version', created_by: 'alex', created_by_name: 'Alex Morgan', created_at: '2025-08-18T09:00:00Z' },
   ],
 }
 
@@ -120,14 +121,7 @@ export async function collectPages<T>(
   loadPage: (page: number, pageSize: number) => Promise<Page<T>>,
   pageSize = 100,
 ): Promise<T[]> {
-  const items: T[] = []
-  let page = 1
-  while (true) {
-    const result = await loadPage(page, pageSize)
-    items.push(...result.items)
-    if (items.length >= result.total || result.items.length === 0) return items
-    page += 1
-  }
+  return readAllPages((page) => loadPage(page, pageSize))
 }
 
 async function loadAllPages<T>(path: string, query: Record<string, string> = {}): Promise<T[]> {

@@ -115,7 +115,7 @@ def test_provider_results_must_be_bounded_and_nonnegative(result: ProviderResult
 
 
 def test_provider_factory_rejects_unconfigured_provider() -> None:
-    assert isinstance(get_provider("mock"), MockProvider)
+    assert isinstance(get_provider("mock", allow_mock=True), MockProvider)
     with pytest.raises(ProviderExecutionError):
         get_provider("gemini")
     with pytest.raises(ProviderExecutionError):

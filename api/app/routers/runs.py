@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/v1/runs", tags=["runs"])
     "",
     response_model=RunResponse,
     status_code=status.HTTP_201_CREATED,
-    responses=error_responses(401, 404, 409, 422, 502, 504),
+    responses=error_responses(401, 404, 409, 422, 429, 502, 503, 504),
     dependencies=[Depends(allow_query_parameters())],
 )
 async def execute_run(

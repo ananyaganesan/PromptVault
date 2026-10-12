@@ -1,3 +1,5 @@
+import { useProviderModels } from "../playground/provider-models";
+import { LLM_PROVIDERS } from "../../lib/providers";
 import { useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import {
   Link,
@@ -142,6 +144,12 @@ export function NewPromptPage() {
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const testProvider = import.meta.env.DEV || import.meta.env.MODE === "test";
+  const [provider, setProvider] = useState(testProvider ? "mock" : "gemini");
+  const [model, setModel] = useState(testProvider ? "deterministic-v1" : "");
+  const discovery = useProviderModels();
+  const providerInfo = discovery.data?.items.find((item) => item.provider === provider);
+
   const [template, setTemplate] = useState("");
   const parsedVariables = useMemo(() => templateVariables(template), [template]);
   const [commit, setCommit] = useState("Initial prompt version");
@@ -158,7 +166,7 @@ export function NewPromptPage() {
         name: name.trim(),
         description: description.trim() || undefined,
         template,
-        model_config: { provider: "mock", model: "deterministic-v1", temperature: 0, max_output_tokens: 500 },
+        model_config: { provider, model: model.trim(), temperature: 0, max_output_tokens: 500 },
         commit_message: commit || "Initial prompt version",
       });
       navigate(`/prompts/${prompt.id}`);
@@ -175,6 +183,24 @@ export function NewPromptPage() {
       />
       <form className="form-panel" onSubmit={submit}>
         {error && <p className="form-error" role="alert">{error}</p>}
+        <label className="field">
+          <span>LLM provider</span>
+          <select value={provider} onChange={(event) => {
+            setProvider(event.target.value);
+            setModel(discovery.data?.items.find((item) => item.provider === event.target.value)?.models[0]?.id ?? "");
+          }}>
+            {LLM_PROVIDERS.map((name) => <option key={name} value={name}>{name}</option>)}
+            {testProvider && <option value="mock">Mock (local testing)</option>}
+          </select>
+        </label>
+        <label className="field">
+          <span>Model identifier</span>
+          {provider === "mock" ? <input value={model} readOnly required /> : <select value={model} onChange={(event) => setModel(event.target.value)} required>
+            <option value="">Select a free-access model</option>
+            {providerInfo?.models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select>}
+          {provider !== "mock" && <p className="provider-note">{discovery.error || providerInfo?.quota_note || "Loading provider models…"}</p>}
+        </label>
         <label className="field">
           <span>Project</span>
           <select

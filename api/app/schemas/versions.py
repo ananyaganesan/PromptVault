@@ -4,13 +4,14 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
+from api.app.providers.policy import ConfiguredProvider
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ModelConfiguration(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: Annotated[str, Field(min_length=1, max_length=80)]
+    provider: ConfiguredProvider
     model: Annotated[str, Field(min_length=1, max_length=160)]
     temperature: Annotated[float, Field(ge=0, le=2)] = 0
     max_output_tokens: Annotated[int, Field(ge=1, le=1_000_000)]

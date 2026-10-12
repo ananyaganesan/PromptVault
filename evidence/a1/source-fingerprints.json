@@ -1,0 +1,17 @@
+{
+  "api/app/providers/catalog.py": "7a6469ddabc103451afecf691208ee1ecbf2bf61d0b60f6a7ca97691e9625d8b",
+  "api/app/providers/chat_completions.py": "0ebb76e50094c1f42c0d7fbd078818a59be18d737e942d5b66efb7673af7a421",
+  "api/app/providers/factory.py": "eb605bf43d293a11cea2333d49d8f50778b285c1c76ce5b13109d6f1962f7c04",
+  "api/app/providers/gemini.py": "6be7c808d466a8772458ddc175c59f9b6531fc0bd23d9c19985f22e2bc60931a",
+  "api/app/providers/policy.py": "0ab60dcdfb0f385a47f4260a9d68c2233893b293f7eee49adb4170b7d703c459",
+  "api/app/routers/providers.py": "79ed8a560833ffabf4b34ce40bb943e4e3dc6b2a3fa7ba793e71e151d432c087",
+  "api/app/schemas/providers.py": "c17e6bf2fffbd54bb35fde9d828392a7217e1bc1cbf91b6916da9176c4a43093",
+  "api/app/services/playground.py": "cbb3b76829d16eb1ba3c7b0a0310f636e2ab12dca1439277dee4e6d976504bcf",
+  "api/app/services/prompt_versioning.py": "19acb62eab3acfc828c46c0552fbec85a7487ce434870137805ccf460ec0afbe",
+  "api/app/config.py": "c33800461d002c368e9f34260149c86447aff0932536abf2e6158c853c1a9f8b",
+  "web/src/features/playground/playground-page.tsx": "d634398f6d9ff75194767eed64e587c9cfa4d0bbf6094184bd441e4ea793d054",
+  "web/src/features/playground/provider-models.ts": "f68a7eeded9b979699cf4a169ceb24013cb4a0d5c4e6393b5a2b75e2cc849976",
+  "web/src/features/prompts/prompt-pages.tsx": "3d9b10b4a069cdd321f15b622f2af011a7bd736869407695bd8046d834fd2b21",
+  "tests/e2e/test_free_provider_execution.py": "228ba1dd7e96631c4c668990f4711535e8e0918218eae2a6e51b319ccbf3fb54",
+  "web/e2e/live-provider-execution.spec.ts": "67e002b48a1b0627231e7a6bc5dff0ecc5dbefc8f399d98f58558f77f1cc8574"
+}

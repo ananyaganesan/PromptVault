@@ -48,7 +48,7 @@ erDiagram
 | `provider_keys` | Created by an administrator | Encrypted value only; active aliases unique per provider |
 | `audit_events` | Optional actor plus resource snapshot | Append-only; sensitive fields removed by trigger |
 | `password_reset_tokens` | Hashed one-time token for one user | Expiring, single-use; plaintext never stored |
-| `password_history` | User/hash composite history | Trigger-maintained Argon2id history; reuse checks |
+| `password_history` | UUID identity; unique user/hash history | Trigger-maintained Argon2id history; reuse checks |
 | `auth_sessions` | JWT `jti` for one user | Expiry and explicit revocation metadata |
 | `run_reservations` | User-scoped idempotency key | Pre-call budget reservation; terminal/uncertain reconciliation |
 | `schema_migrations` | Numeric migration version | Immutable filename/name/checksum tracking |
@@ -72,9 +72,17 @@ Primary keys are underlined conceptually below; arrows name foreign-key targets.
 | `runs` | `(id, created_at)` | user/project/prompt/version references; range-partitioned by `created_at` |
 | `audit_events` | `id` | optional `actor_user_id → users` |
 | `password_reset_tokens` | `id` | `user_id → users`; `token_hash` unique |
-| `password_history` | `(user_id, password_hash)` | `user_id → users` |
+| `password_history` | `id` | `user_id → users`; `(user_id,password_hash)` unique |
 | `auth_sessions` | `id` | `user_id → users` |
 | `run_reservations` | `id` | user/project/prompt/version and optional composite run reference; `(user_id,idempotency_key)` unique |
 | `schema_migrations` | `version` | migration `name` and SHA-256 `checksum` are tracked attributes |
 
 `organization_monthly_metrics` and `user_monthly_metrics` are refreshable materialized views over the partitioned run ledger. `prompt_version_lineage`, `deployment_history`, and `monthly_costs` provide read-oriented projections without duplicating source-of-truth data.
+
+## A4 self-profile update boundary
+
+Migration 023 adds only `update_self_display_name`; there are no new entities,
+columns, dependencies or cardinality changes. It links the existing authenticated
+`users` row and `auth_sessions` row under locks, updates `users.display_name` only,
+and uses the existing redacted audit trigger. Session, role and account-security
+attributes remain on their separate reviewed flows.

@@ -103,9 +103,7 @@ def test_gemini_run_uses_active_encrypted_key_and_persists_usage(
             observed["api_key"] = self.headers.get("x-goog-api-key")
             body = json.dumps(
                 {
-                    "candidates": [
-                        {"content": {"parts": [{"text": "Live Gemini output"}]}}
-                    ],
+                    "candidates": [{"content": {"parts": [{"text": "Live Gemini output"}]}}],
                     "usageMetadata": {
                         "promptTokenCount": 7,
                         "candidatesTokenCount": 3,
@@ -121,7 +119,7 @@ def test_gemini_run_uses_active_encrypted_key_and_persists_usage(
         def log_message(self, format: str, *args: object) -> None:
             return
 
-    model = f"gemini-test-{uuid4().hex}"
+    model = "gemini-2.5-flash-lite"
     with psycopg.connect(seeded_database_url) as connection:
         admin_id = connection.execute(
             "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"
@@ -138,13 +136,6 @@ def test_gemini_run_uses_active_encrypted_key_and_persists_usage(
                 admin_id,
             ),
         )
-        connection.execute(
-            """INSERT INTO model_pricing (
-                   provider, model, input_price_per_million,
-                   output_price_per_million, effective_from, created_by
-               ) VALUES ('gemini', %s, 1, 2, '2026-01-01T00:00:00Z', %s)""",
-            (model, admin_id),
-        )
         connection.commit()
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -159,9 +150,7 @@ def test_gemini_run_uses_active_encrypted_key_and_persists_usage(
     try:
         with TestClient(create_app(settings)) as client:
             _, headers = register_user(client, "gemini-owner")
-            _, version = create_prompt_version(
-                client, headers, provider="gemini", model=model
-            )
+            _, version = create_prompt_version(client, headers, provider="gemini", model=model)
             response = client.post(
                 "/api/v1/runs",
                 headers=headers,
@@ -178,12 +167,12 @@ def test_gemini_run_uses_active_encrypted_key_and_persists_usage(
     assert run["output_text"] == "Live Gemini output"
     assert run["prompt_tokens"] == 7
     assert run["completion_tokens"] == 3
-    assert Decimal(run["cost"]) == Decimal("0.000013")
+    assert Decimal(run["cost"]) == 0
     assert observed["api_key"] == "integration-gemini-secret"
 
 
 @pytest.mark.database
-def test_over_budget_gemini_run_is_rejected_before_provider_call(
+def test_paid_gemini_configuration_is_rejected_before_provider_call(
     test_settings: Settings,
     seeded_database_url: str,
 ) -> None:
@@ -208,7 +197,7 @@ def test_over_budget_gemini_run_is_rejected_before_provider_call(
         def log_message(self, format: str, *args: object) -> None:
             return
 
-    model = f"gemini-budget-{uuid4().hex}"
+    model = "gemini-2.5-flash"
     with psycopg.connect(seeded_database_url) as connection:
         admin_id = connection.execute(
             "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"
@@ -261,7 +250,7 @@ def test_over_budget_gemini_run_is_rejected_before_provider_call(
         thread.join(timeout=2)
 
     assert response.status_code == 409
-    assert response.json()["code"] == "budget_exceeded"
+    assert response.json()["code"] == "model_not_free"
     assert provider_calls == 0
 
 
@@ -291,7 +280,7 @@ def test_duplicate_idempotency_key_returns_one_persisted_gemini_run(
         def log_message(self, format: str, *args: object) -> None:
             return
 
-    model = f"gemini-idempotency-{uuid4().hex}"
+    model = "gemini-2.5-flash-lite"
     with psycopg.connect(seeded_database_url) as connection:
         admin_id = connection.execute(
             "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"
@@ -307,12 +296,6 @@ def test_duplicate_idempotency_key_returns_one_persisted_gemini_run(
                 ),
                 admin_id,
             ),
-        )
-        connection.execute(
-            "INSERT INTO model_pricing (provider, model, input_price_per_million, "
-            "output_price_per_million, effective_from, created_by) "
-            "VALUES ('gemini', %s, 1, 1, '2026-01-01T00:00:00Z', %s)",
-            (model, admin_id),
         )
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -384,7 +367,7 @@ def test_concurrent_duplicate_run_is_not_executed_twice(
 
 
 @pytest.mark.database
-def test_uncertain_paid_failure_keeps_reservation_and_cannot_be_replayed(
+def test_uncertain_provider_failure_keeps_reservation_and_cannot_be_replayed(
     test_settings: Settings,
     seeded_database_url: str,
 ) -> None:
@@ -401,7 +384,7 @@ def test_uncertain_paid_failure_keeps_reservation_and_cannot_be_replayed(
         def log_message(self, format: str, *args: object) -> None:
             return
 
-    model = f"gemini-uncertain-{uuid4().hex}"
+    model = "gemini-2.5-flash-lite"
     with psycopg.connect(seeded_database_url) as connection:
         admin_id = connection.execute(
             "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"
@@ -417,12 +400,6 @@ def test_uncertain_paid_failure_keeps_reservation_and_cannot_be_replayed(
                 ),
                 admin_id,
             ),
-        )
-        connection.execute(
-            "INSERT INTO model_pricing (provider, model, input_price_per_million, "
-            "output_price_per_million, effective_from, created_by) "
-            "VALUES ('gemini', %s, 1, 1, '2026-01-01T00:00:00Z', %s)",
-            (model, admin_id),
         )
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -461,7 +438,7 @@ def test_uncertain_paid_failure_keeps_reservation_and_cannot_be_replayed(
         ).fetchone()
     assert reservation is not None
     assert reservation[0] == "uncertain"
-    assert reservation[1] > 0
+    assert reservation[1] == 0
     assert reservation[2] is None
 
 
@@ -941,32 +918,31 @@ def test_run_reads_cover_member_removed_owner_and_admin_scopes(
     owner_run = owner_run_response.json()
     member_run = member_run_response.json()
 
-    assert run_client.get(
-        f"/api/v1/runs/{owner_run['id']}", headers=member_headers
-    ).status_code == 200
+    assert (
+        run_client.get(f"/api/v1/runs/{owner_run['id']}", headers=member_headers).status_code == 200
+    )
     removed = run_client.delete(
         f"/api/v1/projects/{project['id']}/members/{member['id']}",
         headers=owner_headers,
     )
     assert removed.status_code == 204
-    assert run_client.get(
-        f"/api/v1/runs/{owner_run['id']}", headers=member_headers
-    ).status_code == 404
-    assert run_client.get(
-        f"/api/v1/runs/{member_run['id']}", headers=member_headers
-    ).status_code == 200
+    assert (
+        run_client.get(f"/api/v1/runs/{owner_run['id']}", headers=member_headers).status_code == 404
+    )
+    assert (
+        run_client.get(f"/api/v1/runs/{member_run['id']}", headers=member_headers).status_code
+        == 200
+    )
 
     admin_session = run_client.post(
         "/api/v1/auth/login",
         json={"email": "admin@promptvault.dev", "password": "AdminDemo2026!"},
     )
     assert admin_session.status_code == 200
-    admin_headers = {
-        "Authorization": f"Bearer {admin_session.json()['access_token']}"
-    }
-    assert run_client.get(
-        f"/api/v1/runs/{owner_run['id']}", headers=admin_headers
-    ).status_code == 200
+    admin_headers = {"Authorization": f"Bearer {admin_session.json()['access_token']}"}
+    assert (
+        run_client.get(f"/api/v1/runs/{owner_run['id']}", headers=admin_headers).status_code == 200
+    )
     admin_page = run_client.get(
         "/api/v1/runs",
         headers=admin_headers,

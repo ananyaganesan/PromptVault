@@ -75,23 +75,27 @@ reviewed. Do not infer completion from the prototype's feature checklist.
 | [x] ER Diagram includes at least 4 primary entities and 3 relationships | Final ER Diagram with named entities, relationships, and cardinalities | Jobin |
 | [x] Every implemented table maps to the ER Diagram | Table-to-entity inventory, including authentication/history and infrastructure tables; identify physical partitions separately | Jobin |
 | [x] Relational Schema derives from the ER Diagram | Relations listing attributes, types, primary keys, foreign keys, and constraints | Jobin |
-| [ ] Data Dictionary prepared (recommended) | Column definitions, purpose, types, nullability, defaults, keys, and constraints | Jobin |
+| [x] Data Dictionary prepared (recommended) | [147-column catalog dictionary](data-dictionary.md), including types, nullability, defaults, keys and constraints | Jobin |
 | [x] Table-count requirements satisfied | Inventory of at least 8 related logical tables; do not inflate counts with partitions or views | Jobin |
 | [x] Every table has a Primary Key | Schema/catalog query output, including composite keys where used | Jobin |
 | [x] Appropriate Foreign Keys and constraints exist | DDL and tests demonstrating valid and invalid writes | Jobin |
 | [x] All tables satisfy 3NF or higher | Table-by-table keys and functional-dependency analysis; resolve any normalization violations | Jobin |
 | [x] Database creation is reproducible | Fresh PostgreSQL creation and migration transcript | Jobin |
-| [ ] CRUD operations demonstrated | SQL/API examples and working UI flows; explain immutable/append-only table restrictions | Both |
-| [ ] Joins demonstrated | Executable queries joining related tables, with results | Jobin |
-| [ ] Aggregate queries demonstrated | Executable count/sum/grouping queries with results | Jobin |
-| [ ] Views demonstrated | View definitions and example query results | Jobin |
-| [ ] Transactions demonstrated | Atomic operations and rollback/concurrency evidence | Jobin |
+| [x] CRUD operations demonstrated | [SQL and desktop/mobile acceptance](academic-local-acceptance.md); immutable/append-only restrictions explained | Both |
+| [x] Joins demonstrated | Collector joins projects, prompts and versions with nonempty results | Jobin |
+| [x] Aggregate queries demonstrated | Executed count/sum/grouping queries with nonempty results | Jobin |
+| [x] Views demonstrated | Five definitions and monthly-cost example results in the evidence report | Jobin |
+| [x] Transactions demonstrated | Rollback-only CRUD/procedure collector and passing concurrency tests | Jobin |
 | [x] At least one stored procedure demonstrated | PostgreSQL `CREATE PROCEDURE` definition and successful `CALL` example | Jobin |
 | [x] At least one trigger demonstrated | Trigger definition and observable before/after behavior | Jobin |
 | [x] Appropriate indexes demonstrated | Index inventory and representative query-plan evidence | Jobin |
 | [ ] Final design, database, and application agree | Joint review of deployed schema, documentation, and user workflows | Both |
 
 ## Existing references and gaps to review
+
+[Local academic acceptance](academic-local-acceptance.md) records technical
+reconciliation, executable evidence, remaining chronology limits and reproducible
+commands. Final submission review remains open; no hosted deployment is required.
 
 - [ER Diagram](erd.md).
 - [Normalization discussion](normalization.md).

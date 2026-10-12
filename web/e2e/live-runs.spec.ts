@@ -25,11 +25,11 @@ test('playground execution persists tokens, latency, and history through FastAPI
   await expect(page.getByText('LATENCY')).toBeVisible()
 
   await page.getByRole('link', { name: /View run details/ }).click()
-  await expect(page.getByText('Execution time')).toBeVisible()
+  await expect(page.getByText(/Latency: \d+ ms/)).toBeVisible()
   const runUrl = page.url()
   await page.reload()
   await expect(page).toHaveURL(runUrl)
-  await expect(page.getByText('Execution time')).toBeVisible()
+  await expect(page.getByText(/Latency: \d+ ms/)).toBeVisible()
 
   await page.goto('/runs')
   await expect(page.getByRole('cell', { name: selectedPromptKey!, exact: false }).first()).toBeVisible()

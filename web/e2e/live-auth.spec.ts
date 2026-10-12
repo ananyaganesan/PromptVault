@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test.skip(process.env.E2E_LIVE !== '1', 'Runs only against the Docker-backed live stack.')
+test.skip(process.env.E2E_LIVE !== '1', 'Runs only against a local live API/database stack.')
 
 test('seeded user signs in through FastAPI and restores the session', async ({ page, isMobile }) => {
   await page.goto('/login')

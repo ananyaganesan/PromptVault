@@ -4,7 +4,8 @@ import { activeVersionsStore, collectPages, memberStore, projectStore, promptSto
 vi.mock('../../lib/runtime', () => ({ useDemoData: false }))
 
 function json(payload: unknown) {
-  return new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  const response = payload && typeof payload === 'object' && 'items' in payload ? { page: 1, page_size: 100, ...payload } : payload
+  return new Response(JSON.stringify(response), { status: 200, headers: { 'Content-Type': 'application/json' } })
 }
 
 describe('collectPages', () => {
@@ -13,19 +14,21 @@ describe('collectPages', () => {
     const loadPage = vi.fn()
       .mockResolvedValueOnce({ items: first, total: 101, page: 1, page_size: 100 })
       .mockResolvedValueOnce({ items: [{ id: 'item-100' }], total: 101, page: 2, page_size: 100 })
+      .mockResolvedValueOnce({ items: first, total: 101, page: 1, page_size: 100 })
+      .mockResolvedValueOnce({ items: [{ id: 'item-100' }], total: 101, page: 2, page_size: 100 })
 
     await expect(collectPages(loadPage)).resolves.toHaveLength(101)
     expect(loadPage).toHaveBeenNthCalledWith(1, 1, 100)
     expect(loadPage).toHaveBeenNthCalledWith(2, 2, 100)
   })
 
-  it('stops safely when an API returns an empty page before its advertised total', async () => {
+  it('rejects incomplete pages instead of publishing a truncated workspace', async () => {
     const loadPage = vi.fn()
       .mockResolvedValueOnce({ items: [{ id: 'item-0' }], total: 2, page: 1, page_size: 100 })
-      .mockResolvedValueOnce({ items: [], total: 2, page: 2, page_size: 100 })
+      .mockResolvedValue({ items: [], total: 2, page: 2, page_size: 100 })
 
-    await expect(collectPages(loadPage)).resolves.toEqual([{ id: 'item-0' }])
-    expect(loadPage).toHaveBeenCalledTimes(2)
+    await expect(collectPages(loadPage)).rejects.toThrow('Data changed while loading')
+    expect(loadPage).toHaveBeenCalledTimes(4)
   })
 })
 
@@ -39,6 +42,19 @@ describe('workspaceService', () => {
     vi.unstubAllGlobals()
   })
 
+  it('keeps the previous workspace snapshot when concurrent paging cannot settle', async () => {
+    projectStore.push({ id: 'saved', name: 'Existing workspace', key: 'saved', description: null, owner_id: 'owner', is_owner: true, member_count: 1, prompt_count: 0, monthly_spend: '0', created_at: '2026-10-10T00:00:00Z', updated_at: '2026-10-10T00:00:00Z' })
+    let generation = 0
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const number = Number(new URL(url).searchParams.get('page'))
+      if (number === 1) generation += 1
+      return json({ page: number, page_size: 100, total: 101, items: number === 1 ? Array.from({ length: 100 }, (_, index) => ({ id: `${generation}-${index}` })) : [] })
+    }))
+    await expect(workspaceService.load('owner')).rejects.toThrow('Data changed while loading')
+    expect(projectStore).toHaveLength(1)
+    expect(projectStore[0].name).toBe('Existing workspace')
+  })
+
   it('loads active deployment pages beyond 100 and replaces the active version on refresh', async () => {
     let currentVersion = 'v3'
     const fetcher = vi.fn(async (url: string) => {
@@ -47,7 +63,7 @@ describe('workspaceService', () => {
       if (parsed.pathname.endsWith('/projects')) return json({ items: [{ ...base, id: 'project', name: 'Project', key: 'project', description: null, owner: { id: 'owner', display_name: 'Owner' }, member_count: 1, prompt_count: 1 }], total: 1 })
       if (parsed.pathname.endsWith('/prompts')) return json({ items: [{ ...base, id: 'prompt', project_id: 'project', name: 'Prompt', key: 'prompt', description: null, latest_version_number: 3 }], total: 1 })
       if (parsed.pathname.endsWith('/versions')) return json({ items: [], total: 0 })
-      if (parsed.pathname.endsWith('/deployments')) return json({ items: parsed.searchParams.get('page') === '1' ? Array.from({ length: 100 }, (_, n) => ({ prompt_id: `other-${n}`, version_id: 'unrelated', environment: 'prod' })) : [{ prompt_id: 'prompt', version_id: currentVersion, environment: 'prod' }, { prompt_id: 'prompt', version_id: 'v2', environment: 'staging' }], total: 102 })
+      if (parsed.pathname.endsWith('/deployments')) return json({ page: Number(parsed.searchParams.get('page')), items: parsed.searchParams.get('page') === '1' ? Array.from({ length: 100 }, (_, n) => ({ prompt_id: `other-${n}`, version_id: 'unrelated', environment: 'prod' })) : [{ prompt_id: 'prompt', version_id: currentVersion, environment: 'prod' }, { prompt_id: 'prompt', version_id: 'v2', environment: 'staging' }], total: 102 })
       throw new Error('Unexpected API read')
     })
     vi.stubGlobal('fetch', fetcher)
@@ -59,7 +75,7 @@ describe('workspaceService', () => {
     expect(versionEnvironments('prompt', 'v3')).toEqual([])
     expect(versionEnvironments('prompt', 'v1')).toEqual(['production'])
     expect(versionEnvironments('prompt', 'v2')).toEqual(['staging'])
-    expect(fetcher.mock.calls.filter(([url]) => new URL(url).pathname.endsWith('/deployments') && new URL(url).searchParams.get('page') === '2')).toHaveLength(2)
+    expect(fetcher.mock.calls.filter(([url]) => new URL(url).pathname.endsWith('/deployments') && new URL(url).searchParams.get('page') === '2')).toHaveLength(4)
   })
 
   it('does not let a membership read invalidate an overlapping workspace load', async () => {

@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from typing import Any, cast
 from uuid import UUID
 
+from api.app.repositories.pagination import read_page
 from api.app.schemas.prompts import PromptSummaryResponse
 from api.app.security import UserRole
 from psycopg import AsyncConnection
@@ -131,18 +132,12 @@ class PromptRepository:
             pattern = f"%{search}%"
             parameters.extend([pattern, pattern])
         where_sql = " AND ".join(where)
-        count_cursor = await self.connection.execute(
-            f"SELECT count(*) AS total FROM prompts p WHERE {where_sql}",
-            tuple(parameters),
-        )
-        total_row = await count_cursor.fetchone()
-        if total_row is None:
-            raise RuntimeError("prompt count returned no row")
         sort_column = {"key": "p.key", "name": "p.name", "updated_at": "p.updated_at"}[sort]
         order = "ASC" if direction == "asc" else "DESC"
-        parameters.extend([page_size, (page - 1) * page_size])
-        cursor = await self.connection.execute(
-            f"""
+        rows, total = await read_page(
+            self.connection,
+            count_query=f"SELECT count(*) AS total FROM prompts p WHERE {where_sql}",
+            items_query=f"""
             SELECT p.id, p.project_id, p.key, p.name, p.description,
                    p.created_at, p.updated_at,
                    latest.version_number AS latest_version_number
@@ -158,9 +153,12 @@ class PromptRepository:
             ORDER BY {sort_column} {order}, p.id {order}
             LIMIT %s OFFSET %s
             """,
-            tuple(parameters),
+            parameters=parameters,
+            page=page,
+            page_size=page_size,
+            order_by=f'{sort_column.removeprefix("p.")} {order}, id {order}',
         )
-        return [_summary_from_row(row) for row in await cursor.fetchall()], int(total_row["total"])
+        return [_summary_from_row(row) for row in rows], total
 
     async def update(
         self,

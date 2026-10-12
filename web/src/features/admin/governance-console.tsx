@@ -1,3 +1,4 @@
+import { LLM_PROVIDERS } from "../../lib/providers";
 import {
   useCallback,
   useEffect,
@@ -418,11 +419,9 @@ export function PricingManagementPage() {
         <form onSubmit={save}>
           <label className="field">
             <span>Provider</span>
-            <input
-              value={provider}
-              onChange={(event) => setProvider(event.target.value)}
-              required
-            />
+            <select value={provider} onChange={(event) => setProvider(event.target.value)}>
+              {LLM_PROVIDERS.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
           </label>
           <label className="field">
             <span>Model</span>

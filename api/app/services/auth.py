@@ -17,14 +17,14 @@ from api.app.schemas.auth import (
     RegisterRequest,
     SessionResponse,
 )
-from api.app.schemas.users import UserResponse
+from api.app.schemas.users import ProfileUpdate, UserResponse
 from api.app.security import (
     create_access_token,
     hash_one_time_token,
     hash_password,
     verify_password,
 )
-from psycopg.errors import CheckViolation, UniqueViolation
+from psycopg.errors import CheckViolation, InsufficientPrivilege, UniqueViolation
 from starlette.concurrency import run_in_threadpool
 
 _BEARER_HEADERS = {"WWW-Authenticate": "Bearer"}
@@ -126,9 +126,7 @@ class AuthService:
             return
 
         token = token_urlsafe(32)
-        expires_at = datetime.now(UTC) + timedelta(
-            minutes=self.settings.password_reset_ttl_minutes
-        )
+        expires_at = datetime.now(UTC) + timedelta(minutes=self.settings.password_reset_ttl_minutes)
         await self.repository.create_password_reset_token(
             user_id=user.id,
             token_hash=hash_one_time_token(token),
@@ -174,6 +172,24 @@ class AuthService:
                 "invalid_reset_token",
                 "Password reset link is invalid or expired",
             )
+
+    async def update_profile(
+        self,
+        payload: ProfileUpdate,
+        actor: UserRecord,
+        session_id: UUID,
+        request_id: str,
+    ) -> UserResponse:
+        try:
+            updated = await self.repository.update_display_name(
+                actor.id,
+                session_id,
+                payload.display_name,
+                request_id,
+            )
+        except InsufficientPrivilege as exc:
+            raise AppError(401, "invalid_token", "Access token is invalid") from exc
+        return UserResponse.model_validate(updated)
 
     async def _session(self, user: UserRecord) -> SessionResponse:
         issued_at = datetime.now(UTC).replace(microsecond=0)

@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from typing import Any, cast
 from uuid import UUID
 
+from api.app.repositories.pagination import read_page
 from api.app.schemas.projects import (
     ProjectMemberResponse,
     ProjectOwnerResponse,
@@ -148,22 +149,16 @@ class ProjectRepository:
             pattern = f"%{search}%"
             parameters.extend([pattern, pattern])
         where_sql = " AND ".join(where)
-        count_cursor = await self.connection.execute(
-            f"SELECT count(*) AS total FROM projects p WHERE {where_sql}",
-            tuple(parameters),
-        )
-        total_row = await count_cursor.fetchone()
-        if total_row is None:
-            raise RuntimeError("project count returned no row")
         sort_column = {
             "name": "p.name",
             "created_at": "p.created_at",
             "updated_at": "p.updated_at",
         }[sort]
         order = "ASC" if direction == "asc" else "DESC"
-        parameters.extend([page_size, (page - 1) * page_size])
-        cursor = await self.connection.execute(
-            f"""
+        rows, total = await read_page(
+            self.connection,
+            count_query=f"SELECT count(*) AS total FROM projects p WHERE {where_sql}",
+            items_query=f"""
             SELECT {_PROJECT_COLUMNS}
             FROM projects p
             JOIN users owner ON owner.id = p.owner_id
@@ -171,9 +166,12 @@ class ProjectRepository:
             ORDER BY {sort_column} {order}, p.id {order}
             LIMIT %s OFFSET %s
             """,
-            tuple(parameters),
+            parameters=parameters,
+            page=page,
+            page_size=page_size,
+            order_by=f'{sort_column.removeprefix("p.")} {order}, id {order}',
         )
-        return [_project_from_row(row) for row in await cursor.fetchall()], int(total_row["total"])
+        return [_project_from_row(row) for row in rows], total
 
     async def update(
         self,
@@ -202,15 +200,10 @@ class ProjectRepository:
     async def list_members(
         self, project_id: UUID, *, page: int, page_size: int
     ) -> tuple[list[ProjectMemberResponse], int]:
-        count_cursor = await self.connection.execute(
-            "SELECT count(*) AS total FROM project_members WHERE project_id = %s",
-            (project_id,),
-        )
-        total_row = await count_cursor.fetchone()
-        if total_row is None:
-            raise RuntimeError("member count returned no row")
-        cursor = await self.connection.execute(
-            """
+        rows, total = await read_page(
+            self.connection,
+            count_query="SELECT count(*) AS total FROM project_members WHERE project_id = %s",
+            items_query="""
             SELECT u.id, u.email, u.display_name, u.role, u.is_active, u.created_at,
                    (p.owner_id = u.id) AS is_owner
             FROM project_members pm
@@ -220,10 +213,13 @@ class ProjectRepository:
             ORDER BY (p.owner_id = u.id) DESC, u.display_name ASC, u.id ASC
             LIMIT %s OFFSET %s
             """,
-            (project_id, page_size, (page - 1) * page_size),
+            parameters=(project_id,),
+            page=page,
+            page_size=page_size,
+            order_by='is_owner DESC, display_name ASC, id ASC',
         )
-        items = [ProjectMemberResponse.model_validate(row) for row in await cursor.fetchall()]
-        return items, int(total_row["total"])
+        items = [ProjectMemberResponse.model_validate(row) for row in rows]
+        return items, total
 
     async def add_member(self, project_id: UUID, user_id: UUID, added_by: UUID) -> None:
         await self.connection.execute(
