@@ -6,7 +6,12 @@ from math import ceil
 from time import monotonic
 
 import pytest
+from api.app.auth_rate_limits import (
+    LocalRateLimitStore,
+    enforce_email_verification_resend_limit,
+)
 from api.app.config import Settings
+from api.app.errors import AppError
 from api.app.main import create_app
 from fastapi.testclient import TestClient
 
@@ -44,6 +49,18 @@ class SharedRateLimitStore:
 
     async def close(self) -> None:
         return None
+
+
+class CapturingRateLimitStore(LocalRateLimitStore):
+    def __init__(self) -> None:
+        super().__init__(clock=lambda: 0.0)
+        self.keys: list[str] = []
+
+    async def retry_after(
+        self, key: str, requests: int, window_seconds: int
+    ) -> int | None:
+        self.keys.append(key)
+        return await super().retry_after(key, requests, window_seconds)
 
 
 @pytest.fixture
@@ -123,6 +140,81 @@ def test_two_api_instances_share_the_configured_rate_limit_store(
     with TestClient(first_app) as first, TestClient(second_app) as second:
         assert first.post("/api/v1/auth/login", json={}).status_code == 422
         assert second.post("/api/v1/auth/login", json={}).status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_verification_resend_composite_limit_allows_five_then_retries() -> None:
+    store = CapturingRateLimitStore()
+
+    for _ in range(5):
+        await enforce_email_verification_resend_limit(
+            store,
+            client_host="203.0.113.10",
+            normalized_email="alex@example.com",
+            requests=5,
+            window_seconds=3600,
+        )
+
+    with pytest.raises(AppError) as captured:
+        await enforce_email_verification_resend_limit(
+            store,
+            client_host="203.0.113.10",
+            normalized_email="alex@example.com",
+            requests=5,
+            window_seconds=3600,
+        )
+
+    assert captured.value.status_code == 429
+    assert captured.value.code == "rate_limited"
+    assert captured.value.headers == {"Retry-After": "3600"}
+    assert all("alex@example.com" not in key for key in store.keys)
+
+
+@pytest.mark.asyncio
+async def test_verification_resend_limit_is_independent_by_client_and_email() -> None:
+    store = LocalRateLimitStore(clock=lambda: 0.0)
+
+    for _ in range(5):
+        await enforce_email_verification_resend_limit(
+            store,
+            client_host="203.0.113.10",
+            normalized_email="first@example.com",
+            requests=5,
+            window_seconds=3600,
+        )
+    await enforce_email_verification_resend_limit(
+        store,
+        client_host="203.0.113.10",
+        normalized_email="second@example.com",
+        requests=5,
+        window_seconds=3600,
+    )
+    await enforce_email_verification_resend_limit(
+        store,
+        client_host="203.0.113.11",
+        normalized_email="first@example.com",
+        requests=5,
+        window_seconds=3600,
+    )
+
+
+def test_two_api_instances_expose_the_same_injected_store_for_resend_routes(
+    test_settings: Settings,
+) -> None:
+    store = SharedRateLimitStore()
+    first_app = create_app(
+        test_settings,
+        pool_factory=lambda _: NoopPool(),
+        rate_limit_store=store,
+    )
+    second_app = create_app(
+        test_settings,
+        pool_factory=lambda _: NoopPool(),
+        rate_limit_store=store,
+    )
+
+    assert first_app.state.rate_limit_store is store
+    assert second_app.state.rate_limit_store is store
 
 
 @pytest.mark.parametrize(

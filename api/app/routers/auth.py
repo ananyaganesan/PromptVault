@@ -2,6 +2,7 @@
 
 from typing import Annotated
 
+from api.app.auth_rate_limits import enforce_email_verification_resend_limit
 from api.app.db.transactions import DatabaseConnection, get_connection
 from api.app.dependencies.auth import CurrentUser, bearer_scheme
 from api.app.dependencies.query import allow_query_parameters
@@ -12,6 +13,7 @@ from api.app.schemas.auth import (
     AccountCloseRequest,
     AccountExportResponse,
     EmailVerificationConfirm,
+    EmailVerificationResendRequest,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -60,6 +62,29 @@ async def confirm_email_verification(
 ) -> Response:
     await service.confirm_email_verification(payload)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/email-verification/resend",
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={429: {"model": ErrorEnvelope}, 503: {"model": ErrorEnvelope}},
+)
+async def resend_email_verification(
+    payload: EmailVerificationResendRequest,
+    request: Request,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+) -> dict[str, str]:
+    client_host = request.client.host if request.client else "unknown"
+    settings = request.app.state.settings
+    await enforce_email_verification_resend_limit(
+        request.app.state.rate_limit_store,
+        client_host=client_host,
+        normalized_email=str(payload.email),
+        requests=settings.email_verification_resend_limit,
+        window_seconds=settings.email_verification_resend_window_seconds,
+    )
+    await service.resend_email_verification(payload)
+    return {"message": "If this account is awaiting verification, we sent a new link."}
 
 
 @router.post(

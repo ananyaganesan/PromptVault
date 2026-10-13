@@ -2,7 +2,8 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
+from math import ceil
 from typing import Any, cast
 from uuid import UUID
 
@@ -233,6 +234,57 @@ class UserRepository:
         )
         row = await cursor.fetchone()
         return bool(row and row["confirmed"])
+
+    async def replace_email_verification_token(
+        self,
+        *,
+        user_id: UUID,
+        token_hash: str,
+        expires_at: datetime,
+        cooldown_seconds: int,
+    ) -> int | None:
+        locked = await self.connection.execute(
+            "SELECT id FROM users WHERE id = %s FOR UPDATE",
+            (user_id,),
+        )
+        if await locked.fetchone() is None:
+            raise RuntimeError("verification user disappeared during replacement")
+
+        latest = await self.connection.execute(
+            """
+            SELECT created_at
+            FROM email_verification_tokens
+            WHERE user_id = %s
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (user_id,),
+        )
+        latest_row = await latest.fetchone()
+        if latest_row is not None:
+            created_at = cast(datetime, latest_row["created_at"])
+            remaining = (
+                created_at + timedelta(seconds=cooldown_seconds) - datetime.now(UTC)
+            ).total_seconds()
+            if remaining > 0:
+                return max(1, ceil(remaining))
+
+        await self.connection.execute(
+            """
+            UPDATE email_verification_tokens
+            SET used_at = clock_timestamp()
+            WHERE user_id = %s AND used_at IS NULL
+            """,
+            (user_id,),
+        )
+        await self.connection.execute(
+            """
+            INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+            VALUES (%s, %s, %s)
+            """,
+            (user_id, token_hash, expires_at),
+        )
+        return None
 
     async def lock_password_reset_user(self, token_hash: str) -> UserRecord | None:
         cursor = await self.connection.execute(

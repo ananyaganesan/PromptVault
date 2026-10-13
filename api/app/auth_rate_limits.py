@@ -2,6 +2,7 @@
 
 from collections import deque
 from collections.abc import Callable
+from hashlib import sha256
 from math import ceil
 from threading import Lock
 from time import monotonic
@@ -12,6 +13,7 @@ from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from api.app.dependencies.request_context import REQUEST_ID_HEADER, get_request_id
+from api.app.errors import AppError
 
 
 class Limit(NamedTuple):
@@ -90,6 +92,29 @@ class RedisRateLimitStore:
 
 def create_rate_limit_store(redis_url: str | None) -> RateLimitStore:
     return RedisRateLimitStore(redis_url) if redis_url else LocalRateLimitStore()
+
+
+async def enforce_email_verification_resend_limit(
+    store: RateLimitStore,
+    *,
+    client_host: str,
+    normalized_email: str,
+    requests: int,
+    window_seconds: int,
+) -> None:
+    email_hash = sha256(normalized_email.encode("utf-8")).hexdigest()
+    retry_after = await store.retry_after(
+        f"email-verification-resend:{client_host}:{email_hash}",
+        requests,
+        window_seconds,
+    )
+    if retry_after is not None:
+        raise AppError(
+            429,
+            "rate_limited",
+            "Too many verification email requests. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
 
 class AuthRateLimitMiddleware:

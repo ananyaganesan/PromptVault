@@ -315,6 +315,188 @@ def test_concurrent_confirmation_has_one_successful_transition(
 
 
 @pytest.mark.database
+@pytest.mark.parametrize(
+    "email",
+    [
+        "missing-resend@example.com",
+        "inactive@promptvault.dev",
+        "user@promptvault.dev",
+    ],
+)
+def test_resend_hides_unknown_inactive_and_verified_accounts(
+    auth_client: TestClient,
+    email: str,
+) -> None:
+    delivered_before = sum(len(tokens) for tokens in DELIVERED_VERIFICATION_TOKENS.values())
+
+    response = auth_client.post(
+        "/api/v1/auth/email-verification/resend",
+        json={"email": email.upper()},
+    )
+
+    assert response.status_code == 202
+    assert response.json() == {
+        "message": "If this account is awaiting verification, we sent a new link."
+    }
+    assert sum(len(tokens) for tokens in DELIVERED_VERIFICATION_TOKENS.values()) == delivered_before
+
+
+@pytest.mark.database
+def test_resend_replaces_old_link_and_only_new_link_can_verify(
+    auth_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    email = f"resend-replace-{uuid4()}@example.com"
+    assert auth_client.post(
+        "/api/v1/auth/register", json=registration_payload(email)
+    ).status_code == 202
+    old_token = DELIVERED_VERIFICATION_TOKENS[email][-1]
+    with psycopg.connect(seeded_database_url) as connection:
+        connection.execute(
+            "UPDATE email_verification_tokens SET created_at = now() - interval '61 seconds' "
+            "WHERE token_hash = %s",
+            (hash_one_time_token(old_token),),
+        )
+
+    resent = auth_client.post(
+        "/api/v1/auth/email-verification/resend", json={"email": email.upper()}
+    )
+    new_token = DELIVERED_VERIFICATION_TOKENS[email][-1]
+    old_confirmation = auth_client.post(
+        "/api/v1/auth/email-verification/confirm", json={"token": old_token}
+    )
+    new_confirmation = auth_client.post(
+        "/api/v1/auth/email-verification/confirm", json={"token": new_token}
+    )
+
+    assert resent.status_code == 202
+    assert new_token != old_token
+    assert old_confirmation.status_code == 400
+    assert old_confirmation.json()["code"] == "invalid_verification_token"
+    assert new_confirmation.status_code == 204
+
+
+@pytest.mark.database
+def test_immediate_resend_returns_account_cooldown_hint(auth_client: TestClient) -> None:
+    email = f"resend-cooldown-{uuid4()}@example.com"
+    assert auth_client.post(
+        "/api/v1/auth/register", json=registration_payload(email)
+    ).status_code == 202
+
+    response = auth_client.post(
+        "/api/v1/auth/email-verification/resend", json={"email": email}
+    )
+
+    assert response.status_code == 429
+    assert response.json()["code"] == "rate_limited"
+    assert 1 <= int(response.headers["Retry-After"]) <= 60
+
+
+@pytest.mark.database
+def test_six_eligible_resends_trigger_hourly_composite_limit(
+    auth_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    email = f"resend-hourly-{uuid4()}@example.com"
+    assert auth_client.post(
+        "/api/v1/auth/register", json=registration_payload(email)
+    ).status_code == 202
+
+    for _ in range(5):
+        with psycopg.connect(seeded_database_url) as connection:
+            connection.execute(
+                "UPDATE email_verification_tokens SET created_at = now() - interval '61 seconds' "
+                "WHERE user_id = (SELECT id FROM users WHERE email = %s)",
+                (email,),
+            )
+        response = auth_client.post(
+            "/api/v1/auth/email-verification/resend", json={"email": email}
+        )
+        assert response.status_code == 202, response.text
+
+    limited = auth_client.post(
+        "/api/v1/auth/email-verification/resend", json={"email": email}
+    )
+
+    assert limited.status_code == 429
+    assert limited.json()["code"] == "rate_limited"
+    assert int(limited.headers["Retry-After"]) > 60
+
+
+@pytest.mark.database
+def test_resend_delivery_failure_preserves_prior_usable_token(
+    auth_client: TestClient,
+    seeded_database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = f"resend-delivery-{uuid4()}@example.com"
+    assert auth_client.post(
+        "/api/v1/auth/register", json=registration_payload(email)
+    ).status_code == 202
+    old_token = DELIVERED_VERIFICATION_TOKENS[email][-1]
+    with psycopg.connect(seeded_database_url) as connection:
+        connection.execute(
+            "UPDATE email_verification_tokens SET created_at = now() - interval '61 seconds' "
+            "WHERE token_hash = %s",
+            (hash_one_time_token(old_token),),
+        )
+
+    def fail_delivery(*_: object) -> None:
+        raise EmailDeliveryError("SMTP delivery failed")
+
+    monkeypatch.setattr("api.app.services.auth.send_email_verification_email", fail_delivery)
+    response = auth_client.post(
+        "/api/v1/auth/email-verification/resend", json={"email": email}
+    )
+    old_confirmation = auth_client.post(
+        "/api/v1/auth/email-verification/confirm", json={"token": old_token}
+    )
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "email_delivery_unavailable"
+    assert old_confirmation.status_code == 204
+
+
+@pytest.mark.database
+def test_racing_resends_create_only_one_active_replacement(
+    auth_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    email = f"resend-race-{uuid4()}@example.com"
+    assert auth_client.post(
+        "/api/v1/auth/register", json=registration_payload(email)
+    ).status_code == 202
+    original_delivery_count = len(DELIVERED_VERIFICATION_TOKENS[email])
+    with psycopg.connect(seeded_database_url) as connection:
+        connection.execute(
+            "UPDATE email_verification_tokens SET created_at = now() - interval '61 seconds' "
+            "WHERE user_id = (SELECT id FROM users WHERE email = %s)",
+            (email,),
+        )
+
+    def resend(_: int):
+        return auth_client.post(
+            "/api/v1/auth/email-verification/resend", json={"email": email}
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(resend, range(2)))
+
+    assert sorted(response.status_code for response in responses) == [202, 429]
+    assert len(DELIVERED_VERIFICATION_TOKENS[email]) == original_delivery_count + 1
+    with psycopg.connect(seeded_database_url) as connection:
+        active_tokens = connection.execute(
+            """
+            SELECT count(*)
+            FROM email_verification_tokens
+            WHERE user_id = (SELECT id FROM users WHERE email = %s) AND used_at IS NULL
+            """,
+            (email,),
+        ).fetchone()
+    assert active_tokens == (1,)
+
+
+@pytest.mark.database
 def test_login_accepts_seeded_credentials(auth_client: TestClient) -> None:
     response = auth_client.post(
         "/api/v1/auth/login",
