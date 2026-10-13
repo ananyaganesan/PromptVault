@@ -17,7 +17,7 @@ def migration_sql(version: int) -> str:
 def test_complete_migration_chain_is_discoverable() -> None:
     migrations = discover_migrations(MIGRATIONS_DIRECTORY)
 
-    assert [migration.version for migration in migrations] == list(range(1, 24))
+    assert [migration.version for migration in migrations] == list(range(1, 25))
 
 
 @pytest.mark.parametrize("path", sorted(MIGRATIONS_DIRECTORY.glob("*.sql")), ids=lambda p: p.name)
@@ -156,6 +156,22 @@ def test_account_closure_is_atomic_and_revokes_credentials() -> None:
     assert "update auth_sessions" in lifecycle
     assert "update api_tokens" in lifecycle
     assert "pseudonymized" in lifecycle
+
+
+def test_email_verification_is_hashed_expiring_and_atomic() -> None:
+    verification = migration_sql(24)
+
+    assert "add column email_verified_at timestamptz" in verification
+    assert "update users" in verification
+    assert "create table email_verification_tokens" in verification
+    assert "token_hash char(64)" in verification
+    assert "where used_at is null" in verification
+    assert "expires_at > clock_timestamp()" in verification
+    assert "for update" in verification
+    assert "security definer" in verification
+    assert "confirm_email_verification" in verification
+    assert "delete from email_verification_tokens" in verification
+    assert "grant execute on function" in verification
 
 
 def test_seed_files_define_deterministic_demo_identities() -> None:

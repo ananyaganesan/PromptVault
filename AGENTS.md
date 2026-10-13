@@ -27,11 +27,15 @@ security, provider restrictions, data integrity and meaningful local tests.
 
 # Authentication scope
 
-The user excluded email verification on 2026-10-12. Do not implement verification
-tokens, verification/resend endpoints, verification emails or verification UI, and
-do not gate registration or login on verified email. Historical A3 checklist items
-are out of scope. Preserve existing authentication, session revocation and password
-reset behavior; verify those flows locally.
+The user approved email verification on 2026-10-13. Preserve existing accounts by
+marking them verified during migration. New accounts must verify a hashed, one-use
+email link before login; links expire after 30 minutes. Resends use a 60-second
+account cooldown and a maximum of five attempts per rolling hour for each client
+and normalized-email hash, invalidate older links, and return generic responses
+that do not reveal account state. Duplicate registration must clearly report that
+the account already exists. Preserve existing authentication, session revocation
+and password-reset behavior, and validate every flow locally with isolated test
+databases and loopback SMTP capture.
 
 # Stable local database connection
 
