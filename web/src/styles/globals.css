@@ -121,3 +121,256 @@
 .recent-activity-empty .state strong { font-size: 11px; }
 .recent-activity-empty .state p,
 .recent-activity-empty .state a { font-size: 9px; }
+
+/* Semantic typography roles. The values mirror the established compact UI
+   scale above and provide a safe baseline for conditionally rendered copy. */
+body {
+  color: var(--pv-text);
+  font-family: var(--pv-font-sans);
+  font-size: var(--pv-type-body);
+  font-weight: var(--pv-weight-regular);
+  line-height: var(--pv-leading-body);
+}
+
+.page-header h1 {
+  font-size: var(--pv-type-page-title);
+  font-weight: var(--pv-weight-bold);
+  line-height: var(--pv-leading-tight);
+  letter-spacing: var(--pv-tracking-title);
+}
+.panel h2,
+.project-card h2,
+.members-panel > h3 {
+  font-size: var(--pv-type-section-title);
+  font-weight: var(--pv-weight-semibold);
+  line-height: 1.35;
+  letter-spacing: var(--pv-tracking-heading);
+}
+.panel-head p,
+.project-card p,
+.deployment-hint,
+.provider-note,
+.template-variable-empty,
+.empty-evidence {
+  color: var(--pv-muted) !important;
+  font-size: var(--pv-type-supporting);
+  line-height: var(--pv-leading-body);
+}
+.page-header p {
+  color: var(--pv-muted) !important;
+  font-size: var(--pv-type-body);
+  line-height: var(--pv-leading-body);
+}
+.profile-notice,
+.empty-output,
+.no-results,
+.state,
+.admin-state {
+  font-size: var(--pv-type-body);
+  line-height: var(--pv-leading-body);
+}
+.no-results {
+  display: block;
+  width: 100%;
+  margin: 0;
+  color: var(--pv-muted) !important;
+  text-align: center !important;
+}
+.state strong,
+.recent-activity-empty .state strong {
+  font-size: var(--pv-type-empty-title);
+  font-weight: 600;
+  line-height: 1.35;
+}
+.state p,
+.state a,
+.recent-activity-empty .state p,
+.recent-activity-empty .state a {
+  font-size: var(--pv-type-body);
+  line-height: var(--pv-leading-body);
+}
+.field > span {
+  font-size: var(--pv-type-supporting);
+  font-weight: var(--pv-weight-medium);
+  line-height: 1.4;
+}
+.field input,
+.field textarea,
+.field select,
+.toolbar input,
+.toolbar select,
+.member-add input,
+.variable-row input,
+.search-input {
+  font-family: inherit;
+  font-size: var(--pv-type-body);
+  font-weight: 400;
+  line-height: 1.4;
+}
+.form-error,
+.field-error,
+.inline-feedback {
+  font-size: var(--pv-type-body) !important;
+  line-height: var(--pv-leading-body);
+}
+.button {
+  font-size: var(--pv-type-body);
+  font-weight: var(--pv-weight-semibold);
+  line-height: 1.2;
+}
+.side-link,
+.tabs button,
+.text-button {
+  font-weight: 400;
+}
+.side-link.active,
+.tabs button.selected {
+  font-weight: var(--pv-weight-semibold);
+}
+.tabs button,
+.text-button,
+.run-pagination,
+.health-row,
+.editor-meta,
+.settings-key code,
+.template-variable-list li,
+.run-variable code,
+.review-base,
+.empty-evidence {
+  font-size: var(--pv-type-supporting);
+  line-height: var(--pv-leading-body);
+}
+.health-row b,
+.activity b,
+.version-row b,
+.prompt-row b,
+td:first-child {
+  font-weight: 500;
+}
+th {
+  font-size: var(--pv-type-table-heading);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: var(--pv-tracking-label);
+}
+td {
+  font-size: var(--pv-type-supporting);
+  line-height: 1.4;
+}
+.modal h2 {
+  font-size: var(--pv-type-dialog-title);
+  font-weight: var(--pv-weight-semibold);
+  line-height: 1.3;
+  letter-spacing: var(--pv-tracking-heading);
+}
+.modal p,
+.token-warning,
+.run-outcome,
+.run-variable p,
+.output-copy {
+  font-size: var(--pv-type-body);
+  line-height: var(--pv-leading-copy);
+}
+.prompt-row code,
+.version-code {
+  font-family: var(--pv-font-mono);
+}
+code,
+pre {
+  font-family: var(--pv-font-mono);
+}
+.project-prompt-library .prompt-row code {
+  font-family: var(--pv-font-mono);
+  font-size: var(--pv-type-caption);
+}
+.project-prompt-library .prompt-row .version-code {
+  font-size: var(--pv-type-supporting);
+}
+
+/* Shared primitives that previously relied on browser-default typography. */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  color: var(--pv-muted);
+  font-size: var(--pv-type-supporting);
+}
+.dropdown summary {
+  font-size: var(--pv-type-body);
+  font-weight: 500;
+  line-height: var(--pv-leading-body);
+}
+.dropdown-menu {
+  color: var(--pv-text);
+  font-size: var(--pv-type-body);
+  line-height: var(--pv-leading-body);
+}
+.search-input {
+  border: 1px solid var(--pv-border);
+  border-radius: var(--pv-radius);
+  background: #fff;
+  color: var(--pv-text);
+  padding: 10px 11px;
+}
+.divider {
+  border: 0;
+  border-top: 1px solid var(--pv-border);
+}
+.toast {
+  border: 1px solid var(--pv-border);
+  background: #fff;
+  color: var(--pv-text);
+  padding: 10px 12px;
+  font-size: var(--pv-type-body);
+  line-height: var(--pv-leading-body);
+}
+.toast.success { border-color: #cfe3d2; background: #eef5ef; color: #47734f; }
+.toast.warning { border-color: #ead8ad; background: #faf4e7; color: #8a6b2d; }
+.toast.danger { border-color: #e6c4c4; background: #fbefef; color: #8e3434; }
+
+/* Keep native select affordances consistent across the configuration form. */
+.field select {
+  appearance: none;
+  padding-right: 36px;
+  background-image: linear-gradient(45deg, transparent 50%, #626269 50%), linear-gradient(135deg, #626269 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.playground-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+.playground-actions .text-button { white-space: nowrap; }
+
+/* Membership copy follows the same heading/body/secondary hierarchy as the
+   reference without affecting invitation behavior. */
+.members-panel .member-invitation-note {
+  margin: 18px 0 0;
+  color: var(--pv-text);
+  font-size: var(--pv-type-body);
+  font-weight: var(--pv-weight-regular);
+  line-height: var(--pv-leading-copy);
+}
+.members-panel > h3 {
+  font-size: var(--pv-type-section-title);
+  font-weight: var(--pv-weight-semibold);
+  letter-spacing: var(--pv-tracking-heading);
+  line-height: 1.35;
+}
+.members-panel .member-empty-invitations {
+  margin: 0 0 18px;
+  color: var(--pv-muted);
+  font-size: var(--pv-type-body);
+  font-weight: var(--pv-weight-regular);
+  line-height: var(--pv-leading-body);
+}
+
+@media (max-width: 800px) {
+  .page-header h1 { font-size: var(--pv-type-page-title-mobile); }
+  .playground-actions { flex-wrap: wrap; }
+}

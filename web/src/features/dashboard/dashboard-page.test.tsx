@@ -96,7 +96,7 @@ describe('personal Recent Activity', () => {
     const list = vi.spyOn(runsApi, 'list').mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10 })
     render(<MemoryRouter><DashboardPage /><RunsPage /></MemoryRouter>)
     await screen.findByText('No personal runs yet')
-    await screen.findByText('No runs match these filters.')
+    await screen.findByText('No runs were recorded in this period.')
     const recorded = run(`recorded-${status}`, status)
     read.mockResolvedValue(dashboard([recorded]))
     list.mockResolvedValue({ items: [recorded], total: 1, page: 1, page_size: 10 })

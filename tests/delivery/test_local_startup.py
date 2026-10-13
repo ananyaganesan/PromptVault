@@ -17,6 +17,7 @@ SPEC.loader.exec_module(startup)
 @pytest.mark.parametrize('url', [
     'postgresql://user:pass@localhost:55435/promptvault',
     'postgresql://user:pass@localhost:5432/promptvault_test',
+    'postgresql://user:pass@localhost:5432/another_database',
     'postgresql://user:pass@example.com:5432/promptvault',
 ])
 def test_normal_startup_rejects_alternate_database_targets(url: str) -> None:

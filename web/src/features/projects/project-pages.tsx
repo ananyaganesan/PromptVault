@@ -26,15 +26,23 @@ export function PromptRows({
   projectId?: string;
   search?: string;
 }) {
-  const prompts = promptStore.filter(
-    (prompt) =>
-      (!projectId || prompt.project_id === projectId) &&
-      `${prompt.name} ${prompt.key}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
+  const available = promptStore.filter(
+    (prompt) => !projectId || prompt.project_id === projectId,
   );
+  const query = search.trim().toLowerCase();
+  const prompts = query
+    ? available.filter((prompt) =>
+        `${prompt.name} ${prompt.key}`.toLowerCase().includes(query),
+      )
+    : available;
   return !prompts.length ? (
-    <div className="prompt-row no-results">No prompts match this search.</div>
+    <p className="no-results">
+      {query
+        ? "No prompts match this search."
+        : projectId
+          ? "No prompts have been added to this project yet."
+          : "No prompts are available yet."}
+    </p>
   ) : (
     <div className="rows">
       {prompts.map((prompt) => (
@@ -64,6 +72,7 @@ export function ProjectsPage() {
     `${project.name} ${project.key}`.toLowerCase().includes(search.toLowerCase()) &&
     (filter === "all" || (filter === "owned" ? project.owner_id === user?.id : project.owner_id !== user?.id)),
   );
+  const hasFilters = Boolean(search.trim() || filter !== "all");
   return (
     <>
       <PageHeader
@@ -113,7 +122,7 @@ export function ProjectsPage() {
           </Link>
         ))}
       </div>
-      {!projects.length && <EmptyState title="No projects found" description="Try another search or create your first project." action={<Link to="/projects/new">Create project</Link>} />}
+      {!projects.length && <EmptyState title={hasFilters ? "No projects match these filters" : "No projects yet"} description={hasFilters ? "Try another search or filter." : "Create your first project to organize prompts and collaborators."} action={!hasFilters && <Link to="/projects/new">Create project</Link>} />}
     </>
   );
 }
@@ -373,10 +382,10 @@ function ProjectDetailContent({ project }: { project: Project }) {
             <Button type="submit" disabled={inviting}>{inviting ? "Sending…" : "Invite member"}</Button>
           </form>}
           {canManage && <>
-            <p>Invited users must have a PromptVault account and accept the email invitation before getting access.</p>
+            <p className="member-invitation-note">Invited users must have a PromptVault account and accept the email invitation before getting access.</p>
             {invitationError && <p role="alert">{invitationError}</p>}
             <h3>Pending invitations</h3>
-            {invitations.length === 0 && <p>No pending invitations.</p>}
+            {invitations.length === 0 && <p className="member-empty-invitations">No pending invitations.</p>}
             {invitations.map((invitation) => <div className="member-row" key={invitation.id}>
               <div><strong>{invitation.email}</strong><p>{new Date(invitation.expires_at).getTime() <= Date.now() ? "Expired" : "Awaiting acceptance"} · Expires {displayDate(invitation.expires_at)}</p></div>
               <Button type="button" disabled={cancelling !== null} onClick={() => cancelInvitation(invitation.id)}>{cancelling === invitation.id ? "Cancelling…" : "Cancel invitation"}</Button>

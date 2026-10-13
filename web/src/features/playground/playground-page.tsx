@@ -96,14 +96,16 @@ export function PlaygroundPage() {
           {modelInfo && <p className="provider-note">Up to {modelInfo.max_input_characters.toLocaleString()} prompt characters · {discovery.data?.timeout_seconds}s timeout</p>}
           {unavailable && <p className="provider-note" role="status">{unavailable}</p>}
           {internalMock && discovery.error && <p className="provider-note" role="status">{discovery.error}</p>}
-          {!demoMode && <button className="text-button" type="button" onClick={discovery.refresh}>Refresh providers</button>}
           {changed && <Button onClick={saveConfiguration} disabled={saving || pending || Boolean(unavailable) || !config.model || !Number.isInteger(config.max_output_tokens) || (config.max_output_tokens ?? 0) < 1 || (config.max_output_tokens ?? 0) > (modelInfo?.max_output_tokens ?? 4096)}>{saving ? 'Saving…' : 'Save configuration'}</Button>}
           {notice && <p className="provider-note" role="status">{notice}</p>}
         </>}
         {selected?.variables.map((variable) => <label className="field" key={variable.name}><span>{variable.name}{variable.required ? ' *' : ' (optional)'}</span><textarea disabled={pending || saving} value={inputs[variable.name] ?? ''} onChange={(event) => setInputs({ ...inputs, [variable.name]: event.target.value })} placeholder={variable.description || variable.default_value || `Enter ${variable.name}`} /></label>)}
         {demoMode && <label className="field"><span>Test scenario</span><select aria-label="Test scenario" value={scenario} onChange={(event) => setScenario(event.target.value as typeof scenario)}><option value="normal">Successful run</option><option value="failed">Provider failure</option><option value="blocked">Budget limit</option></select></label>}
         {error && !executionError && <p className="form-error" role="alert">{error}</p>}
-        <Button onClick={execute} disabled={pending || saving || !selected || changed || Boolean(unavailable)}>{pending ? 'Running…' : 'Run prompt'}</Button>
+        <div className="playground-actions">
+          {!demoMode && <button className="text-button" type="button" onClick={discovery.refresh}>Refresh providers</button>}
+          <Button onClick={execute} disabled={pending || saving || !selected || changed || Boolean(unavailable)}>{pending ? 'Running…' : 'Run prompt'}</Button>
+        </div>
       </section>
       <section className="panel output" aria-live="polite"><div className="panel-head"><div><h2>Output</h2><p>{run ? `Run ${run.id}` : 'Your response will appear here.'}</p></div>{run && <Status tone={run.status === 'completed' ? 'success' : 'warning'}>{run.status}</Status>}</div>
         {run?.status === 'completed' ? <><div className="output-copy">{run.output}</div><div className="metrics"><Stat label="PROMPT TOKENS" value={String(run.prompt_tokens ?? 0)} note="" /><Stat label="COMPLETION TOKENS" value={String(run.completion_tokens ?? 0)} note="" /><Stat label="LATENCY" value={`${((run.latency_ms ?? 0) / 1000).toFixed(2)}s`} note="" /></div></> : run ? <div className="run-outcome"><h3>{run.status === 'blocked' ? 'Budget limit reached' : 'Run failed'}</h3><p>{run.error_message}</p></div> : executionError ? <div className="run-outcome" role="alert"><h3>{executionError === 'blocked' ? 'Budget limit reached' : 'Run failed'}</h3><p>{error}</p></div> : <div className="empty-output">Run a prompt to see the response and execution metrics.</div>}

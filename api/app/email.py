@@ -15,6 +15,9 @@ from api.app.config import Settings
 _RESET_TEMPLATE = Template(
     (Path(__file__).parent / "templates" / "password-reset.html").read_text(encoding="utf-8")
 )
+_PASSWORD_CHANGED_TEMPLATE = Template(
+    (Path(__file__).parent / "templates" / "password-changed.html").read_text(encoding="utf-8")
+)
 _INVITATION_TEMPLATE = Template(
     (Path(__file__).parent / "templates" / "project-invitation.html").read_text(encoding="utf-8")
 )
@@ -64,6 +67,26 @@ def send_password_reset_email(settings: Settings, recipient: str, token: str) ->
     )
     _attach_logo(message)
 
+    _send_message(settings, message)
+
+
+def send_password_changed_email(settings: Settings, recipient: str) -> None:
+    """Notify an account holder after their password reset has completed."""
+    if not settings.smtp_host or not settings.smtp_from_email:
+        raise EmailDeliveryError("SMTP is not configured")
+
+    message = EmailMessage()
+    message["Subject"] = "Your PromptVault password has been changed"
+    message["From"] = f"PromptVault <{settings.smtp_from_email}>"
+    message["To"] = recipient
+    message.set_content(
+        "Your PromptVault password has been changed successfully.\n\n"
+        "If you made this change, no further action is needed. "
+        "If you did not make this change, reset your password immediately "
+        "and contact an administrator."
+    )
+    message.add_alternative(_PASSWORD_CHANGED_TEMPLATE.substitute(), subtype="html")
+    _attach_logo(message)
     _send_message(settings, message)
 
 

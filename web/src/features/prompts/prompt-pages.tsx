@@ -64,6 +64,7 @@ export function PromptsPage() {
             .toLowerCase()
             .includes(search.toLowerCase()),
   );
+  const hasFilters = Boolean(search.trim() || project || environment);
   return (
     <>
       <PageHeader
@@ -127,7 +128,7 @@ export function PromptsPage() {
               </Link>
             ))
           ) : (
-            <EmptyState title="No prompts found" description="Try another filter or create a prompt." action={<Link to="/prompts/new">Create prompt</Link>} />
+            <EmptyState title={hasFilters ? "No prompts match these filters" : "No prompts yet"} description={hasFilters ? "Try another search or filter." : "Create your first reusable prompt template."} action={!hasFilters && <Link to="/prompts/new">Create prompt</Link>} />
           )}
         </div>
       </section>

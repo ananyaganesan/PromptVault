@@ -27,6 +27,7 @@ export function DeploymentListPage() {
   const loading = snapshot?.key !== requestKey
   const data = loading ? undefined : snapshot?.data
   const error = loading ? '' : snapshot?.error
+  const hasFilters = Boolean(projectId || status || environment)
   useEffect(() => {
     let active = true
     deploymentService.list({ page, page_size: 10, project_id: projectId || undefined, status: status || undefined, environment: environment || undefined })
@@ -46,7 +47,7 @@ export function DeploymentListPage() {
       <select aria-label="Deployment environment" value={environment} onChange={(event) => { setEnvironment(event.target.value as DeploymentEnvironment | ''); setPage(1) }}><option value="">All environments</option><option value="development">Development</option><option value="staging">Staging</option><option value="production">Production</option></select>
     </div>
     {loading ? <section className="panel empty-output" role="status">Loading deployments…</section> : error ? <section className="panel" role="alert">{error} <Button secondary onClick={refreshLiveData}>Try again</Button></section> : data && <>
-      <section className="panel table-panel deployment-table" tabIndex={0} aria-label="Deployment history table"><table><thead><tr><th>PROMPT / ENVIRONMENT</th><th>PROJECT</th><th>VERSION</th><th>STATUS</th><th>REQUESTED BY</th><th>CREATED</th></tr></thead><tbody>{data.items.map((item) => <tr key={item.id}><td><Link to={`/deployments/${item.id}`}>{item.prompt_key} → {label(item.environment)}</Link></td><td>{item.project_name}</td><td>v{item.version_number}</td><td><Status tone={tone(item.status)}>{label(item.status)}</Status></td><td>{item.requested_by_name}</td><td>{dateTime(item.created_at)}</td></tr>)}</tbody></table>{!data.items.length && <p className="no-results">No deployments match these filters.</p>}</section>
+      <section className="panel table-panel deployment-table" tabIndex={0} aria-label="Deployment history table"><table><thead><tr><th>PROMPT / ENVIRONMENT</th><th>PROJECT</th><th>VERSION</th><th>STATUS</th><th>REQUESTED BY</th><th>CREATED</th></tr></thead><tbody>{data.items.map((item) => <tr key={item.id}><td><Link to={`/deployments/${item.id}`}>{item.prompt_key} → {label(item.environment)}</Link></td><td>{item.project_name}</td><td>v{item.version_number}</td><td><Status tone={tone(item.status)}>{label(item.status)}</Status></td><td>{item.requested_by_name}</td><td>{dateTime(item.created_at)}</td></tr>)}</tbody></table>{!data.items.length && <p className="no-results">{hasFilters ? 'No deployments match these filters.' : 'No deployments have been created yet.'}</p>}</section>
       <div className="run-pagination"><span>{data.total} deployments · page {page}</span><div><Button secondary disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button><Button secondary disabled={page * data.page_size >= data.total} onClick={() => setPage(page + 1)}>Next</Button></div></div>
     </>}
   </>

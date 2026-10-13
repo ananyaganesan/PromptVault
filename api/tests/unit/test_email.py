@@ -3,7 +3,11 @@ import ssl
 
 import pytest
 from api.app.config import Settings
-from api.app.email import EmailDeliveryError, send_password_reset_email
+from api.app.email import (
+    EmailDeliveryError,
+    send_password_changed_email,
+    send_password_reset_email,
+)
 
 
 class FakeSMTP:
@@ -91,6 +95,32 @@ def test_password_reset_email_requires_smtp_configuration() -> None:
 
     with pytest.raises(EmailDeliveryError):
         send_password_reset_email(settings, "alex@example.com", "reset-token")
+
+
+def test_password_changed_email_uses_the_password_reset_visual_template(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeSMTP.instances.clear()
+    monkeypatch.setattr("api.app.email.smtplib.SMTP", FakeSMTP)
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql://promptvault:promptvault@localhost:5432/promptvault",
+        secret_key="test-secret-that-is-long-enough",
+        smtp_host="smtp.example.com",
+        smtp_from_email="no-reply@example.com",
+    )
+
+    send_password_changed_email(settings, "alex@example.com")
+
+    message = FakeSMTP.instances[0].messages[0]
+    html = message.get_body(preferencelist=("html",)).get_content()
+    assert message["Subject"] == "Your PromptVault password has been changed"
+    assert "password has been changed successfully" in message.get_body(
+        preferencelist=("plain",)
+    ).get_content()
+    assert "Your password has been changed.</h1>" in html
+    assert "font-family:Inter,Arial,sans-serif" in html
+    assert 'src="cid:promptvault-logo"' in html
 
 
 def test_password_reset_email_wraps_smtp_failures(
