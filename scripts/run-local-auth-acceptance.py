@@ -14,6 +14,9 @@ from uuid import uuid4
 import uvicorn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+os.environ.setdefault("DATABASE_URL", os.environ.get("E2E_DATABASE_URL", ""))
+os.environ.setdefault("SECRET_KEY", "local-auth-only-secret-at-least-32-characters")
+os.environ.setdefault("ENVIRONMENT", "test")
 
 from api.app.config import Settings
 from api.app.main import create_app
@@ -40,6 +43,7 @@ class MailCapture(socketserver.StreamRequestHandler):
                 body = message.get_body(preferencelist=("plain",))
                 payload = {
                     "recipient": str(message["To"]),
+                    "subject": str(message["Subject"]),
                     "text": body.get_content() if body else "",
                 }
                 mailbox = Path(os.environ["E2E_MAILBOX_DIR"])
@@ -67,6 +71,8 @@ def main() -> None:
         secret_key="local-auth-only-secret-at-least-32-characters",
         cors_origins="http://127.0.0.1:5178",
         password_reset_url="http://127.0.0.1:5178/reset-password",
+        email_verification_url="http://127.0.0.1:5178/verify-email",
+        email_verification_resend_cooldown_seconds=1,
         smtp_host="127.0.0.1",
         smtp_port=1026,
         smtp_from_email="local@example.com",

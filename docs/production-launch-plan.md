@@ -43,9 +43,10 @@ scope and must not block local project completion. Their unchecked boxes are not
 requirements to implement. Existing security, data-integrity and concurrency checks
 remain applicable to the local application.
 
-Scope update (2026-10-12): email verification is not required. All historical A3,
-verification/resend, verified-email access gates and verification acceptance items
-below are excluded. Local authentication/reset acceptance (A5) is complete. The
+Scope update (2026-10-13): email verification is required for new accounts and is
+implemented with local loopback-SMTP acceptance. Historical hosted/staging A3 gates
+remain excluded; they must not turn the local verification feature into deployment
+work. Local authentication/verification/reset acceptance (A5) is complete. The
 academic evidence and full local demonstration are also technically complete.
 Remaining boundaries are original design chronology, final submission review and
 real free-tier provider-account calls.

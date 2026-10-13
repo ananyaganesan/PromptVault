@@ -15,3 +15,18 @@ with psycopg.connect(os.environ['E2E_DATABASE_URL'], row_factory=dict_row) as co
 `
   return JSON.parse(execFileSync(python, ['-c', script, query, JSON.stringify(parameters)], { encoding: 'utf8' }))
 }
+
+export function executeTestDatabase(query: string, parameters: unknown[] = []) {
+  if (!process.env.E2E_DATABASE_URL) throw new Error('Set E2E_DATABASE_URL for database mutation tests.')
+  const python = process.env.E2E_PYTHON ?? fileURLToPath(new URL('../../../.venv/bin/python', import.meta.url))
+  const script = `import json, os, sys
+from urllib.parse import urlsplit
+import psycopg
+database_url = os.environ['E2E_DATABASE_URL']
+if not urlsplit(database_url).path.rstrip('/').endswith('_test'):
+    raise SystemExit('Acceptance mutation requires a database ending in _test')
+with psycopg.connect(database_url) as connection:
+    connection.execute(sys.argv[1], json.loads(sys.argv[2]))
+`
+  execFileSync(python, ['-c', script, query, JSON.stringify(parameters)], { encoding: 'utf8' })
+}

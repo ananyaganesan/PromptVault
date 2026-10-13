@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { createVerifiedTestAccount } from './support/auth'
 
 test.skip(process.env.E2E_LIVE !== '1', 'Runs only against the Docker-backed live stack.')
 test.setTimeout(90_000)
@@ -11,20 +12,15 @@ async function signIn(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/dashboard$/)
 }
 
-test('project, member, prompt, and immutable versions survive reloads through FastAPI', async ({ page }) => {
+test('project, member, prompt, and immutable versions survive reloads through FastAPI', async ({ page, request }) => {
   const suffix = Date.now().toString(36)
   const projectName = `Live Workspace ${suffix}`
   const projectKey = `live-workspace-${suffix}`
   const promptName = `Live Reply ${suffix}`
   const promptKey = `live-reply-${suffix}`
-  const memberEmail = `member-${suffix}@example.com`
+  const memberAccount = await createVerifiedTestAccount(request, `member-${suffix}`)
+  const memberEmail = memberAccount.email
   const memberPage = await page.context().newPage()
-  await memberPage.goto('/register')
-  await memberPage.getByLabel('Display name').fill(`Member ${suffix}`)
-  await memberPage.getByLabel('Email address').fill(memberEmail)
-  await memberPage.getByLabel('Password', { exact: true }).fill('MemberPassword2026!')
-  await memberPage.getByRole('button', { name: 'Create account' }).click()
-  await expect(memberPage).toHaveURL(/\/dashboard$/)
   await signIn(page)
 
   await page.goto('/projects/new')
@@ -56,6 +52,8 @@ test('project, member, prompt, and immutable versions survive reloads through Fa
   await page.getByRole('button', { name: /Members/ }).click()
   await expect(page.locator('.member-row').filter({ hasText: 'admin@promptvault.dev' })).toBeVisible()
   await expect(page.locator('.member-row').filter({ hasText: memberEmail })).toBeVisible()
+  await memberPage.goto('/login')
+  await memberPage.evaluate((token) => sessionStorage.setItem('promptvault.api.session', token), memberAccount.session.access_token)
   await memberPage.goto('/projects')
   await expect(memberPage.getByRole('heading', { name: updatedProjectName })).toBeVisible()
 

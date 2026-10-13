@@ -162,7 +162,9 @@ Environments are `dev`, `staging`, and `prod`. Statuses are `pending`, `active`,
 
 | Method and path | Request | Success |
 |---|---|---|
-| `POST /auth/register` | `email`, `password`, `display_name` | `201` with `access_token`, `token_type`, `expires_in`, and `user` |
+| `POST /auth/register` | `email`, `password`, `display_name` | `202` with normalized `email` and check-inbox `message`; no session |
+| `POST /auth/email-verification/confirm` | `token` | `204`; verifies the active pending account and consumes all of its verification links |
+| `POST /auth/email-verification/resend` | `email` | `202` generic response; eligible pending accounts receive a replacement link |
 | `POST /auth/login` | `email`, `password` | `200` with the same session shape |
 | `POST /auth/logout` | None | `204`; revokes the current server-side session |
 | `GET /auth/account/export` | None | `200`; safe account/business-data export without credential material |
@@ -171,7 +173,7 @@ Environments are `dev`, `staging`, and `prod`. Statuses are `pending`, `active`,
 | `POST /auth/password-reset/confirm` | `token`, `password` | `204`; consumes the token, changes the password, and revokes all sessions |
 | `GET /auth/me` | None | `200` User |
 
-Passwords contain 12-128 characters. Register/login never accept a role. Email comparison is case-insensitive and normalized.
+Passwords contain 12-128 characters. Register/login never accept a role. Email comparison is case-insensitive and normalized. New accounts cannot log in until verified; correct credentials return `403 email_unverified`, while an incorrect password retains the generic `401 invalid_credentials` response. Verification tokens are SHA-256 hashes at rest, expire after 30 minutes, and are one-use. Invalid, expired, and consumed verification links share `400 invalid_verification_token`. Resend has a 60-second account cooldown and a five-per-hour composite client/email-hash limit; unknown, inactive, and already verified addresses share the same generic accepted response.
 Password-reset requests return `503 email_delivery_unavailable` when SMTP is not configured or delivery fails. Confirmation returns `400 invalid_reset_token` for an expired or used link, or an inactive account. It returns `409 password_reused` when the new password matches the current or any recorded earlier password for that account; this rejection leaves the reset link usable. Successful confirmation atomically changes the password, records its Argon2 hash in `password_history`, and consumes the link. History starts with each existing account's current hash when migration 018 is applied; passwords replaced before that migration cannot be recovered.
 
 Account closure returns `401 invalid_credentials` when password confirmation fails and `409 last_admin` when the account is the final active Super Admin. Immutable shared business records remain retained according to `docs/data-lifecycle.md`.

@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { databaseRows } from './support/database'
+import { createVerifiedTestAccount } from './support/auth'
 
 test.skip(process.env.E2E_LIVE !== '1' || !process.env.E2E_DATABASE_URL, 'Requires a live isolated stack and E2E_DATABASE_URL.')
 test.setTimeout(120_000)
@@ -68,10 +69,9 @@ test('project/version mutations, cross-user refresh, lineage and revoked members
   await page.reload()
   await expect(page.getByRole('heading', { name: updatedName })).toBeVisible()
 
-  const email = `audit-member-${key}@example.com`
-  const registration = await request.post(`${api}/auth/register`, { data: { display_name: `Member ${key}`, email, password: 'AuditMemberPassword2026!' } })
-  expect(registration.status()).toBe(201)
-  const memberSession = await registration.json()
+  const memberAccount = await createVerifiedTestAccount(request, `audit-member-${key}`)
+  const email = memberAccount.email
+  const memberSession = memberAccount.session
   const ownerHeaders = { Authorization: `Bearer ${jwt}` }
   expect((await request.post(`${api}/projects/${projectId}/members`, { headers: ownerHeaders, data: { email } })).status()).toBe(201)
   const context = await browser.newContext({ baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173' })
@@ -199,9 +199,8 @@ test('an unrelated account sees no restricted records, counts or run output', as
   const runResponse = await request.post(`${api}/runs`, { headers, data: { version_id: prompt.latest_version.id, variables: { message: 'Private output' } } })
   expect(runResponse.status()).toBe(201)
   const run = await runResponse.json()
-  const registration = await request.post(`${api}/auth/register`, { data: { display_name: 'Unrelated account', email: `unrelated-${suffix()}@example.com`, password: 'UnrelatedPassword2026!' } })
-  expect(registration.status()).toBe(201)
-  const session = await registration.json()
+  const unrelatedAccount = await createVerifiedTestAccount(request, `unrelated-${suffix()}`)
+  const session = unrelatedAccount.session
   const unrelatedHeaders = { Authorization: `Bearer ${session.access_token}` }
   for (const path of ['/projects', '/runs', '/deployments']) {
     const response = await request.get(`${api}${path}`, { headers: unrelatedHeaders })

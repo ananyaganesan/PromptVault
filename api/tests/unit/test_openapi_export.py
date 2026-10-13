@@ -30,6 +30,8 @@ def test_export_openapi_writes_deterministic_frontend_contract(
     assert "/api/v1/auth/me" in document["paths"]
     assert "/api/v1/auth/password-reset" in document["paths"]
     assert "/api/v1/auth/password-reset/confirm" in document["paths"]
+    assert "/api/v1/auth/email-verification/confirm" in document["paths"]
+    assert "/api/v1/auth/email-verification/resend" in document["paths"]
     assert "/api/v1/projects" in document["paths"]
     assert "/api/v1/projects/{project_id}" in document["paths"]
     assert "/api/v1/projects/{project_id}/members" in document["paths"]
@@ -102,6 +104,11 @@ def test_export_openapi_writes_deterministic_frontend_contract(
     assert "ErrorEnvelope" in document["components"]["schemas"]
     register_fields = document["components"]["schemas"]["RegisterRequest"]["properties"]
     assert set(register_fields) == {"email", "password", "display_name"}
+    register_responses = document["paths"]["/api/v1/auth/register"]["post"]["responses"]
+    assert "202" in register_responses
+    assert register_responses["202"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/PendingVerificationResponse"
+    }
     first_render = output.read_text(encoding="utf-8")
     assert "password_hash" not in first_render
     assert "HTTPBearer" in document["components"]["securitySchemes"]

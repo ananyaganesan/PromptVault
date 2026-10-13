@@ -1,7 +1,8 @@
 # Academic database evidence and local demonstration
 
-Accepted technically on 2026-10-12 against PostgreSQL 18. No new schema migration
-was needed. The existing 23-migration chain provides the required capabilities.
+Accepted technically on 2026-10-13 against PostgreSQL 18. Migration 024 adds the
+email-verification timestamp, hashed token relation, atomic confirmation function,
+and inactive-account cleanup trigger while backfilling existing accounts as verified.
 
 ## Deliverables
 
@@ -102,6 +103,7 @@ This proves the artifacts existed together, not which was prepared first. No dat
 design evidence was invented. That academic item and final submission review remain
 open; they do not require additional application code.
 
-Email verification, deployment infrastructure and staging URLs remain excluded.
+Email verification is validated locally with isolated database and loopback SMTP
+acceptance. Deployment infrastructure and staging URLs remain excluded.
 The fixed external providers remain Gemini, OpenRouter and Groq. Real free-tier
 account calls remain pending as documented in [A1 acceptance](a1-local-acceptance.md).
