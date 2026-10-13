@@ -11,7 +11,7 @@ Stored roles are `user` and `admin`; the UI label for `admin` is Super Admin. In
 | `GET /api/v1/projects/{id}` | Deny | Member | Allow | Member or admin |
 | `PATCH /api/v1/projects/{id}` | Deny | Owner | Allow | Owner or admin |
 | Project member listing | Deny | Member | Allow | Member or admin |
-| Project member add/remove | Deny | Owner | Allow | Owner/admin; owner cannot be removed |
+| Project member invite/remove | Deny | Owner | Allow | Owner/admin; owner cannot be removed |
 | Project prompt list/create | Deny | Member | Allow | Member or admin |
 | Prompt metadata read/update | Deny | Member | Allow | Prompt-project member or admin |
 | Version create/read/history/diff/lineage | Deny | Member | Allow | Prompt-project member or admin |
@@ -36,3 +36,5 @@ Stored roles are `user` and `admin`; the UI label for `admin` is Super Admin. In
 - Users cannot approve, reject, or activate production requests; only the admin procedure can transition them.
 - A Serve token cannot list data or cross its project scope.
 - Password hashes, signing secrets, provider secrets, token hashes, and encrypted values never enter public response schemas.
+
+Project invitation list/cancel requires owner or Super Admin access. Acceptance requires the invited active account and a valid single-use token; pending invitations confer no resource access.

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-12T16:30:26.673790+00:00",
-  "logical_tables": 17,
+  "generated_at": "2026-10-13T16:45:10.151263+00:00",
+  "logical_tables": 19,
   "migrations": [
     {
       "version": 1,
@@ -116,6 +116,16 @@
       "version": 23,
       "name": "self_profile",
       "checksum": "4f11d55d22ae0fd6e18eb1b215c85aa91854b8247fde353f8f57f4f2c12252b5"
+    },
+    {
+      "version": 24,
+      "name": "email_verification",
+      "checksum": "43a1f0e870b97dba27bdd259a005000693bbf5109d7b4b165a3e1ace7ba5bec0"
+    },
+    {
+      "version": 25,
+      "name": "project_invitations",
+      "checksum": "83559c93ea09030d91e63863f6ddf4eb8d415d95852845be8d70259ba8c30bd9"
     }
   ],
   "tables": [
@@ -206,19 +216,9 @@
       ],
       "constraints": [
         {
-          "name": "api_tokens_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
           "name": "api_tokens_created_by_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT"
-        },
-        {
-          "name": "api_tokens_created_by_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_by"
         },
         {
           "name": "api_tokens_expiry_after_creation",
@@ -231,19 +231,9 @@
           "definition": "CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))"
         },
         {
-          "name": "api_tokens_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
           "name": "api_tokens_name_not_blank",
           "kind": "c",
           "definition": "CHECK ((length(TRIM(BOTH FROM name)) > 0))"
-        },
-        {
-          "name": "api_tokens_name_not_null",
-          "kind": "n",
-          "definition": "NOT NULL name"
         },
         {
           "name": "api_tokens_pkey",
@@ -254,11 +244,6 @@
           "name": "api_tokens_project_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE"
-        },
-        {
-          "name": "api_tokens_project_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL project_id"
         },
         {
           "name": "api_tokens_revocation_after_creation",
@@ -274,16 +259,6 @@
           "name": "api_tokens_revoked_by_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (revoked_by) REFERENCES users(id) ON DELETE SET NULL"
-        },
-        {
-          "name": "api_tokens_token_hash_not_null",
-          "kind": "n",
-          "definition": "NOT NULL token_hash"
-        },
-        {
-          "name": "api_tokens_token_prefix_not_null",
-          "kind": "n",
-          "definition": "NOT NULL token_prefix"
         }
       ],
       "indexes": [
@@ -385,34 +360,14 @@
           "definition": "CHECK ((length(TRIM(BOTH FROM action)) > 0))"
         },
         {
-          "name": "audit_events_action_not_null",
-          "kind": "n",
-          "definition": "NOT NULL action"
-        },
-        {
           "name": "audit_events_actor_user_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL"
         },
         {
-          "name": "audit_events_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
           "name": "audit_events_entity_type_not_blank",
           "kind": "c",
           "definition": "CHECK ((length(TRIM(BOTH FROM entity_type)) > 0))"
-        },
-        {
-          "name": "audit_events_entity_type_not_null",
-          "kind": "n",
-          "definition": "NOT NULL entity_type"
-        },
-        {
-          "name": "audit_events_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
         },
         {
           "name": "audit_events_pkey",
@@ -502,26 +457,6 @@
       ],
       "constraints": [
         {
-          "name": "auth_sessions_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
-          "name": "auth_sessions_expires_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL expires_at"
-        },
-        {
-          "name": "auth_sessions_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
-          "name": "auth_sessions_issued_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL issued_at"
-        },
-        {
           "name": "auth_sessions_pkey",
           "kind": "p",
           "definition": "PRIMARY KEY (id)"
@@ -535,11 +470,6 @@
           "name": "auth_sessions_user_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
-        },
-        {
-          "name": "auth_sessions_user_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL user_id"
         },
         {
           "name": "auth_sessions_valid_lifetime",
@@ -633,11 +563,6 @@
       ],
       "constraints": [
         {
-          "name": "budgets_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
           "name": "budgets_created_by_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL"
@@ -648,19 +573,9 @@
           "definition": "CHECK ((num_nonnulls(user_id, project_id) = 1))"
         },
         {
-          "name": "budgets_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
           "name": "budgets_limit_nonnegative",
           "kind": "c",
           "definition": "CHECK ((monthly_limit >= (0)::numeric))"
-        },
-        {
-          "name": "budgets_monthly_limit_not_null",
-          "kind": "n",
-          "definition": "NOT NULL monthly_limit"
         },
         {
           "name": "budgets_pkey",
@@ -676,16 +591,6 @@
           "name": "budgets_timezone_not_blank",
           "kind": "c",
           "definition": "CHECK ((length(TRIM(BOTH FROM timezone)) > 0))"
-        },
-        {
-          "name": "budgets_timezone_not_null",
-          "kind": "n",
-          "definition": "NOT NULL timezone"
-        },
-        {
-          "name": "budgets_updated_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL updated_at"
         },
         {
           "name": "budgets_user_id_fkey",
@@ -831,16 +736,6 @@
       ],
       "constraints": [
         {
-          "name": "deployments_environment_not_null",
-          "kind": "n",
-          "definition": "NOT NULL environment"
-        },
-        {
-          "name": "deployments_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
           "name": "deployments_pending_only_in_production",
           "kind": "c",
           "definition": "CHECK (((environment = 'prod'::deployment_environment) OR (status <> 'pending'::deployment_status)))"
@@ -861,29 +756,14 @@
           "definition": "FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT"
         },
         {
-          "name": "deployments_prompt_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL prompt_id"
-        },
-        {
           "name": "deployments_rejection_note_required",
           "kind": "c",
           "definition": "CHECK (((status <> 'rejected'::deployment_status) OR (length(TRIM(BOTH FROM review_note)) > 0)))"
         },
         {
-          "name": "deployments_requested_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL requested_at"
-        },
-        {
           "name": "deployments_requested_by_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE RESTRICT"
-        },
-        {
-          "name": "deployments_requested_by_not_null",
-          "kind": "n",
-          "definition": "NOT NULL requested_by"
         },
         {
           "name": "deployments_review_metadata_complete",
@@ -909,16 +789,6 @@
           "name": "deployments_state_timestamps",
           "kind": "c",
           "definition": "CHECK ((((status = ANY (ARRAY['pending'::deployment_status, 'cancelled'::deployment_status])) AND (reviewed_at IS NULL) AND (activated_at IS NULL)) OR ((status = 'rejected'::deployment_status) AND (reviewed_at IS NOT NULL) AND (activated_at IS NULL)) OR ((status = ANY (ARRAY['active'::deployment_status, 'superseded'::deployment_status, 'rolled_back'::deployment_status])) AND (activated_at IS NOT NULL))))"
-        },
-        {
-          "name": "deployments_status_not_null",
-          "kind": "n",
-          "definition": "NOT NULL status"
-        },
-        {
-          "name": "deployments_version_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL version_id"
         },
         {
           "name": "fk_deployments_prompt_version",
@@ -956,6 +826,91 @@
         {
           "name": "uq_deployments_one_active",
           "definition": "CREATE UNIQUE INDEX uq_deployments_one_active ON public.deployments USING btree (prompt_id, environment) WHERE (status = 'active'::deployment_status)"
+        }
+      ]
+    },
+    {
+      "name": "email_verification_tokens",
+      "purpose": "Hashed, expiring single-use email ownership credentials.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced account/actor or user budget target."
+        },
+        {
+          "name": "token_hash",
+          "type": "character(64)",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "SHA-256 digest of the one-time disclosed token."
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Time after which the credential/session is invalid."
+        },
+        {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional time when a reset token was consumed."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "email_verification_tokens_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "email_verification_tokens_token_hash_key",
+          "kind": "u",
+          "definition": "UNIQUE (token_hash)"
+        },
+        {
+          "name": "email_verification_tokens_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "email_verification_tokens_pkey",
+          "definition": "CREATE UNIQUE INDEX email_verification_tokens_pkey ON public.email_verification_tokens USING btree (id)"
+        },
+        {
+          "name": "email_verification_tokens_token_hash_key",
+          "definition": "CREATE UNIQUE INDEX email_verification_tokens_token_hash_key ON public.email_verification_tokens USING btree (token_hash)"
+        },
+        {
+          "name": "ix_email_verification_tokens_user_active",
+          "definition": "CREATE INDEX ix_email_verification_tokens_user_active ON public.email_verification_tokens USING btree (user_id, created_at DESC) WHERE (used_at IS NULL)"
         }
       ]
     },
@@ -1038,39 +993,14 @@
       ],
       "constraints": [
         {
-          "name": "model_pricing_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
           "name": "model_pricing_created_by_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL"
         },
         {
-          "name": "model_pricing_effective_from_not_null",
-          "kind": "n",
-          "definition": "NOT NULL effective_from"
-        },
-        {
-          "name": "model_pricing_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
-          "name": "model_pricing_input_price_per_million_not_null",
-          "kind": "n",
-          "definition": "NOT NULL input_price_per_million"
-        },
-        {
           "name": "model_pricing_model_not_blank",
           "kind": "c",
           "definition": "CHECK ((length(TRIM(BOTH FROM model)) > 0))"
-        },
-        {
-          "name": "model_pricing_model_not_null",
-          "kind": "n",
-          "definition": "NOT NULL model"
         },
         {
           "name": "model_pricing_no_overlap",
@@ -1083,11 +1013,6 @@
           "definition": "CHECK (((input_price_per_million >= (0)::numeric) AND (output_price_per_million >= (0)::numeric)))"
         },
         {
-          "name": "model_pricing_output_price_per_million_not_null",
-          "kind": "n",
-          "definition": "NOT NULL output_price_per_million"
-        },
-        {
           "name": "model_pricing_pkey",
           "kind": "p",
           "definition": "PRIMARY KEY (id)"
@@ -1096,11 +1021,6 @@
           "name": "model_pricing_provider_not_blank",
           "kind": "c",
           "definition": "CHECK ((length(TRIM(BOTH FROM provider)) > 0))"
-        },
-        {
-          "name": "model_pricing_provider_not_null",
-          "kind": "n",
-          "definition": "NOT NULL provider"
         },
         {
           "name": "model_pricing_valid_window",
@@ -1162,21 +1082,6 @@
       ],
       "constraints": [
         {
-          "name": "password_history_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
-          "name": "password_history_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
-          "name": "password_history_password_hash_not_null",
-          "kind": "n",
-          "definition": "NOT NULL password_hash"
-        },
-        {
           "name": "password_history_pkey",
           "kind": "p",
           "definition": "PRIMARY KEY (id)"
@@ -1185,11 +1090,6 @@
           "name": "password_history_user_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
-        },
-        {
-          "name": "password_history_user_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL user_id"
         },
         {
           "name": "password_history_user_id_password_hash_key",
@@ -1263,21 +1163,6 @@
       ],
       "constraints": [
         {
-          "name": "password_reset_tokens_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
-          "name": "password_reset_tokens_expires_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL expires_at"
-        },
-        {
-          "name": "password_reset_tokens_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
           "name": "password_reset_tokens_pkey",
           "kind": "p",
           "definition": "PRIMARY KEY (id)"
@@ -1288,19 +1173,9 @@
           "definition": "UNIQUE (token_hash)"
         },
         {
-          "name": "password_reset_tokens_token_hash_not_null",
-          "kind": "n",
-          "definition": "NOT NULL token_hash"
-        },
-        {
           "name": "password_reset_tokens_user_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
-        },
-        {
-          "name": "password_reset_tokens_user_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL user_id"
         }
       ],
       "indexes": [
@@ -1315,6 +1190,144 @@
         {
           "name": "password_reset_tokens_token_hash_key",
           "definition": "CREATE UNIQUE INDEX password_reset_tokens_token_hash_key ON public.password_reset_tokens USING btree (token_hash)"
+        }
+      ]
+    },
+    {
+      "name": "project_invitations",
+      "purpose": "Pending, expiring recipient-accepted project access invitations.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced project/workspace."
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced account/actor or user budget target."
+        },
+        {
+          "name": "invited_by",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Account issuing a project invitation."
+        },
+        {
+          "name": "token_hash",
+          "type": "text",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "SHA-256 digest of the one-time disclosed token."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Time after which the credential/session is invalid."
+        },
+        {
+          "name": "accepted_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Timestamp of recipient acceptance and membership creation."
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional time of explicit credential/session revocation."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "project_invitations_check",
+          "kind": "c",
+          "definition": "CHECK ((expires_at > created_at))"
+        },
+        {
+          "name": "project_invitations_check1",
+          "kind": "c",
+          "definition": "CHECK (((accepted_at IS NULL) OR (revoked_at IS NULL)))"
+        },
+        {
+          "name": "project_invitations_invited_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (invited_by) REFERENCES users(id)"
+        },
+        {
+          "name": "project_invitations_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "project_invitations_project_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "project_invitations_token_hash_check",
+          "kind": "c",
+          "definition": "CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "name": "project_invitations_token_hash_key",
+          "kind": "u",
+          "definition": "UNIQUE (token_hash)"
+        },
+        {
+          "name": "project_invitations_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_project_invitations_pending",
+          "definition": "CREATE UNIQUE INDEX ix_project_invitations_pending ON public.project_invitations USING btree (project_id, user_id) WHERE ((accepted_at IS NULL) AND (revoked_at IS NULL))"
+        },
+        {
+          "name": "ix_project_invitations_user",
+          "definition": "CREATE INDEX ix_project_invitations_user ON public.project_invitations USING btree (user_id)"
+        },
+        {
+          "name": "project_invitations_pkey",
+          "definition": "CREATE UNIQUE INDEX project_invitations_pkey ON public.project_invitations USING btree (id)"
+        },
+        {
+          "name": "project_invitations_token_hash_key",
+          "definition": "CREATE UNIQUE INDEX project_invitations_token_hash_key ON public.project_invitations USING btree (token_hash)"
         }
       ]
     },
@@ -1362,11 +1375,6 @@
           "definition": "FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL"
         },
         {
-          "name": "project_members_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
           "name": "project_members_pkey",
           "kind": "p",
           "definition": "PRIMARY KEY (project_id, user_id)"
@@ -1377,19 +1385,9 @@
           "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE"
         },
         {
-          "name": "project_members_project_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL project_id"
-        },
-        {
           "name": "project_members_user_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
-        },
-        {
-          "name": "project_members_user_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL user_id"
         }
       ],
       "indexes": [
@@ -1466,24 +1464,9 @@
       ],
       "constraints": [
         {
-          "name": "projects_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
-          "name": "projects_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
           "name": "projects_key_format",
           "kind": "c",
           "definition": "CHECK (((key)::text ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'::text))"
-        },
-        {
-          "name": "projects_key_not_null",
-          "kind": "n",
-          "definition": "NOT NULL key"
         },
         {
           "name": "projects_name_not_blank",
@@ -1491,29 +1474,14 @@
           "definition": "CHECK (((length(TRIM(BOTH FROM name)) >= 1) AND (length(TRIM(BOTH FROM name)) <= 160)))"
         },
         {
-          "name": "projects_name_not_null",
-          "kind": "n",
-          "definition": "NOT NULL name"
-        },
-        {
           "name": "projects_owner_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT"
         },
         {
-          "name": "projects_owner_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL owner_id"
-        },
-        {
           "name": "projects_pkey",
           "kind": "p",
           "definition": "PRIMARY KEY (id)"
-        },
-        {
-          "name": "projects_updated_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL updated_at"
         }
       ],
       "indexes": [
@@ -1623,39 +1591,14 @@
           "definition": "FOREIGN KEY (parent_version_id, prompt_id) REFERENCES prompt_versions(id, prompt_id) ON DELETE RESTRICT"
         },
         {
-          "name": "prompt_versions_commit_message_not_null",
-          "kind": "n",
-          "definition": "NOT NULL commit_message"
-        },
-        {
           "name": "prompt_versions_commit_not_blank",
           "kind": "c",
           "definition": "CHECK ((length(TRIM(BOTH FROM commit_message)) > 0))"
         },
         {
-          "name": "prompt_versions_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
           "name": "prompt_versions_created_by_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT"
-        },
-        {
-          "name": "prompt_versions_created_by_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_by"
-        },
-        {
-          "name": "prompt_versions_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
-          "name": "prompt_versions_model_config_not_null",
-          "kind": "n",
-          "definition": "NOT NULL model_config"
         },
         {
           "name": "prompt_versions_model_config_object",
@@ -1678,16 +1621,6 @@
           "definition": "FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT"
         },
         {
-          "name": "prompt_versions_prompt_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL prompt_id"
-        },
-        {
-          "name": "prompt_versions_template_body_not_null",
-          "kind": "n",
-          "definition": "NOT NULL template_body"
-        },
-        {
           "name": "prompt_versions_template_not_blank",
           "kind": "c",
           "definition": "CHECK ((length(template_body) > 0))"
@@ -1696,16 +1629,6 @@
           "name": "prompt_versions_variables_array",
           "kind": "c",
           "definition": "CHECK ((jsonb_typeof(variables) = 'array'::text))"
-        },
-        {
-          "name": "prompt_versions_variables_not_null",
-          "kind": "n",
-          "definition": "NOT NULL variables"
-        },
-        {
-          "name": "prompt_versions_version_number_not_null",
-          "kind": "n",
-          "definition": "NOT NULL version_number"
         },
         {
           "name": "uq_prompt_versions_id_prompt",
@@ -1804,34 +1727,14 @@
       ],
       "constraints": [
         {
-          "name": "prompts_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
-          "name": "prompts_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
           "name": "prompts_key_format",
           "kind": "c",
           "definition": "CHECK (((key)::text ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'::text))"
         },
         {
-          "name": "prompts_key_not_null",
-          "kind": "n",
-          "definition": "NOT NULL key"
-        },
-        {
           "name": "prompts_name_not_blank",
           "kind": "c",
           "definition": "CHECK (((length(TRIM(BOTH FROM name)) >= 1) AND (length(TRIM(BOTH FROM name)) <= 160)))"
-        },
-        {
-          "name": "prompts_name_not_null",
-          "kind": "n",
-          "definition": "NOT NULL name"
         },
         {
           "name": "prompts_pkey",
@@ -1842,16 +1745,6 @@
           "name": "prompts_project_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE"
-        },
-        {
-          "name": "prompts_project_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL project_id"
-        },
-        {
-          "name": "prompts_updated_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL updated_at"
         },
         {
           "name": "uq_prompts_id_project",
@@ -1951,39 +1844,14 @@
           "definition": "CHECK ((length(TRIM(BOTH FROM alias)) > 0))"
         },
         {
-          "name": "provider_keys_alias_not_null",
-          "kind": "n",
-          "definition": "NOT NULL alias"
-        },
-        {
-          "name": "provider_keys_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
           "name": "provider_keys_created_by_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT"
         },
         {
-          "name": "provider_keys_created_by_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_by"
-        },
-        {
           "name": "provider_keys_deactivation_after_creation",
           "kind": "c",
           "definition": "CHECK (((deactivated_at IS NULL) OR (deactivated_at >= created_at)))"
-        },
-        {
-          "name": "provider_keys_encrypted_secret_not_null",
-          "kind": "n",
-          "definition": "NOT NULL encrypted_secret"
-        },
-        {
-          "name": "provider_keys_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
         },
         {
           "name": "provider_keys_pkey",
@@ -1994,11 +1862,6 @@
           "name": "provider_keys_provider_not_blank",
           "kind": "c",
           "definition": "CHECK ((length(TRIM(BOTH FROM provider)) > 0))"
-        },
-        {
-          "name": "provider_keys_provider_not_null",
-          "kind": "n",
-          "definition": "NOT NULL provider"
         }
       ],
       "indexes": [
@@ -2161,39 +2024,14 @@
           "definition": "CHECK (((run_id IS NULL) = (run_created_at IS NULL)))"
         },
         {
-          "name": "run_reservations_claim_token_not_null",
-          "kind": "n",
-          "definition": "NOT NULL claim_token"
-        },
-        {
-          "name": "run_reservations_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
           "name": "run_reservations_estimated_cost_check",
           "kind": "c",
           "definition": "CHECK ((estimated_cost >= (0)::numeric))"
         },
         {
-          "name": "run_reservations_estimated_cost_not_null",
-          "kind": "n",
-          "definition": "NOT NULL estimated_cost"
-        },
-        {
-          "name": "run_reservations_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
           "name": "run_reservations_idempotency_key_check",
           "kind": "c",
           "definition": "CHECK ((length((idempotency_key)::text) >= 16))"
-        },
-        {
-          "name": "run_reservations_idempotency_key_not_null",
-          "kind": "n",
-          "definition": "NOT NULL idempotency_key"
         },
         {
           "name": "run_reservations_pkey",
@@ -2206,19 +2044,9 @@
           "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT"
         },
         {
-          "name": "run_reservations_project_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL project_id"
-        },
-        {
           "name": "run_reservations_prompt_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT"
-        },
-        {
-          "name": "run_reservations_prompt_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL prompt_id"
         },
         {
           "name": "run_reservations_request_fingerprint_check",
@@ -2226,22 +2054,17 @@
           "definition": "CHECK ((request_fingerprint ~ '^[0-9a-f]{64}$'::text))"
         },
         {
-          "name": "run_reservations_request_fingerprint_not_null",
-          "kind": "n",
-          "definition": "NOT NULL request_fingerprint"
-        },
-        {
           "name": "run_reservations_run_id_run_created_at_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (run_id, run_created_at) REFERENCES runs(id, created_at) ON DELETE RESTRICT"
         },
         {
-          "name": "run_reservations_run_id_run_created_at_fkey_1",
+          "name": "run_reservations_run_id_run_created_at_fkey1",
           "kind": "f",
           "definition": "FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_10(id, created_at) ON DELETE RESTRICT"
         },
         {
-          "name": "run_reservations_run_id_run_created_at_fkey_2",
+          "name": "run_reservations_run_id_run_created_at_fkey2",
           "kind": "f",
           "definition": "FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_11(id, created_at) ON DELETE RESTRICT"
         },
@@ -2249,16 +2072,6 @@
           "name": "run_reservations_status_check",
           "kind": "c",
           "definition": "CHECK (((status)::text = ANY ((ARRAY['reserved'::character varying, 'completed'::character varying, 'failed'::character varying, 'uncertain'::character varying, 'blocked'::character varying])::text[])))"
-        },
-        {
-          "name": "run_reservations_status_not_null",
-          "kind": "n",
-          "definition": "NOT NULL status"
-        },
-        {
-          "name": "run_reservations_updated_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL updated_at"
         },
         {
           "name": "run_reservations_user_id_fkey",
@@ -2271,19 +2084,9 @@
           "definition": "UNIQUE (user_id, idempotency_key)"
         },
         {
-          "name": "run_reservations_user_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL user_id"
-        },
-        {
           "name": "run_reservations_version_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT"
-        },
-        {
-          "name": "run_reservations_version_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL version_id"
         }
       ],
       "indexes": [
@@ -2463,24 +2266,9 @@
           "definition": "CHECK (((status <> 'completed'::run_status) OR ((output_text IS NOT NULL) AND (error_code IS NULL))))"
         },
         {
-          "name": "runs_completion_tokens_not_null",
-          "kind": "n",
-          "definition": "NOT NULL completion_tokens"
-        },
-        {
           "name": "runs_cost_nonnegative",
           "kind": "c",
           "definition": "CHECK ((cost >= (0)::numeric))"
-        },
-        {
-          "name": "runs_cost_not_null",
-          "kind": "n",
-          "definition": "NOT NULL cost"
-        },
-        {
-          "name": "runs_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
         },
         {
           "name": "runs_error_shape",
@@ -2488,24 +2276,9 @@
           "definition": "CHECK (((status = 'completed'::run_status) OR (error_code IS NOT NULL)))"
         },
         {
-          "name": "runs_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
           "name": "runs_input_object",
           "kind": "c",
           "definition": "CHECK ((jsonb_typeof(input_variables) = 'object'::text))"
-        },
-        {
-          "name": "runs_input_variables_not_null",
-          "kind": "n",
-          "definition": "NOT NULL input_variables"
-        },
-        {
-          "name": "runs_latency_ms_not_null",
-          "kind": "n",
-          "definition": "NOT NULL latency_ms"
         },
         {
           "name": "runs_latency_nonnegative",
@@ -2518,11 +2291,6 @@
           "definition": "CHECK ((length(TRIM(BOTH FROM model)) > 0))"
         },
         {
-          "name": "runs_model_not_null",
-          "kind": "n",
-          "definition": "NOT NULL model"
-        },
-        {
           "name": "runs_pkey",
           "kind": "p",
           "definition": "PRIMARY KEY (id, created_at)"
@@ -2533,39 +2301,14 @@
           "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT"
         },
         {
-          "name": "runs_project_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL project_id"
-        },
-        {
           "name": "runs_prompt_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT"
         },
         {
-          "name": "runs_prompt_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL prompt_id"
-        },
-        {
-          "name": "runs_prompt_tokens_not_null",
-          "kind": "n",
-          "definition": "NOT NULL prompt_tokens"
-        },
-        {
           "name": "runs_provider_not_blank",
           "kind": "c",
           "definition": "CHECK ((length(TRIM(BOTH FROM provider)) > 0))"
-        },
-        {
-          "name": "runs_provider_not_null",
-          "kind": "n",
-          "definition": "NOT NULL provider"
-        },
-        {
-          "name": "runs_status_not_null",
-          "kind": "n",
-          "definition": "NOT NULL status"
         },
         {
           "name": "runs_tokens_nonnegative",
@@ -2578,19 +2321,9 @@
           "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"
         },
         {
-          "name": "runs_user_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL user_id"
-        },
-        {
           "name": "runs_version_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT"
-        },
-        {
-          "name": "runs_version_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL version_id"
         }
       ],
       "indexes": [
@@ -2663,29 +2396,9 @@
       ],
       "constraints": [
         {
-          "name": "schema_migrations_applied_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL applied_at"
-        },
-        {
-          "name": "schema_migrations_checksum_not_null",
-          "kind": "n",
-          "definition": "NOT NULL checksum"
-        },
-        {
-          "name": "schema_migrations_name_not_null",
-          "kind": "n",
-          "definition": "NOT NULL name"
-        },
-        {
           "name": "schema_migrations_pkey",
           "kind": "p",
           "definition": "PRIMARY KEY (version)"
-        },
-        {
-          "name": "schema_migrations_version_not_null",
-          "kind": "n",
-          "definition": "NOT NULL version"
         }
       ],
       "indexes": [
@@ -2762,23 +2475,21 @@
           "identity": "",
           "default": "CURRENT_TIMESTAMP",
           "purpose": "Timestamp of the latest mutable state change."
+        },
+        {
+          "name": "email_verified_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Time when the account proved control of its email address."
         }
       ],
       "constraints": [
         {
-          "name": "users_created_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL created_at"
-        },
-        {
           "name": "users_display_name_not_blank",
           "kind": "c",
           "definition": "CHECK (((length(TRIM(BOTH FROM display_name)) >= 1) AND (length(TRIM(BOTH FROM display_name)) <= 120)))"
-        },
-        {
-          "name": "users_display_name_not_null",
-          "kind": "n",
-          "definition": "NOT NULL display_name"
         },
         {
           "name": "users_email_not_blank",
@@ -2786,39 +2497,9 @@
           "definition": "CHECK (((length(TRIM(BOTH FROM (email)::text)) >= 3) AND (length(TRIM(BOTH FROM (email)::text)) <= 320)))"
         },
         {
-          "name": "users_email_not_null",
-          "kind": "n",
-          "definition": "NOT NULL email"
-        },
-        {
-          "name": "users_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL id"
-        },
-        {
-          "name": "users_is_active_not_null",
-          "kind": "n",
-          "definition": "NOT NULL is_active"
-        },
-        {
-          "name": "users_password_hash_not_null",
-          "kind": "n",
-          "definition": "NOT NULL password_hash"
-        },
-        {
           "name": "users_pkey",
           "kind": "p",
           "definition": "PRIMARY KEY (id)"
-        },
-        {
-          "name": "users_role_not_null",
-          "kind": "n",
-          "definition": "NOT NULL role"
-        },
-        {
-          "name": "users_updated_at_not_null",
-          "kind": "n",
-          "definition": "NOT NULL updated_at"
         }
       ],
       "indexes": [
@@ -2894,6 +2575,10 @@
       "definition": "CREATE TRIGGER model_pricing_audit AFTER INSERT ON public.model_pricing FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
     },
     {
+      "name": "project_invitations_audit",
+      "definition": "CREATE TRIGGER project_invitations_audit AFTER INSERT OR DELETE OR UPDATE ON public.project_invitations FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
       "name": "project_members_audit",
       "definition": "CREATE TRIGGER project_members_audit AFTER INSERT OR DELETE ON public.project_members FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
     },
@@ -2950,6 +2635,10 @@
       "definition": "CREATE TRIGGER users_preserve_last_active_admin BEFORE DELETE OR UPDATE OF role, is_active ON public.users FOR EACH ROW EXECUTE FUNCTION preserve_last_active_admin()"
     },
     {
+      "name": "users_purge_email_verification_tokens",
+      "definition": "CREATE TRIGGER users_purge_email_verification_tokens AFTER UPDATE OF is_active ON public.users FOR EACH ROW EXECUTE FUNCTION purge_inactive_user_email_verification_tokens()"
+    },
+    {
       "name": "users_set_updated_at",
       "definition": "CREATE TRIGGER users_set_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
     }
@@ -2961,120 +2650,15 @@
   ],
   "joins": [
     {
-      "project": "approval-race-26500b6621b34f7f993def33647c78d3",
-      "prompt": "approval-race",
-      "version_number": 1
-    },
-    {
-      "project": "budget-fixture-mv5guvy0",
-      "prompt": "budget-fixture",
-      "version_number": 1
-    },
-    {
-      "project": "budget-fixture-mv5gv9pi",
-      "prompt": "budget-fixture",
-      "version_number": 1
-    },
-    {
       "project": "checkout-assistant",
       "prompt": "support-reply",
       "version_number": 1
-    },
-    {
-      "project": "live-workspace-mv5gv69w",
-      "prompt": "live-reply-mv5gv69w",
-      "version_number": 1
-    },
-    {
-      "project": "live-workspace-mv5gv69w",
-      "prompt": "live-reply-mv5gv69w",
-      "version_number": 2
-    },
-    {
-      "project": "live-workspace-mv5gv69w",
-      "prompt": "live-reply-mv5gv69w",
-      "version_number": 3
-    },
-    {
-      "project": "live-workspace-mv5gvk6h",
-      "prompt": "live-reply-mv5gvk6h",
-      "version_number": 1
-    },
-    {
-      "project": "live-workspace-mv5gvk6h",
-      "prompt": "live-reply-mv5gvk6h",
-      "version_number": 2
-    },
-    {
-      "project": "live-workspace-mv5gvk6h",
-      "prompt": "live-reply-mv5gvk6h",
-      "version_number": 3
-    },
-    {
-      "project": "release-project-mv5gv169",
-      "prompt": "release-reply-mv5gv169",
-      "version_number": 1
-    },
-    {
-      "project": "release-project-mv5gv169",
-      "prompt": "release-reply-mv5gv169",
-      "version_number": 2
-    },
-    {
-      "project": "release-project-mv5gv169",
-      "prompt": "release-reply-mv5gv169",
-      "version_number": 3
-    },
-    {
-      "project": "release-project-mv5gvf55",
-      "prompt": "release-reply-mv5gvf55",
-      "version_number": 1
-    },
-    {
-      "project": "release-project-mv5gvf55",
-      "prompt": "release-reply-mv5gvf55",
-      "version_number": 2
-    },
-    {
-      "project": "release-project-mv5gvf55",
-      "prompt": "release-reply-mv5gvf55",
-      "version_number": 3
-    },
-    {
-      "project": "version-race-308bd12067364e42b3302a080c147d29",
-      "prompt": "race-prompt",
-      "version_number": 1
-    },
-    {
-      "project": "version-race-308bd12067364e42b3302a080c147d29",
-      "prompt": "race-prompt",
-      "version_number": 2
-    },
-    {
-      "project": "version-race-308bd12067364e42b3302a080c147d29",
-      "prompt": "race-prompt",
-      "version_number": 3
-    },
-    {
-      "project": "version-race-308bd12067364e42b3302a080c147d29",
-      "prompt": "race-prompt",
-      "version_number": 4
-    },
-    {
-      "project": "version-race-308bd12067364e42b3302a080c147d29",
-      "prompt": "race-prompt",
-      "version_number": 5
     }
   ],
   "aggregates": [
     {
       "status": "completed",
-      "runs": 7,
-      "cost": "0.000066"
-    },
-    {
-      "status": "blocked",
-      "runs": 2,
+      "runs": 1,
       "cost": "0.000000"
     }
   ],
@@ -3083,30 +2667,6 @@
       "provider": "mock",
       "model": "deterministic-v1",
       "completed_runs": 1,
-      "cost": "0.000000"
-    },
-    {
-      "provider": "mock",
-      "model": "deterministic-v1",
-      "completed_runs": 1,
-      "cost": "0.000033"
-    },
-    {
-      "provider": "mock",
-      "model": "deterministic-v1",
-      "completed_runs": 4,
-      "cost": "0.000000"
-    },
-    {
-      "provider": "mock",
-      "model": "deterministic-v1",
-      "completed_runs": 1,
-      "cost": "0.000033"
-    },
-    {
-      "provider": "mock",
-      "model": "deterministic-v1",
-      "completed_runs": 0,
       "cost": "0.000000"
     }
   ],
@@ -3121,11 +2681,10 @@
           "Total Cost": 8.69,
           "Plan Rows": 1,
           "Plan Width": 20,
-          "Actual Startup Time": 0.005,
-          "Actual Total Time": 0.005,
-          "Actual Rows": 3.0,
+          "Actual Startup Time": 0.014,
+          "Actual Total Time": 0.014,
+          "Actual Rows": 1,
           "Actual Loops": 1,
-          "Disabled": false,
           "Shared Hit Blocks": 4,
           "Shared Read Blocks": 0,
           "Shared Dirtied Blocks": 0,
@@ -3140,18 +2699,17 @@
             {
               "Node Type": "Limit",
               "Parent Relationship": "InitPlan",
-              "Subplan Name": "InitPlan 1",
+              "Subplan Name": "InitPlan 1 (returns $0)",
               "Parallel Aware": false,
               "Async Capable": false,
               "Startup Cost": 0.14,
               "Total Cost": 0.53,
               "Plan Rows": 1,
               "Plan Width": 16,
-              "Actual Startup Time": 0.001,
-              "Actual Total Time": 0.001,
-              "Actual Rows": 1.0,
+              "Actual Startup Time": 0.005,
+              "Actual Total Time": 0.005,
+              "Actual Rows": 1,
               "Actual Loops": 1,
-              "Disabled": false,
               "Shared Hit Blocks": 2,
               "Shared Read Blocks": 0,
               "Shared Dirtied Blocks": 0,
@@ -3176,13 +2734,11 @@
                   "Total Cost": 50.09,
                   "Plan Rows": 130,
                   "Plan Width": 16,
-                  "Actual Startup Time": 0.001,
-                  "Actual Total Time": 0.001,
-                  "Actual Rows": 1.0,
+                  "Actual Startup Time": 0.005,
+                  "Actual Total Time": 0.005,
+                  "Actual Rows": 1,
                   "Actual Loops": 1,
-                  "Disabled": false,
                   "Heap Fetches": 1,
-                  "Index Searches": 1,
                   "Shared Hit Blocks": 2,
                   "Shared Read Blocks": 0,
                   "Shared Dirtied Blocks": 0,
@@ -3209,15 +2765,13 @@
               "Total Cost": 8.16,
               "Plan Rows": 1,
               "Plan Width": 20,
-              "Actual Startup Time": 0.005,
-              "Actual Total Time": 0.005,
-              "Actual Rows": 3.0,
+              "Actual Startup Time": 0.013,
+              "Actual Total Time": 0.013,
+              "Actual Rows": 1,
               "Actual Loops": 1,
-              "Disabled": false,
-              "Index Cond": "(prompt_id = (InitPlan 1).col1)",
+              "Index Cond": "(prompt_id = $0)",
               "Rows Removed by Index Recheck": 0,
-              "Heap Fetches": 3,
-              "Index Searches": 1,
+              "Heap Fetches": 1,
               "Shared Hit Blocks": 4,
               "Shared Read Blocks": 0,
               "Shared Dirtied Blocks": 0,
@@ -3243,9 +2797,9 @@
           "Temp Read Blocks": 0,
           "Temp Written Blocks": 0
         },
-        "Planning Time": 0.03,
+        "Planning Time": 0.038,
         "Triggers": [],
-        "Execution Time": 0.009
+        "Execution Time": 0.029
       }
     ]
   },
@@ -3274,9 +2828,9 @@
   },
   "execution_fixture": "rollback-only synthetic mock row; no provider call",
   "source_sha256": {
-    "scripts/collect-academic-evidence.py": "aede1df6a9e30fcf59185e737ccdceae6a6bfc38b9b4ff80c349c5ea28a42c7b",
-    "docs/erd.md": "10408e8f77cee28f39168509662b51eac5ff7b014e960cd5b468e5884229a923",
-    "docs/normalization.md": "dbfe456ae94923574e950890c462145c43c2be5ab75d173b3ca8fa7ae1dc2d85",
+    "scripts/collect-academic-evidence.py": "16bb9733c6b8fdc907e306a8e428350b335a3a345ee4b4c3325987d760097591",
+    "docs/erd.md": "a555dc17a9d9cdfa7eb6755a412a6e41aaa214d59c0cab21ad382ed2fd9477c5",
+    "docs/normalization.md": "e7bd54a4e98a084d84c51c42752072a1e68619b0fef4366ff59617e5283d82ae",
     "db/migrations/001_extensions_enums.sql": "12d3e8e701813d581ad6d253aca74411affb0684630a9d5b1b079dc38b128251",
     "db/migrations/002_tables.sql": "c53b345ca785711c0694c2656cbf81c64362e02f6d9ae7992bb8c28f47a5d73c",
     "db/migrations/003_constraints_indexes.sql": "d3605390661c35bcaf711b55e3f5cf63501fdcddd22cc6e0837aa6cdbd1c1fc1",
@@ -3299,7 +2853,9 @@
     "db/migrations/020_auth_sessions.sql": "a63f01dd2d6f187bb7b6b484b77abe153b85dae722aa1d547206616bf4449475",
     "db/migrations/021_system_maintenance.sql": "42fea185279cb30b378ea61d5ca7a983ce80f0dc979eff6068601dc4f0efdecf",
     "db/migrations/022_account_lifecycle.sql": "507dd5252264ce53a3d0b4793fe2b8f5993e1bdf6b76fa5dd378a0e5cba95f0a",
-    "db/migrations/023_self_profile.sql": "4f11d55d22ae0fd6e18eb1b215c85aa91854b8247fde353f8f57f4f2c12252b5"
+    "db/migrations/023_self_profile.sql": "4f11d55d22ae0fd6e18eb1b215c85aa91854b8247fde353f8f57f4f2c12252b5",
+    "db/migrations/024_email_verification.sql": "43a1f0e870b97dba27bdd259a005000693bbf5109d7b4b165a3e1ace7ba5bec0",
+    "db/migrations/025_project_invitations.sql": "83559c93ea09030d91e63863f6ddf4eb8d415d95852845be8d70259ba8c30bd9"
   },
-  "dictionary_sha256": "0396a56925243788b4c1fc3524122447cd1098bb95bc6b971589cfa2af8c4134"
+  "dictionary_sha256": "e818687cd78ce8050d39056426117cfcb4417a3318393a8be3e38407ef7d274e"
 }

@@ -290,6 +290,7 @@ def test_production_with_smtp_requires_https_email_verification_url() -> None:
                 "smtp_from_email": "sender@example.com",
                 "password_reset_url": "https://app.example.com/reset-password",
                 "email_verification_url": "http://localhost:5173/verify-email",
+                "project_invitation_url": "https://app.example.com/project-invitations",
             }
         )
 

@@ -187,7 +187,7 @@ Account closure returns `401 invalid_credentials` when password confirmation fai
 | `GET /projects/{project_id}` | None | `200` Project detail |
 | `PATCH /projects/{project_id}` | Any of `name`, `description` | `200` Project; owner/admin only |
 | `GET /projects/{project_id}/members` | Paging | `200` User page with `is_owner` |
-| `POST /projects/{project_id}/members` | `email` | `201` member; owner/admin only |
+| `POST /projects/{project_id}/members` | `email` | `201` emailed pending invitation; owner/admin only; acceptance required |
 | `DELETE /projects/{project_id}/members/{user_id}` | None | `204`; owner cannot be removed |
 
 ## Prompt and version endpoints
@@ -325,3 +325,32 @@ status and target-user fields are rejected with 422. Database function
 name column without granting broad users-table UPDATE permission. The change is
 attributed through the existing redacted audit trigger. `GET /auth/me` returns the
 persisted name; frontend auth context and navigation identity refresh after saving.
+
+
+## Project membership invitations (2026-10-13)
+
+`POST /projects/{project_id}/members` now sends an invitation email to an existing
+active account instead of adding membership. Owner/admin authorization remains
+required. A 201 response contains `id`, `project_id`, `email`, `display_name`,
+`created_at` and `expires_at`; no plaintext token or token hash is returned.
+A pending duplicate or existing membership returns 409, an unknown/inactive
+recipient returns 404, and unavailable SMTP returns 503 without retaining an
+invitation or creating membership.
+
+`GET /projects/{project_id}/invitations` lists unaccepted, uncancelled invitations
+for owner/admin only (including expired entries). `DELETE
+/projects/{project_id}/invitations/{invitation_id}` cancels a pending invitation.
+To resend, cancel and invite again; expired invitations can be replaced directly.
+
+The email links to `PROJECT_INVITATION_URL#token=...` (default local web port
+5173). `POST /project-invitations/accept` accepts `{ "token": "..." }` from an
+authenticated recipient and returns the project. A different account receives
+403; unknown, expired, cancelled or consumed invitations receive 410. Links
+expire after seven days. Acceptance and membership insertion are atomic; competing
+acceptances have one winner. Opening an email link alone never grants access.
+The inviter must still be active and permitted to manage the project. Existing
+memberships and the automatic owner membership are preserved.
+
+The SMTP settings are shared with password reset. Link delivery occurs before
+transaction commit; a commit failure could leave an unusable emailed link and
+requires a fresh invitation. SMTP delivery is never treated as recipient consent.

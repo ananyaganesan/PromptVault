@@ -41,3 +41,10 @@ No relation contains a non-key attribute that determines another non-key attribu
 ## Derived data
 
 Lineage, deployment history, and monthly costs are views. Organization/user monthly metrics are materialized views with unique indexes so controlled concurrent refresh is possible. Derived rows are never authoritative for authorization, budget enforcement, or deployment state.
+
+## Project invitations (design for migration 025)
+
+`project_invitations` has candidate keys `id` and `token_hash`, each determining
+all attributes. Project, recipient and inviter reference their existing entities;
+no user email or project name is duplicated. A partial unique index enforces one
+unconsumed, unrevoked invitation per project/recipient. The relation is in 3NF.

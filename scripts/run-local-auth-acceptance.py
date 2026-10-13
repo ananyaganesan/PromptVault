@@ -70,6 +70,7 @@ def main() -> None:
         database_url=database_url,
         secret_key="local-auth-only-secret-at-least-32-characters",
         cors_origins="http://127.0.0.1:5178",
+        project_invitation_url="http://127.0.0.1:5178/project-invitations",
         password_reset_url="http://127.0.0.1:5178/reset-password",
         email_verification_url="http://127.0.0.1:5178/verify-email",
         email_verification_resend_cooldown_seconds=1,

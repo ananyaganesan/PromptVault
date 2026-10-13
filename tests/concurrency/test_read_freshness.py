@@ -17,6 +17,7 @@ from api.app.repositories.runs import RunRepository
 from api.app.repositories.users import UserRepository
 from api.app.repositories.versions import VersionRepository
 from api.app.services.prompt_versioning import PromptVersioningService
+from tests.invitation_support import accept_invitation
 from tests.support import create_project, create_prompt, register
 
 
@@ -28,7 +29,7 @@ async def test_page_count_and_rows_share_snapshot_during_concurrent_commit(
     api_client: TestClient, database_url: str, scope: str
 ) -> None:
     owner, headers = register(api_client, "snapshot-owner")
-    member, _ = register(api_client, "snapshot-member")
+    member, member_headers = register(api_client, "snapshot-member")
     project = create_project(api_client, headers, label="Snapshot")
     prompt = create_prompt(api_client, headers, project["id"])
     version = prompt["latest_version"]
@@ -36,6 +37,7 @@ async def test_page_count_and_rows_share_snapshot_during_concurrent_commit(
         f"/api/v1/projects/{project['id']}/members", headers=headers,
         json={"email": member["email"]},
     ).status_code == 201
+    accept_invitation(api_client, str(member["email"]), member_headers)
     run_payload = {"version_id": version["id"], "variables": {"name": "Snapshot", "order_id": "1"}}
     assert api_client.post("/api/v1/runs", headers=headers, json=run_payload).status_code == 201
     deployments = {}
@@ -189,6 +191,7 @@ async def test_detail_reads_hold_membership_until_transaction_finishes(
         f"/api/v1/projects/{project['id']}/members", headers=headers,
         json={"email": member["email"]},
     ).status_code == 201
+    accept_invitation(api_client, str(member["email"]), member_headers)
     connection = await psycopg.AsyncConnection.connect(database_url, row_factory=dict_row)
     remover = await psycopg.AsyncConnection.connect(database_url, row_factory=dict_row)
     original = PromptRepository.get_metadata_scoped if view == "prompt" else VersionRepository.lineage

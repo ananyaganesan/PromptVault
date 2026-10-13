@@ -45,6 +45,7 @@ export function CostsPage() {
           <thead><tr><th>DATE</th><th>RUNS</th><th>COST</th></tr></thead>
           <tbody>{data.cost_trend.map((point) => <tr key={point.date}><td>{new Date(`${point.date}T00:00:00`).toLocaleDateString()}</td><td>{point.run_count}</td><td>{currency(point.cost)}</td></tr>)}</tbody>
         </table>
+        {!data.cost_trend.length && <p className="no-results">No usage has been recorded in the last 14 days.</p>}
       </section>
     </>}
   </>

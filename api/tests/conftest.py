@@ -58,3 +58,13 @@ def db_connection(migrated_database_url: str) -> Iterator[psycopg.Connection[Any
     finally:
         connection.rollback()
         connection.close()
+
+
+@pytest.fixture(autouse=True)
+def capture_project_invitation_mail(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tests.invitation_support import TOKENS, capture_invitation
+
+    TOKENS.clear()
+    monkeypatch.setattr(
+        "api.app.services.projects.send_project_invitation_email", capture_invitation
+    )

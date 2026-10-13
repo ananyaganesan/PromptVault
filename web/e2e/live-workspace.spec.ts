@@ -1,3 +1,4 @@
+import { invitationLink } from './support/invitations'
 import { expect, test } from '@playwright/test'
 import { createVerifiedTestAccount } from './support/auth'
 
@@ -43,11 +44,14 @@ test('project, member, prompt, and immutable versions survive reloads through Fa
 
   await page.getByRole('button', { name: /Members/ }).click()
   await page.getByLabel('Member email').fill('admin@promptvault.dev')
-  await page.getByRole('button', { name: 'Add member' }).click()
-  await expect(page.getByText('admin@promptvault.dev was added to the project.')).toBeVisible()
+  await page.getByRole('button', { name: 'Invite member' }).click()
+  await expect(page.getByText('Invitation emailed to admin@promptvault.dev. They will get access after accepting.')).toBeVisible()
   await page.getByLabel('Member email').fill(memberEmail)
-  await page.getByRole('button', { name: 'Add member' }).click()
-  await expect(page.getByText(`${memberEmail} was added to the project.`)).toBeVisible()
+  await page.getByRole('button', { name: 'Invite member' }).click()
+  await expect(page.getByText(`Invitation emailed to ${memberEmail}. They will get access after accepting.`)).toBeVisible()
+  await memberPage.goto(invitationLink(memberEmail, updatedProjectName))
+  await memberPage.getByRole('button', { name: 'Accept invitation', exact: true }).click()
+  await expect(memberPage.getByText('Invitation accepted. You now have project access.')).toBeVisible()
   await page.reload()
   await page.getByRole('button', { name: /Members/ }).click()
   await expect(page.locator('.member-row').filter({ hasText: 'admin@promptvault.dev' })).toBeVisible()

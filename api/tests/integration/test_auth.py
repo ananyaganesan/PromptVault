@@ -604,6 +604,11 @@ def test_password_reset_revokes_every_existing_session(
         "api.app.services.auth.send_password_reset_email",
         lambda _settings, _recipient, token: delivered.append(token),
     )
+    password_changed_recipients: list[str] = []
+    monkeypatch.setattr(
+        "api.app.services.auth.send_password_changed_email",
+        lambda _settings, recipient: password_changed_recipients.append(recipient),
+    )
 
     assert auth_client.post("/api/v1/auth/password-reset", json={"email": email}).status_code == 202
     confirmed = auth_client.post(
@@ -611,6 +616,7 @@ def test_password_reset_revokes_every_existing_session(
         json={"token": delivered[0], "password": "ReplacementPassword2026!"},
     )
     assert confirmed.status_code == 204
+    assert password_changed_recipients == [email]
 
     for token in tokens:
         rejected = auth_client.get(
@@ -634,6 +640,11 @@ def test_password_reset_delivers_a_one_time_link_and_updates_the_password(
         delivered_tokens.append((recipient, token))
 
     monkeypatch.setattr("api.app.services.auth.send_password_reset_email", capture_reset_email)
+    password_changed_recipients: list[str] = []
+    monkeypatch.setattr(
+        "api.app.services.auth.send_password_changed_email",
+        lambda _settings, recipient: password_changed_recipients.append(recipient),
+    )
     requested = auth_client.post(
         "/api/v1/auth/password-reset",
         json={"email": "user@promptvault.dev"},
@@ -648,6 +659,7 @@ def test_password_reset_delivers_a_one_time_link_and_updates_the_password(
             json={"token": delivered_tokens[0][1], "password": new_password},
         )
         assert confirmed.status_code == 204
+        assert password_changed_recipients == ["user@promptvault.dev"]
 
         login = auth_client.post(
             "/api/v1/auth/login",

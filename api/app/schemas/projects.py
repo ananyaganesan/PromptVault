@@ -108,3 +108,17 @@ class ProjectMemberResponse(BaseModel):
     is_active: bool
     created_at: datetime
     is_owner: bool
+
+
+class ProjectInvitationResponse(BaseModel):
+    id: UUID
+    project_id: UUID
+    email: str
+    display_name: str
+    created_at: datetime
+    expires_at: datetime
+
+
+class ProjectInvitationAccept(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    token: Annotated[str, Field(min_length=40, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")]

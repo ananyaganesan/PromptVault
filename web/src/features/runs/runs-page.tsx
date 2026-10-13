@@ -27,6 +27,7 @@ export function RunsPage() {
   const loading = snapshot?.key !== requestKey
   const data = loading ? undefined : snapshot?.data
   const error = loading ? '' : snapshot?.error
+  const hasSpecificFilters = Boolean(search.trim() || model.trim() || status || projectId)
 
   useEffect(() => {
     let active = true
@@ -51,7 +52,7 @@ export function RunsPage() {
       <select aria-label="Run period" value={period} onChange={(event) => { setPeriod(event.target.value); setPage(1) }}><option value="30">Last 30 days</option><option value="7">Last 7 days</option><option value="all">All time</option></select>
     </div>
     {loading ? <section className="panel empty-output" role="status">Loading runs…</section> : error ? <section className="panel run-outcome" role="alert"><h2>Could not load runs</h2><p>{error}</p><Button secondary onClick={() => setRetry((value) => value + 1)}>Try again</Button></section> : data && <>
-      <section className="panel table-panel" tabIndex={0} aria-label="Run history table"><table><thead><tr><th>PROMPT / VERSION</th><th>PROJECT</th><th>STATUS</th><th>TOKENS</th><th>COST</th><th>WHEN</th></tr></thead><tbody>{data.items.map((run) => <tr key={run.id}><td><Link to={`/runs/${run.id}`}>{run.prompt_key} · v{run.version_number}</Link></td><td>{projectStore.find((project) => project.id === run.project_id)?.name ?? run.project_id}</td><td><RunStatusBadge status={run.status} /></td><td>{run.prompt_tokens == null ? '—' : (run.prompt_tokens + (run.completion_tokens ?? 0)).toLocaleString()}</td><td>${run.cost}</td><td>{dateTime(run.created_at)}</td></tr>)}</tbody></table>{!data.items.length && <p className="no-results">No runs match these filters.</p>}</section>
+      <section className="panel table-panel" tabIndex={0} aria-label="Run history table"><table><thead><tr><th>PROMPT / VERSION</th><th>PROJECT</th><th>STATUS</th><th>TOKENS</th><th>COST</th><th>WHEN</th></tr></thead><tbody>{data.items.map((run) => <tr key={run.id}><td><Link to={`/runs/${run.id}`}>{run.prompt_key} · v{run.version_number}</Link></td><td>{projectStore.find((project) => project.id === run.project_id)?.name ?? run.project_id}</td><td><RunStatusBadge status={run.status} /></td><td>{run.prompt_tokens == null ? '—' : (run.prompt_tokens + (run.completion_tokens ?? 0)).toLocaleString()}</td><td>${run.cost}</td><td>{dateTime(run.created_at)}</td></tr>)}</tbody></table>{!data.items.length && <p className="no-results">{hasSpecificFilters ? 'No runs match these filters.' : period === 'all' ? 'No runs have been recorded yet.' : 'No runs were recorded in this period.'}</p>}</section>
       <div className="run-pagination"><span>{data.total} runs · page {page}</span><div><Button secondary disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button><Button secondary disabled={page * data.page_size >= data.total} onClick={() => setPage(page + 1)}>Next</Button></div></div>
     </>}
   </>

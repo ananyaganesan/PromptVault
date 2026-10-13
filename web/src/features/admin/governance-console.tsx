@@ -222,7 +222,11 @@ export function BudgetManagementPage() {
               </tbody>
             </table>
             {!filtered.length && (
-              <p className="no-results">No budgets match these filters.</p>
+              <p className="no-results">
+                {search.trim() || filter
+                  ? "No budgets match these filters."
+                  : "No budgets have been configured yet."}
+              </p>
             )}
           </section>
         </>
@@ -579,7 +583,11 @@ export function AuditLogPage() {
             </tbody>
           </table>
           {!visible.length && (
-            <p className="no-results">No audit events match these filters.</p>
+            <p className="no-results">
+              {search.trim() || action || period !== "all"
+                ? "No audit events match these filters."
+                : "No audit events have been recorded yet."}
+            </p>
           )}
         </section>
       )}

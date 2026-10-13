@@ -51,8 +51,7 @@ describe('personal Recent Activity', () => {
     setup()
 
     await screen.findByText('newest-z · v1')
-    const links = screen.getAllByRole('link').filter((link) => link.classList.contains('activity'))
-    expect(links.map((link) => link.getAttribute('href'))).toEqual(ids.slice(0, 4).map((id) => `/runs/${id}`))
+    expect(screen.getAllByText(/· v1/).map((item) => item.textContent)).toEqual(ids.slice(0, 4).map((id) => `${id} · v1`))
     expect(screen.getByText('Your four most recent runs.')).toBeInTheDocument()
     expect(screen.getByText('YOUR RUNS')).toBeInTheDocument()
     expect(screen.queryByText('fifth · v1')).not.toBeInTheDocument()
@@ -97,7 +96,7 @@ describe('personal Recent Activity', () => {
     const list = vi.spyOn(runsApi, 'list').mockResolvedValue({ items: [], total: 0, page: 1, page_size: 10 })
     render(<MemoryRouter><DashboardPage /><RunsPage /></MemoryRouter>)
     await screen.findByText('No personal runs yet')
-    await screen.findByText('No runs match these filters.')
+    await screen.findByText('No runs were recorded in this period.')
     const recorded = run(`recorded-${status}`, status)
     read.mockResolvedValue(dashboard([recorded]))
     list.mockResolvedValue({ items: [recorded], total: 1, page: 1, page_size: 10 })

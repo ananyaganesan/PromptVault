@@ -15,6 +15,7 @@ from api.app.main import create_app
 from api.app.security import encrypt_provider_secret
 from fastapi.testclient import TestClient
 from tests.auth_support import create_verified_test_user
+from tests.invitation_support import accept_invitation
 
 
 @pytest.fixture(scope="module")
@@ -820,6 +821,7 @@ def test_membership_is_revalidated_after_provider_execution(
         json={"email": member["email"]},
     )
     assert added.status_code == 201
+    accept_invitation(run_client, str(member["email"]), member_headers)
 
     with ThreadPoolExecutor(max_workers=1) as executor:
         pending = executor.submit(
@@ -894,6 +896,7 @@ def test_run_reads_cover_member_removed_owner_and_admin_scopes(
         json={"email": member["email"]},
     )
     assert added.status_code == 201
+    accept_invitation(run_client, str(member["email"]), member_headers)
 
     owner_run_response = run_client.post(
         "/api/v1/runs",

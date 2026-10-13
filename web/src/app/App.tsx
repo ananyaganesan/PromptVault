@@ -1,7 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '../components/layout/app-layout'
 import { AuthLayout } from '../components/layout/auth-layout'
-import { AdminDashboardPage, AdminRunsExplorerPage, ProviderKeyManagementPage, UserManagementPage } from '../features/admin/console-pages'
+import { AdminDashboardPage, ProviderKeyManagementPage, UserManagementPage } from '../features/admin/console-pages'
 import { AuditLogPage, BudgetManagementPage, MaintenanceHealthPage, PricingManagementPage } from '../features/admin/governance-console'
 import { DeploymentApprovalQueuePage, DeploymentApprovalReviewPage, DeploymentRollbackPage } from '../features/admin/deployment-governance'
 import { AdminOnly } from '../features/admin/admin-only'
@@ -10,13 +10,12 @@ import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage, VerifyE
 import { AuthProvider } from '../features/auth/auth-context'
 import { RequireAuth } from '../features/auth/guards'
 import { DashboardPage } from '../features/dashboard/dashboard-page'
-import { CostsPage } from '../features/costs/costs-page'
 import { DeploymentDetailPage, DeploymentListPage, NewDeploymentPage } from '../features/deployments/deployment-pages'
 import { PlaygroundPage } from '../features/playground/playground-page'
 import { NewProjectPage, ProjectDetailPage, ProjectsPage } from '../features/projects/project-pages'
+import { ProjectInvitationPage } from '../features/projects/invitation-page'
 import { WorkspaceBoundary } from '../features/projects/workspace-boundary'
 import { NewPromptPage, PromptDetailPage, PromptsPage } from '../features/prompts/prompt-pages'
-import { RunDetailPage, RunsPage } from '../features/runs/runs-page'
 import { CompareVersionPage, VersionDetailPage, VersionLineagePage } from '../features/versions/version-pages'
 import { ErrorPage } from '../features/workspace/error-page'
 
@@ -32,6 +31,9 @@ export function App() {
       <Route path="/403" element={<ErrorPage code="403" />} />
       <Route path="/404" element={<ErrorPage code="404" />} />
     </Route>
+    <Route element={<RequireAuth />}>
+      <Route path="/project-invitations" element={<ProjectInvitationPage />} />
+    </Route>
     <Route element={<RequireAuth />}><Route element={<WorkspaceBoundary />}><Route element={<AppLayout />}>
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/projects" element={<ProjectsPage />} />
@@ -44,9 +46,6 @@ export function App() {
       <Route path="/versions/:versionId/compare" element={<CompareVersionPage />} />
       <Route path="/versions/:versionId/lineage" element={<VersionLineagePage />} />
       <Route path="/playground" element={<PlaygroundPage />} />
-      <Route path="/runs" element={<RunsPage />} />
-      <Route path="/runs/:runId" element={<RunDetailPage />} />
-      <Route path="/costs" element={<CostsPage />} />
       <Route path="/deployments" element={<DeploymentListPage />} />
       <Route path="/deployments/new" element={<NewDeploymentPage />} />
       <Route path="/deployments/:deploymentId" element={<DeploymentDetailPage />} />
@@ -61,7 +60,6 @@ export function App() {
       <Route path="/admin/provider-keys" element={<ProviderKeyManagementPage />} />
       <Route path="/admin/budgets" element={<BudgetManagementPage />} />
       <Route path="/admin/model-pricing" element={<PricingManagementPage />} />
-      <Route path="/admin/runs" element={<AdminRunsExplorerPage />} />
       <Route path="/admin/audit" element={<AuditLogPage />} />
       <Route path="/admin/maintenance" element={<MaintenanceHealthPage />} />
       </Route>

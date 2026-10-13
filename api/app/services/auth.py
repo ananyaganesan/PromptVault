@@ -1,5 +1,6 @@
 """Authentication use cases."""
 
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from secrets import token_urlsafe
 from uuid import UUID, uuid4
@@ -8,6 +9,7 @@ from api.app.config import Settings
 from api.app.email import (
     EmailDeliveryError,
     send_email_verification_email,
+    send_password_changed_email,
     send_password_reset_email,
 )
 from api.app.errors import AppError
@@ -259,6 +261,12 @@ class AuthService:
                 "invalid_reset_token",
                 "Password reset link is invalid or expired",
             )
+        # The notification is intentionally best-effort. The credential and
+        # session-revocation transaction must not be rolled back merely because
+        # SMTP becomes unavailable after a successful password change.
+        if self.settings.smtp_host and self.settings.smtp_from_email:
+            with suppress(EmailDeliveryError):
+                await run_in_threadpool(send_password_changed_email, self.settings, user.email)
 
     async def update_profile(
         self,

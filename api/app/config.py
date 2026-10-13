@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     email_verification_resend_cooldown_seconds: int = 60
     email_verification_resend_limit: int = 5
     email_verification_resend_window_seconds: int = 3600
+    project_invitation_url: str = "http://localhost:5173/project-invitations"
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None
@@ -124,6 +125,21 @@ class Settings(BaseSettings):
             <= 0
         ):
             raise ValueError("email verification limits must be positive")
+        invitation_url = urlsplit(self.project_invitation_url)
+        if (
+            invitation_url.scheme not in {"http", "https"}
+            or not invitation_url.netloc
+            or invitation_url.username is not None
+            or invitation_url.password is not None
+            or invitation_url.query
+            or invitation_url.fragment
+        ):
+            raise ValueError(
+                "PROJECT_INVITATION_URL must be an absolute HTTP URL "
+                "without credentials, query or fragment"
+            )
+        if self.environment == "production" and self.smtp_host and invitation_url.scheme != "https":
+            raise ValueError("production PROJECT_INVITATION_URL must use HTTPS")
         reset_url = urlsplit(self.password_reset_url)
         if (
             reset_url.scheme not in {"http", "https"}

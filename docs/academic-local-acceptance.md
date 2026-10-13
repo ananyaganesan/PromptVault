@@ -1,17 +1,17 @@
 # Academic database evidence and local demonstration
 
 Accepted technically on 2026-10-13 against PostgreSQL 18. Migration 024 adds the
-email-verification timestamp, hashed token relation, atomic confirmation function,
-and inactive-account cleanup trigger while backfilling existing accounts as verified.
+email-verification timestamp and token lifecycle; migration 025 adds recipient-accepted
+project invitations. Existing accounts are preserved and backfilled as verified.
 
 ## Deliverables
 
-- [Column dictionary](data-dictionary.md): all 147 columns of 17 logical tables,
+- [Column dictionary](data-dictionary.md): all 163 columns of 19 logical tables,
   with purpose, catalog types, nullability, defaults, identity behavior, primary/
   alternate/foreign keys, checks and index definitions.
 - [Machine-readable evidence](../evidence/academic/database-evidence.json): current
-  migration checksums; 17 table mappings; five view/materialized-view definitions;
-  21 non-internal logical-table triggers; 60 logical-table indexes; the actual
+  migration checksums; 19 table mappings; five view/materialized-view definitions;
+  23 non-internal logical-table triggers; 67 logical-table indexes; the actual
   stored-procedure definition; nonempty join/aggregate/view results and a normal
   `EXPLAIN (ANALYZE, BUFFERS)` plan. Small-data plans need not choose an index;
   representative-data plan tests separately verify index use and partition pruning.
@@ -107,3 +107,13 @@ Email verification is validated locally with isolated database and loopback SMTP
 acceptance. Deployment infrastructure and staging URLs remain excluded.
 The fixed external providers remain Gemini, OpenRouter and Groq. Real free-tier
 account calls remain pending as documented in [A1 acceptance](a1-local-acceptance.md).
+
+
+## Invitation schema update (2026-10-13)
+
+Migration 025 adds `project_invitations` following its recorded ER/schema and 3NF
+design. The dictionary and machine-readable catalog evidence have been refreshed
+from the isolated test database: 19 logical tables and 163 columns.
+The earlier counts above describe the original October 12 acceptance. See
+[invitation acceptance](project-invitations-local-acceptance.md) for the current
+regression and browser results.

@@ -1,3 +1,4 @@
+import { invitationLink } from './support/invitations'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { databaseRows } from './support/database'
 import { createVerifiedTestAccount } from './support/auth'
@@ -23,8 +24,7 @@ async function signIn(page: Page, role: 'user' | 'admin' = 'user') {
   return (await page.evaluate(() => sessionStorage.getItem('promptvault.api.session')))!
 }
 async function refresh(page: Page) {
-  await page.getByRole('button', { name: 'Refresh data', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Refresh data', exact: true })).toBeEnabled()
+  await page.reload()
 }
 async function fixture(request: APIRequestContext, jwt: string, key: string) {
   const headers = { Authorization: `Bearer ${jwt}` }
@@ -74,6 +74,8 @@ test('project/version mutations, cross-user refresh, lineage and revoked members
   const memberSession = memberAccount.session
   const ownerHeaders = { Authorization: `Bearer ${jwt}` }
   expect((await request.post(`${api}/projects/${projectId}/members`, { headers: ownerHeaders, data: { email } })).status()).toBe(201)
+  const invitationToken = new URLSearchParams(new URL(invitationLink(email, updatedName)).hash.slice(1)).get('token')!
+  expect((await request.post(`${api}/project-invitations/accept`, { headers: { Authorization: `Bearer ${memberSession.access_token}` }, data: { token: invitationToken } })).status()).toBe(200)
   const context = await browser.newContext({ baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173' })
   const member = await context.newPage()
   try {
@@ -219,6 +221,8 @@ test('an unrelated account sees no restricted records, counts or run output', as
   const dashboardResponse = await request.get(`${api}/dashboard/me`, { headers: unrelatedHeaders })
   expect(dashboardResponse.status()).toBe(200)
   expect(await dashboardResponse.json()).toMatchObject({ project_count: 0, prompt_count: 0, run_count: 0, pending_approval_count: 0, recent_runs: [] })
+  const invitationToken = new URLSearchParams(new URL(invitationLink(email, updatedName)).hash.slice(1)).get('token')!
+  expect((await request.post(`${api}/project-invitations/accept`, { headers: { Authorization: `Bearer ${memberSession.access_token}` }, data: { token: invitationToken } })).status()).toBe(200)
   const context = await browser.newContext({ baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173' })
   try {
     const unrelated = await context.newPage()

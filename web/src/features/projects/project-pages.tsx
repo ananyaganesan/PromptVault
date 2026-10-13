@@ -6,6 +6,8 @@ import { Button, Field, Stat, Status } from "../../components/ui/prototype";
 import { EmptyState } from "../../components/ui/empty-state";
 import { useAuth } from "../auth/auth-context";
 import { PromptDeploymentStatus } from "../versions/version-pages";
+import { projectsApi } from "./api";
+import type { ProjectInvitation } from "../../types/projects";
 import type { Project } from "../../types/projects";
 import {
   memberStore,
@@ -24,15 +26,23 @@ export function PromptRows({
   projectId?: string;
   search?: string;
 }) {
-  const prompts = promptStore.filter(
-    (prompt) =>
-      (!projectId || prompt.project_id === projectId) &&
-      `${prompt.name} ${prompt.key}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
+  const available = promptStore.filter(
+    (prompt) => !projectId || prompt.project_id === projectId,
   );
+  const query = search.trim().toLowerCase();
+  const prompts = query
+    ? available.filter((prompt) =>
+        `${prompt.name} ${prompt.key}`.toLowerCase().includes(query),
+      )
+    : available;
   return !prompts.length ? (
-    <div className="prompt-row no-results">No prompts match this search.</div>
+    <p className="no-results">
+      {query
+        ? "No prompts match this search."
+        : projectId
+          ? "No prompts have been added to this project yet."
+          : "No prompts are available yet."}
+    </p>
   ) : (
     <div className="rows">
       {prompts.map((prompt) => (
@@ -62,6 +72,7 @@ export function ProjectsPage() {
     `${project.name} ${project.key}`.toLowerCase().includes(search.toLowerCase()) &&
     (filter === "all" || (filter === "owned" ? project.owner_id === user?.id : project.owner_id !== user?.id)),
   );
+  const hasFilters = Boolean(search.trim() || filter !== "all");
   return (
     <>
       <PageHeader
@@ -111,7 +122,7 @@ export function ProjectsPage() {
           </Link>
         ))}
       </div>
-      {!projects.length && <EmptyState title="No projects found" description="Try another search or create your first project." action={<Link to="/projects/new">Create project</Link>} />}
+      {!projects.length && <EmptyState title={hasFilters ? "No projects match these filters" : "No projects yet"} description={hasFilters ? "Try another search or filter." : "Create your first project to organize prompts and collaborators."} action={!hasFilters && <Link to="/projects/new">Create project</Link>} />}
     </>
   );
 }
@@ -193,6 +204,28 @@ function ProjectDetailContent({ project }: { project: Project }) {
   const members = memberStore[project.id] ?? [];
   const canManage = user?.role === "super_admin" || user?.id === project.owner_id;
   const [memberEmail, setMemberEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
+  const [invitationError, setInvitationError] = useState("");
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  useEffect(() => {
+    if (!canManage) return;
+    const controller = new AbortController();
+    projectsApi.listInvitations(project.id, controller.signal)
+      .then((items) => { setInvitations(items); setInvitationError(""); })
+      .catch((cause) => { if (!controller.signal.aborted) setInvitationError(cause instanceof Error ? cause.message : "Could not load invitations."); });
+    return () => controller.abort();
+  }, [project.id, canManage, refresh]);
+  async function cancelInvitation(id: string) {
+    if (cancelling) return;
+    setCancelling(id);
+    try {
+      await projectsApi.cancelInvitation(project.id, id);
+      setInvitations((items) => items.filter((item) => item.id !== id));
+      setNotice("Invitation cancelled.");
+    } catch (cause) { setNotice(cause instanceof Error ? cause.message : "Could not cancel invitation."); }
+    finally { setCancelling(null); }
+  }
   const [draft, setDraft] = useState<{ baseName: string; baseDescription: string; name: string; description: string } | null>(null);
   const dirty = draft !== null && (draft.name !== draft.baseName || draft.description !== draft.baseDescription);
   const name = dirty ? draft.name : project.name;
@@ -215,17 +248,19 @@ function ProjectDetailContent({ project }: { project: Project }) {
   );
   async function addMember(event: FormEvent) {
     event.preventDefault();
-    if (!canManage) return;
+    if (!canManage || inviting) return;
     const email = memberEmail.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email))
       return setNotice("Enter a valid email address.");
     try {
-      await workspaceService.addMember(project.id, { email });
+      setInviting(true);
+      const invitation = await workspaceService.addMember(project.id, { email });
+      setInvitations((items) => [invitation, ...items.filter((item) => item.id !== invitation.id)]);
       setMemberEmail("");
-      setNotice(`${email} was added to the project.`);
+      setNotice(`Invitation emailed to ${email}. They will get access after accepting.`);
     } catch (cause) {
-      setNotice(cause instanceof Error ? cause.message : "Could not add the member.");
-    }
+      setNotice(cause instanceof Error ? cause.message : "Could not send the invitation.");
+    } finally { setInviting(false); }
   }
   async function saveSettings(event: FormEvent) {
     event.preventDefault();
@@ -301,7 +336,7 @@ function ProjectDetailContent({ project }: { project: Project }) {
               note="People with project access"
             />
           </div>
-          <section className="panel">
+          <section className="panel project-prompt-library">
             <div className="panel-head">
               <div>
                 <h2>Prompt library</h2>
@@ -316,7 +351,7 @@ function ProjectDetailContent({ project }: { project: Project }) {
         </>
       )}
       {tab === "prompts" && (
-        <section className="panel">
+        <section className="panel project-prompt-library">
           <div className="panel-head">
             <div>
               <h2>Prompt library</h2>
@@ -344,8 +379,18 @@ function ProjectDetailContent({ project }: { project: Project }) {
               placeholder="teammate@company.com"
               aria-label="Member email"
             />
-            <Button type="submit">Add member</Button>
+            <Button type="submit" disabled={inviting}>{inviting ? "Sending…" : "Invite member"}</Button>
           </form>}
+          {canManage && <>
+            <p className="member-invitation-note">Invited users must have a PromptVault account and accept the email invitation before getting access.</p>
+            {invitationError && <p role="alert">{invitationError}</p>}
+            <h3>Pending invitations</h3>
+            {invitations.length === 0 && <p className="member-empty-invitations">No pending invitations.</p>}
+            {invitations.map((invitation) => <div className="member-row" key={invitation.id}>
+              <div><strong>{invitation.email}</strong><p>{new Date(invitation.expires_at).getTime() <= Date.now() ? "Expired" : "Awaiting acceptance"} · Expires {displayDate(invitation.expires_at)}</p></div>
+              <Button type="button" disabled={cancelling !== null} onClick={() => cancelInvitation(invitation.id)}>{cancelling === invitation.id ? "Cancelling…" : "Cancel invitation"}</Button>
+            </div>)}
+          </>}
           <div className="member-list">
             {members.map((member) => (
               <div className="member-row" key={member.user_id}>

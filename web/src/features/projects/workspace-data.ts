@@ -309,15 +309,10 @@ export const workspaceService = {
   },
   async addMember(projectId: string, request: AddProjectMemberRequest) {
     memberGenerations.set(projectId, (memberGenerations.get(projectId) ?? 0) + 1)
-    const result = await apiClient.request<BackendMember>(`/projects/${projectId}/members`, { method: 'POST', body: request })
-    const member = adaptMember(result)
+    const invitation = await apiClient.request<import('../../types/projects').ProjectInvitation>(`/projects/${projectId}/members`, { method: 'POST', body: request })
+    // Pending invitations do not alter the member store or member count.
     memberGenerations.set(projectId, (memberGenerations.get(projectId) ?? 0) + 1)
-    memberStore[projectId] = [...(memberStore[projectId] ?? []).filter((item) => item.user_id !== member.user_id), member]
-    const project = projectFor(projectId)
-    if (project) project.member_count = memberStore[projectId].length
-    notifyMutation()
-    refreshLiveData()
-    return member
+    return invitation
   },
   async removeMember(projectId: string, userId: string) {
     memberGenerations.set(projectId, (memberGenerations.get(projectId) ?? 0) + 1)

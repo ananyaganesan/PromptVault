@@ -41,8 +41,8 @@ def test_academic_collector_proves_invariants_without_retaining_writes(
     assert result.returncode == 0, result.stderr
     assert counts() == before
     report = json.loads((tmp_path / 'database-evidence.json').read_text())
-    assert report['logical_tables'] == 18
-    assert len(report['migrations']) == 24
+    assert report['logical_tables'] == 19
+    assert len(report['migrations']) == 25
     assert report['demonstrations']['owner_membership_trigger'] == 1
     assert report['demonstrations']['invalid_foreign_key'] == '23503 rejected'
     assert {row['action'] for row in report['demonstrations']['audit_trigger']} == {

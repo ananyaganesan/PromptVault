@@ -27,8 +27,8 @@ def validate_database_url(url: str) -> None:
     parts = urlsplit(url)
     if parts.hostname not in {'localhost', '127.0.0.1', '::1'} or (parts.port or 5432) != 5432:
         raise ValueError('Normal local startup requires PostgreSQL on localhost:5432')
-    if parts.path.endswith('_test'):
-        raise ValueError('Normal local startup cannot use a disposable test database')
+    if parts.path != '/promptvault':
+        raise ValueError('Normal local startup requires the persistent promptvault database')
 
 
 def require_free_port(port: int) -> None:
@@ -54,6 +54,8 @@ def main() -> int:
         database, port = connection.execute('SELECT current_database(),inet_server_port()').fetchone()
         if port != 5432:
             raise ValueError('Connected PostgreSQL server must use port 5432')
+        if database != 'promptvault':
+            raise ValueError('Connected database must be promptvault')
     print(f'PostgreSQL: localhost:5432 / {database}', flush=True)
     if args.check:
         return 0

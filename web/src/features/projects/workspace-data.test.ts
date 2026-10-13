@@ -93,7 +93,7 @@ describe('workspaceService', () => {
     expect(projectStore[0].name).toBe('Refreshed')
   })
 
-  it('ignores a pre-mutation membership response and reconciles counts from a fresh read', async () => {
+  it('does not grant membership for a pending invitation and reconciles counts from a fresh read', async () => {
     const owner = { id: 'owner', email: 'owner@example.com', display_name: 'Owner', role: 'user', is_active: true, created_at: '2026-10-10T00:00:00Z', is_owner: true }
     const member = { ...owner, id: 'member', email: 'member@example.com', is_owner: false }
     let resolveOld!: (response: Response) => void
@@ -106,7 +106,7 @@ describe('workspaceService', () => {
     await workspaceService.addMember('project', { email: member.email })
     resolveOld(json({ items: [], total: 0, page: 1, page_size: 100 }))
     await old
-    expect(memberStore.project).toEqual([expect.objectContaining({ user_id: 'member' })])
+    expect(memberStore.project ?? []).not.toContainEqual(expect.objectContaining({ user_id: 'member' }))
     projectStore.push({ id: 'project', name: 'Project', key: 'project', description: null, owner_id: 'owner', is_owner: true, member_count: 99, prompt_count: 0, monthly_spend: '0', created_at: '2026-10-10T00:00:00Z', updated_at: '2026-10-10T00:00:00Z' })
     await workspaceService.loadMembers('project')
     expect(projectStore[0].member_count).toBe(2)

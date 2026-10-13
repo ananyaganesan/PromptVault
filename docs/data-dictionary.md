@@ -22,22 +22,15 @@ Hashed, expiring and revocable project-scoped Serve credentials.
 
 Constraints and keys:
 
-- `NOT NULL created_at`
 - `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT`
-- `NOT NULL created_by`
 - `CHECK (((expires_at IS NULL) OR (expires_at > created_at)))`
 - `CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))`
-- `NOT NULL id`
 - `CHECK ((length(TRIM(BOTH FROM name)) > 0))`
-- `NOT NULL name`
 - `PRIMARY KEY (id)`
 - `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
-- `NOT NULL project_id`
 - `CHECK (((revoked_at IS NULL) OR (revoked_at >= created_at)))`
 - `CHECK (((revoked_at IS NULL) = (revoked_by IS NULL)))`
 - `FOREIGN KEY (revoked_by) REFERENCES users(id) ON DELETE SET NULL`
-- `NOT NULL token_hash`
-- `NOT NULL token_prefix`
 
 Indexes:
 
@@ -64,12 +57,8 @@ Append-only redacted change history and actor attribution.
 Constraints and keys:
 
 - `CHECK ((length(TRIM(BOTH FROM action)) > 0))`
-- `NOT NULL action`
 - `FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL`
-- `NOT NULL created_at`
 - `CHECK ((length(TRIM(BOTH FROM entity_type)) > 0))`
-- `NOT NULL entity_type`
-- `NOT NULL id`
 - `PRIMARY KEY (id)`
 
 Indexes:
@@ -95,14 +84,9 @@ Server-side session lifetime and revocation state.
 
 Constraints and keys:
 
-- `NOT NULL created_at`
-- `NOT NULL expires_at`
-- `NOT NULL id`
-- `NOT NULL issued_at`
 - `PRIMARY KEY (id)`
 - `CHECK ((((revoked_at IS NULL) AND (revocation_reason IS NULL)) OR ((revoked_at IS NOT NULL) AND (revocation_reason IS NOT NULL))))`
 - `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
-- `NOT NULL user_id`
 - `CHECK ((expires_at > issued_at))`
 
 Indexes:
@@ -128,17 +112,12 @@ Monthly execution limit targeting exactly one user or project.
 
 Constraints and keys:
 
-- `NOT NULL created_at`
 - `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL`
 - `CHECK ((num_nonnulls(user_id, project_id) = 1))`
-- `NOT NULL id`
 - `CHECK ((monthly_limit >= (0)::numeric))`
-- `NOT NULL monthly_limit`
 - `PRIMARY KEY (id)`
 - `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
 - `CHECK ((length(TRIM(BOTH FROM timezone)) > 0))`
-- `NOT NULL timezone`
-- `NOT NULL updated_at`
 - `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
 
 Indexes:
@@ -171,24 +150,17 @@ Prompt/version promotion, review and rollback lifecycle records.
 
 Constraints and keys:
 
-- `NOT NULL environment`
-- `NOT NULL id`
 - `CHECK (((environment = 'prod'::deployment_environment) OR (status <> 'pending'::deployment_status)))`
 - `PRIMARY KEY (id)`
 - `CHECK (((environment <> 'prod'::deployment_environment) OR (status <> ALL (ARRAY['active'::deployment_status, 'superseded'::deployment_status, 'rolled_back'::deployment_status])) OR (reviewed_at IS NOT NULL)))`
 - `FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT`
-- `NOT NULL prompt_id`
 - `CHECK (((status <> 'rejected'::deployment_status) OR (length(TRIM(BOTH FROM review_note)) > 0)))`
-- `NOT NULL requested_at`
 - `FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE RESTRICT`
-- `NOT NULL requested_by`
 - `CHECK (((reviewed_by IS NULL) = (reviewed_at IS NULL)))`
 - `FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE RESTRICT`
 - `FOREIGN KEY (rollback_of_id) REFERENCES deployments(id) ON DELETE RESTRICT`
 - `CHECK (((rollback_of_id IS NULL) OR (length(TRIM(BOTH FROM rollback_reason)) > 0)))`
 - `CHECK ((((status = ANY (ARRAY['pending'::deployment_status, 'cancelled'::deployment_status])) AND (reviewed_at IS NULL) AND (activated_at IS NULL)) OR ((status = 'rejected'::deployment_status) AND (reviewed_at IS NOT NULL) AND (activated_at IS NULL)) OR ((status = ANY (ARRAY['active'::deployment_status, 'superseded'::deployment_status, 'rolled_back'::deployment_status])) AND (activated_at IS NOT NULL))))`
-- `NOT NULL status`
-- `NOT NULL version_id`
 - `FOREIGN KEY (version_id, prompt_id) REFERENCES prompt_versions(id, prompt_id) ON DELETE RESTRICT`
 - `FOREIGN KEY (rollback_of_id, prompt_id, environment) REFERENCES deployments(id, prompt_id, environment) ON DELETE RESTRICT`
 - `UNIQUE (id, prompt_id, environment)`
@@ -200,6 +172,31 @@ Indexes:
 - `CREATE INDEX ix_deployments_pending_prod ON public.deployments USING btree (requested_at, id) WHERE ((environment = 'prod'::deployment_environment) AND (status = 'pending'::deployment_status))`
 - `CREATE UNIQUE INDEX uq_deployments_id_prompt_environment ON public.deployments USING btree (id, prompt_id, environment)`
 - `CREATE UNIQUE INDEX uq_deployments_one_active ON public.deployments USING btree (prompt_id, environment) WHERE (status = 'active'::deployment_status)`
+
+## `email_verification_tokens`
+
+Hashed, expiring single-use email ownership credentials.
+
+| Column | Type | Nullable | Default / identity | Purpose |
+|---|---|---|---|---|
+| id | uuid | False | gen_random_uuid() | Surrogate row identity (runs also includes creation time in its primary key). |
+| user_id | uuid | False | — | Referenced account/actor or user budget target. |
+| token_hash | character(64) | False | — | SHA-256 digest of the one-time disclosed token. |
+| expires_at | timestamp with time zone | False | — | Time after which the credential/session is invalid. |
+| used_at | timestamp with time zone | True | — | Optional time when a reset token was consumed. |
+| created_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Database timestamp when the record was created. |
+
+Constraints and keys:
+
+- `PRIMARY KEY (id)`
+- `UNIQUE (token_hash)`
+- `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
+
+Indexes:
+
+- `CREATE UNIQUE INDEX email_verification_tokens_pkey ON public.email_verification_tokens USING btree (id)`
+- `CREATE UNIQUE INDEX email_verification_tokens_token_hash_key ON public.email_verification_tokens USING btree (token_hash)`
+- `CREATE INDEX ix_email_verification_tokens_user_active ON public.email_verification_tokens USING btree (user_id, created_at DESC) WHERE (used_at IS NULL)`
 
 ## `model_pricing`
 
@@ -219,19 +216,12 @@ Historical provider/model effective price windows.
 
 Constraints and keys:
 
-- `NOT NULL created_at`
 - `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL`
-- `NOT NULL effective_from`
-- `NOT NULL id`
-- `NOT NULL input_price_per_million`
 - `CHECK ((length(TRIM(BOTH FROM model)) > 0))`
-- `NOT NULL model`
 - `EXCLUDE USING gist (provider WITH =, model WITH =, tstzrange(effective_from, effective_to, '[)'::text) WITH &&)`
 - `CHECK (((input_price_per_million >= (0)::numeric) AND (output_price_per_million >= (0)::numeric)))`
-- `NOT NULL output_price_per_million`
 - `PRIMARY KEY (id)`
 - `CHECK ((length(TRIM(BOTH FROM provider)) > 0))`
-- `NOT NULL provider`
 - `CHECK (((effective_to IS NULL) OR (effective_to > effective_from)))`
 
 Indexes:
@@ -253,12 +243,8 @@ Previously used password hashes for reuse prevention.
 
 Constraints and keys:
 
-- `NOT NULL created_at`
-- `NOT NULL id`
-- `NOT NULL password_hash`
 - `PRIMARY KEY (id)`
 - `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
-- `NOT NULL user_id`
 - `UNIQUE (user_id, password_hash)`
 
 Indexes:
@@ -281,20 +267,49 @@ Hashed, expiring single-use password-reset credentials.
 
 Constraints and keys:
 
-- `NOT NULL created_at`
-- `NOT NULL expires_at`
-- `NOT NULL id`
 - `PRIMARY KEY (id)`
 - `UNIQUE (token_hash)`
-- `NOT NULL token_hash`
 - `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
-- `NOT NULL user_id`
 
 Indexes:
 
 - `CREATE INDEX ix_password_reset_tokens_user_active ON public.password_reset_tokens USING btree (user_id, expires_at DESC) WHERE (used_at IS NULL)`
 - `CREATE UNIQUE INDEX password_reset_tokens_pkey ON public.password_reset_tokens USING btree (id)`
 - `CREATE UNIQUE INDEX password_reset_tokens_token_hash_key ON public.password_reset_tokens USING btree (token_hash)`
+
+## `project_invitations`
+
+Pending, expiring recipient-accepted project access invitations.
+
+| Column | Type | Nullable | Default / identity | Purpose |
+|---|---|---|---|---|
+| id | uuid | False | gen_random_uuid() | Surrogate row identity (runs also includes creation time in its primary key). |
+| project_id | uuid | False | — | Referenced project/workspace. |
+| user_id | uuid | False | — | Referenced account/actor or user budget target. |
+| invited_by | uuid | False | — | Account issuing a project invitation. |
+| token_hash | text | False | — | SHA-256 digest of the one-time disclosed token. |
+| created_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Database timestamp when the record was created. |
+| expires_at | timestamp with time zone | False | — | Time after which the credential/session is invalid. |
+| accepted_at | timestamp with time zone | True | — | Timestamp of recipient acceptance and membership creation. |
+| revoked_at | timestamp with time zone | True | — | Optional time of explicit credential/session revocation. |
+
+Constraints and keys:
+
+- `CHECK ((expires_at > created_at))`
+- `CHECK (((accepted_at IS NULL) OR (revoked_at IS NULL)))`
+- `FOREIGN KEY (invited_by) REFERENCES users(id)`
+- `PRIMARY KEY (id)`
+- `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
+- `CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))`
+- `UNIQUE (token_hash)`
+- `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
+
+Indexes:
+
+- `CREATE UNIQUE INDEX ix_project_invitations_pending ON public.project_invitations USING btree (project_id, user_id) WHERE ((accepted_at IS NULL) AND (revoked_at IS NULL))`
+- `CREATE INDEX ix_project_invitations_user ON public.project_invitations USING btree (user_id)`
+- `CREATE UNIQUE INDEX project_invitations_pkey ON public.project_invitations USING btree (id)`
+- `CREATE UNIQUE INDEX project_invitations_token_hash_key ON public.project_invitations USING btree (token_hash)`
 
 ## `project_members`
 
@@ -310,12 +325,9 @@ Many-to-many access relationship between users and projects.
 Constraints and keys:
 
 - `FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL`
-- `NOT NULL created_at`
 - `PRIMARY KEY (project_id, user_id)`
 - `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
-- `NOT NULL project_id`
 - `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
-- `NOT NULL user_id`
 
 Indexes:
 
@@ -338,16 +350,10 @@ Owned workspace containing prompts and scoped memberships.
 
 Constraints and keys:
 
-- `NOT NULL created_at`
-- `NOT NULL id`
 - `CHECK (((key)::text ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'::text))`
-- `NOT NULL key`
 - `CHECK (((length(TRIM(BOTH FROM name)) >= 1) AND (length(TRIM(BOTH FROM name)) <= 160)))`
-- `NOT NULL name`
 - `FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT`
-- `NOT NULL owner_id`
 - `PRIMARY KEY (id)`
-- `NOT NULL updated_at`
 
 Indexes:
 
@@ -375,23 +381,14 @@ Immutable template and configuration snapshots with lineage.
 Constraints and keys:
 
 - `FOREIGN KEY (parent_version_id, prompt_id) REFERENCES prompt_versions(id, prompt_id) ON DELETE RESTRICT`
-- `NOT NULL commit_message`
 - `CHECK ((length(TRIM(BOTH FROM commit_message)) > 0))`
-- `NOT NULL created_at`
 - `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT`
-- `NOT NULL created_by`
-- `NOT NULL id`
-- `NOT NULL model_config`
 - `CHECK ((jsonb_typeof(model_config) = 'object'::text))`
 - `CHECK ((version_number > 0))`
 - `PRIMARY KEY (id)`
 - `FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT`
-- `NOT NULL prompt_id`
-- `NOT NULL template_body`
 - `CHECK ((length(template_body) > 0))`
 - `CHECK ((jsonb_typeof(variables) = 'array'::text))`
-- `NOT NULL variables`
-- `NOT NULL version_number`
 - `UNIQUE (id, prompt_id)`
 - `UNIQUE (prompt_id, version_number)`
 
@@ -419,16 +416,10 @@ Named prompt identity within a project.
 
 Constraints and keys:
 
-- `NOT NULL created_at`
-- `NOT NULL id`
 - `CHECK (((key)::text ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'::text))`
-- `NOT NULL key`
 - `CHECK (((length(TRIM(BOTH FROM name)) >= 1) AND (length(TRIM(BOTH FROM name)) <= 160)))`
-- `NOT NULL name`
 - `PRIMARY KEY (id)`
 - `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
-- `NOT NULL project_id`
-- `NOT NULL updated_at`
 - `UNIQUE (id, project_id)`
 - `UNIQUE (project_id, key)`
 
@@ -456,16 +447,10 @@ Encrypted administrator-managed shared provider credentials.
 Constraints and keys:
 
 - `CHECK ((length(TRIM(BOTH FROM alias)) > 0))`
-- `NOT NULL alias`
-- `NOT NULL created_at`
 - `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT`
-- `NOT NULL created_by`
 - `CHECK (((deactivated_at IS NULL) OR (deactivated_at >= created_at)))`
-- `NOT NULL encrypted_secret`
-- `NOT NULL id`
 - `PRIMARY KEY (id)`
 - `CHECK ((length(TRIM(BOTH FROM provider)) > 0))`
-- `NOT NULL provider`
 
 Indexes:
 
@@ -500,31 +485,19 @@ Constraints and keys:
 
 - `CHECK (((actual_cost IS NULL) OR (actual_cost >= (0)::numeric)))`
 - `CHECK (((run_id IS NULL) = (run_created_at IS NULL)))`
-- `NOT NULL claim_token`
-- `NOT NULL created_at`
 - `CHECK ((estimated_cost >= (0)::numeric))`
-- `NOT NULL estimated_cost`
-- `NOT NULL id`
 - `CHECK ((length((idempotency_key)::text) >= 16))`
-- `NOT NULL idempotency_key`
 - `PRIMARY KEY (id)`
 - `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT`
-- `NOT NULL project_id`
 - `FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT`
-- `NOT NULL prompt_id`
 - `CHECK ((request_fingerprint ~ '^[0-9a-f]{64}$'::text))`
-- `NOT NULL request_fingerprint`
 - `FOREIGN KEY (run_id, run_created_at) REFERENCES runs(id, created_at) ON DELETE RESTRICT`
 - `FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_10(id, created_at) ON DELETE RESTRICT`
 - `FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_11(id, created_at) ON DELETE RESTRICT`
 - `CHECK (((status)::text = ANY ((ARRAY['reserved'::character varying, 'completed'::character varying, 'failed'::character varying, 'uncertain'::character varying, 'blocked'::character varying])::text[])))`
-- `NOT NULL status`
-- `NOT NULL updated_at`
 - `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT`
 - `UNIQUE (user_id, idempotency_key)`
-- `NOT NULL user_id`
 - `FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT`
-- `NOT NULL version_id`
 
 Indexes:
 
@@ -562,32 +535,18 @@ Constraints and keys:
 - `FOREIGN KEY (prompt_id, project_id) REFERENCES prompts(id, project_id) ON DELETE RESTRICT`
 - `FOREIGN KEY (version_id, prompt_id) REFERENCES prompt_versions(id, prompt_id) ON DELETE RESTRICT`
 - `CHECK (((status <> 'completed'::run_status) OR ((output_text IS NOT NULL) AND (error_code IS NULL))))`
-- `NOT NULL completion_tokens`
 - `CHECK ((cost >= (0)::numeric))`
-- `NOT NULL cost`
-- `NOT NULL created_at`
 - `CHECK (((status = 'completed'::run_status) OR (error_code IS NOT NULL)))`
-- `NOT NULL id`
 - `CHECK ((jsonb_typeof(input_variables) = 'object'::text))`
-- `NOT NULL input_variables`
-- `NOT NULL latency_ms`
 - `CHECK ((latency_ms >= 0))`
 - `CHECK ((length(TRIM(BOTH FROM model)) > 0))`
-- `NOT NULL model`
 - `PRIMARY KEY (id, created_at)`
 - `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT`
-- `NOT NULL project_id`
 - `FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT`
-- `NOT NULL prompt_id`
-- `NOT NULL prompt_tokens`
 - `CHECK ((length(TRIM(BOTH FROM provider)) > 0))`
-- `NOT NULL provider`
-- `NOT NULL status`
 - `CHECK (((prompt_tokens >= 0) AND (completion_tokens >= 0)))`
 - `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT`
-- `NOT NULL user_id`
 - `FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT`
-- `NOT NULL version_id`
 
 Indexes:
 
@@ -612,11 +571,7 @@ Infrastructure record of applied migration versions/checksums.
 
 Constraints and keys:
 
-- `NOT NULL applied_at`
-- `NOT NULL checksum`
-- `NOT NULL name`
 - `PRIMARY KEY (version)`
-- `NOT NULL version`
 
 Indexes:
 
@@ -636,20 +591,13 @@ Account identity, display name, credentials and authorization role.
 | is_active | boolean | False | true | Whether the account may authenticate and access resources. |
 | created_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Database timestamp when the record was created. |
 | updated_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Timestamp of the latest mutable state change. |
+| email_verified_at | timestamp with time zone | True | — | Time when the account proved control of its email address. |
 
 Constraints and keys:
 
-- `NOT NULL created_at`
 - `CHECK (((length(TRIM(BOTH FROM display_name)) >= 1) AND (length(TRIM(BOTH FROM display_name)) <= 120)))`
-- `NOT NULL display_name`
 - `CHECK (((length(TRIM(BOTH FROM (email)::text)) >= 3) AND (length(TRIM(BOTH FROM (email)::text)) <= 320)))`
-- `NOT NULL email`
-- `NOT NULL id`
-- `NOT NULL is_active`
-- `NOT NULL password_hash`
 - `PRIMARY KEY (id)`
-- `NOT NULL role`
-- `NOT NULL updated_at`
 
 Indexes:
 

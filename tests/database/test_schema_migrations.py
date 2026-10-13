@@ -17,7 +17,7 @@ def migration_sql(version: int) -> str:
 def test_complete_migration_chain_is_discoverable() -> None:
     migrations = discover_migrations(MIGRATIONS_DIRECTORY)
 
-    assert [migration.version for migration in migrations] == list(range(1, 25))
+    assert [migration.version for migration in migrations] == list(range(1, 26))
 
 
 @pytest.mark.parametrize("path", sorted(MIGRATIONS_DIRECTORY.glob("*.sql")), ids=lambda p: p.name)
@@ -172,6 +172,16 @@ def test_email_verification_is_hashed_expiring_and_atomic() -> None:
     assert "confirm_email_verification" in verification
     assert "delete from email_verification_tokens" in verification
     assert "grant execute on function" in verification
+
+
+def test_project_invitations_are_expiring_and_acceptance_gated() -> None:
+    invitations = migration_sql(25)
+
+    assert "create table project_invitations" in invitations
+    assert "token_hash text not null unique" in invitations
+    assert "expires_at timestamptz not null" in invitations
+    assert "accepted_at timestamptz" in invitations
+    assert "revoked_at timestamptz" in invitations
 
 
 def test_seed_files_define_deterministic_demo_identities() -> None:
