@@ -48,6 +48,17 @@ class LoginRequest(AuthRequest):
     pass
 
 
+class PendingVerificationResponse(BaseModel):
+    email: EmailStr
+    message: str
+
+
+class EmailVerificationConfirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str
+
+
 class PasswordResetRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

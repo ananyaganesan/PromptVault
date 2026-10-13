@@ -1,11 +1,14 @@
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import psycopg
 import pytest
 from api.app.config import Settings
+from api.app.email import EmailDeliveryError
 from api.app.main import create_app
 from api.app.security import (
     create_access_token,
@@ -16,6 +19,7 @@ from api.app.security import (
 from fastapi.testclient import TestClient
 
 SEEDED_USER_ID = UUID("11111111-1111-4111-8111-111111111111")
+DELIVERED_VERIFICATION_TOKENS: dict[str, list[str]] = {}
 
 
 @pytest.fixture(scope="module")
@@ -31,7 +35,15 @@ def auth_client(
         }
     )
     app = create_app(settings)
-    with TestClient(app) as client:
+
+    def capture_verification_email(_settings: Settings, recipient: str, token: str) -> None:
+        DELIVERED_VERIFICATION_TOKENS.setdefault(recipient, []).append(token)
+
+    with patch(
+        "api.app.services.auth.send_email_verification_email",
+        capture_verification_email,
+        create=True,
+    ), TestClient(app) as client:
         yield client
 
 
@@ -43,28 +55,59 @@ def registration_payload(email: str) -> dict[str, str]:
     }
 
 
+def register_verify_login(
+    client: TestClient,
+    email: str,
+    *,
+    password: str = "CorrectHorse2026!",
+) -> dict[str, object]:
+    payload = registration_payload(email) | {"password": password}
+    registered = client.post("/api/v1/auth/register", json=payload)
+    assert registered.status_code == 202, registered.text
+    token = DELIVERED_VERIFICATION_TOKENS[email][-1]
+    confirmed = client.post(
+        "/api/v1/auth/email-verification/confirm", json={"token": token}
+    )
+    assert confirmed.status_code == 204, confirmed.text
+    logged_in = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert logged_in.status_code == 200, logged_in.text
+    return logged_in.json()
+
+
 @pytest.mark.database
-def test_register_returns_user_session_and_me_resolves_database_user(
+def test_register_creates_pending_account_without_session_and_hashes_token(
     auth_client: TestClient,
+    seeded_database_url: str,
 ) -> None:
     email = f"register-{uuid4()}@example.com"
 
-    registered = auth_client.post("/api/v1/auth/register", json=registration_payload(email))
-
-    assert registered.status_code == 201
-    session = registered.json()
-    assert session["token_type"] == "bearer"
-    assert session["expires_in"] == 1800
-    assert session["user"]["email"] == email
-    assert session["user"]["role"] == "user"
-    assert "password" not in registered.text.lower()
-
-    current = auth_client.get(
-        "/api/v1/auth/me",
-        headers={"Authorization": f"Bearer {session['access_token']}"},
+    registered = auth_client.post(
+        "/api/v1/auth/register", json=registration_payload(email.upper())
     )
-    assert current.status_code == 200
-    assert current.json() == session["user"]
+
+    assert registered.status_code == 202
+    assert registered.json() == {
+        "email": email,
+        "message": "Check your email to verify your account",
+    }
+    assert "access_token" not in registered.text
+    assert "password" not in registered.text.lower()
+    raw_token = DELIVERED_VERIFICATION_TOKENS[email][-1]
+    with psycopg.connect(seeded_database_url) as connection:
+        pending = connection.execute(
+            """
+            SELECT u.email_verified_at, t.token_hash, t.used_at
+            FROM users u
+            JOIN email_verification_tokens t ON t.user_id = u.id
+            WHERE u.email = %s
+            """,
+            (email,),
+        ).fetchone()
+    assert pending == (None, sha256(raw_token.encode()).hexdigest(), None)
+    assert raw_token not in registered.text
 
 
 @pytest.mark.database
@@ -95,14 +138,180 @@ def test_register_returns_duplicate_email_conflict_case_insensitively(
 ) -> None:
     email = f"duplicate-{uuid4()}@example.com"
     first = auth_client.post("/api/v1/auth/register", json=registration_payload(email))
-    assert first.status_code == 201
+    assert first.status_code == 202
 
     duplicate = registration_payload(email.upper())
     response = auth_client.post("/api/v1/auth/register", json=duplicate)
 
     assert response.status_code == 409
     assert response.json()["code"] == "duplicate_email"
+    assert response.json()["message"] == "An account with this email already exists"
     assert "constraint" not in response.text.lower()
+
+
+@pytest.mark.database
+def test_registration_delivery_failure_rolls_back_pending_account(
+    auth_client: TestClient,
+    seeded_database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = f"delivery-failure-{uuid4()}@example.com"
+
+    def fail_delivery(*_: object) -> None:
+        raise EmailDeliveryError("SMTP delivery failed")
+
+    monkeypatch.setattr("api.app.services.auth.send_email_verification_email", fail_delivery)
+    response = auth_client.post("/api/v1/auth/register", json=registration_payload(email))
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "email_delivery_unavailable"
+    with psycopg.connect(seeded_database_url) as connection:
+        assert connection.execute(
+            "SELECT count(*) FROM users WHERE email = %s", (email,)
+        ).fetchone() == (0,)
+
+
+@pytest.mark.database
+def test_login_reveals_pending_state_only_after_correct_password(
+    auth_client: TestClient,
+) -> None:
+    email = f"pending-login-{uuid4()}@example.com"
+    assert auth_client.post(
+        "/api/v1/auth/register", json=registration_payload(email)
+    ).status_code == 202
+
+    correct = auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": email.upper(), "password": "CorrectHorse2026!"},
+    )
+    wrong = auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "WrongPassword2026!"},
+    )
+
+    assert correct.status_code == 403
+    assert correct.json()["code"] == "email_unverified"
+    assert correct.json()["message"] == "Verify your email before signing in"
+    assert wrong.status_code == 401
+    assert wrong.json()["code"] == "invalid_credentials"
+
+
+@pytest.mark.database
+def test_confirmation_verifies_once_then_allows_login(
+    auth_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    email = f"confirm-{uuid4()}@example.com"
+    assert auth_client.post(
+        "/api/v1/auth/register", json=registration_payload(email)
+    ).status_code == 202
+    token = DELIVERED_VERIFICATION_TOKENS[email][-1]
+
+    confirmed = auth_client.post(
+        "/api/v1/auth/email-verification/confirm", json={"token": token}
+    )
+    reused = auth_client.post(
+        "/api/v1/auth/email-verification/confirm", json={"token": token}
+    )
+    login = auth_client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "CorrectHorse2026!"},
+    )
+
+    assert confirmed.status_code == 204
+    assert reused.status_code == 400
+    assert reused.json()["code"] == "invalid_verification_token"
+    assert login.status_code == 200
+    with psycopg.connect(seeded_database_url) as connection:
+        state = connection.execute(
+            """
+            SELECT u.email_verified_at IS NOT NULL, t.used_at IS NOT NULL
+            FROM users u
+            JOIN email_verification_tokens t ON t.user_id = u.id
+            WHERE u.email = %s
+            """,
+            (email,),
+        ).fetchone()
+    assert state == (True, True)
+
+
+@pytest.mark.database
+@pytest.mark.parametrize("invalid_reason", ["malformed", "unknown", "expired"])
+def test_confirmation_hides_malformed_unknown_and_expired_token_details(
+    auth_client: TestClient,
+    seeded_database_url: str,
+    invalid_reason: str,
+) -> None:
+    token = "too-short" if invalid_reason == "malformed" else uuid4().hex + uuid4().hex
+    if invalid_reason == "expired":
+        email = f"expired-verification-{uuid4()}@example.com"
+        assert auth_client.post(
+            "/api/v1/auth/register", json=registration_payload(email)
+        ).status_code == 202
+        token = DELIVERED_VERIFICATION_TOKENS[email][-1]
+        with psycopg.connect(seeded_database_url) as connection:
+            connection.execute(
+                "UPDATE email_verification_tokens SET expires_at = now() - interval '1 minute' "
+                "WHERE token_hash = %s",
+                (hash_one_time_token(token),),
+            )
+
+    response = auth_client.post(
+        "/api/v1/auth/email-verification/confirm", json={"token": token}
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "code": "invalid_verification_token",
+        "message": "Email verification link is invalid or expired",
+        "field_errors": None,
+        "request_id": response.json()["request_id"],
+    }
+
+
+@pytest.mark.database
+def test_verification_token_cannot_reset_password(
+    auth_client: TestClient,
+) -> None:
+    email = f"token-boundary-{uuid4()}@example.com"
+    assert auth_client.post(
+        "/api/v1/auth/register", json=registration_payload(email)
+    ).status_code == 202
+    token = DELIVERED_VERIFICATION_TOKENS[email][-1]
+
+    response = auth_client.post(
+        "/api/v1/auth/password-reset/confirm",
+        json={"token": token, "password": "ReplacementPassword2026!"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "invalid_reset_token"
+
+
+@pytest.mark.database
+def test_concurrent_confirmation_has_one_successful_transition(
+    auth_client: TestClient,
+    seeded_database_url: str,
+) -> None:
+    email = f"confirmation-race-{uuid4()}@example.com"
+    assert auth_client.post(
+        "/api/v1/auth/register", json=registration_payload(email)
+    ).status_code == 202
+    token = DELIVERED_VERIFICATION_TOKENS[email][-1]
+
+    def confirm(_: int):
+        return auth_client.post(
+            "/api/v1/auth/email-verification/confirm", json={"token": token}
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(confirm, range(2)))
+
+    assert sorted(response.status_code for response in responses) == [204, 400]
+    with psycopg.connect(seeded_database_url) as connection:
+        assert connection.execute(
+            "SELECT email_verified_at IS NOT NULL FROM users WHERE email = %s", (email,)
+        ).fetchone() == (True,)
 
 
 @pytest.mark.database
@@ -122,9 +331,8 @@ def test_login_accepts_seeded_credentials(auth_client: TestClient) -> None:
 @pytest.mark.database
 def test_logout_revokes_the_server_side_session(auth_client: TestClient) -> None:
     email = f"logout-{uuid4()}@example.com"
-    registered = auth_client.post("/api/v1/auth/register", json=registration_payload(email))
-    assert registered.status_code == 201
-    token = registered.json()["access_token"]
+    session = register_verify_login(auth_client, email)
+    token = session["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     assert auth_client.get("/api/v1/auth/me", headers=headers).status_code == 200
@@ -142,10 +350,9 @@ def test_account_export_excludes_secrets_and_closure_pseudonymizes_identity(
 ) -> None:
     email = f"lifecycle-{uuid4()}@example.com"
     payload = registration_payload(email)
-    registered = auth_client.post("/api/v1/auth/register", json=payload)
-    assert registered.status_code == 201
-    user_id = registered.json()["user"]["id"]
-    token = registered.json()["access_token"]
+    session = register_verify_login(auth_client, email, password=payload["password"])
+    user_id = session["user"]["id"]
+    token = session["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     exported = auth_client.get("/api/v1/auth/account/export", headers=headers)
@@ -203,14 +410,13 @@ def test_password_reset_revokes_every_existing_session(
 ) -> None:
     email = f"reset-sessions-{uuid4()}@example.com"
     password = registration_payload(email)["password"]
-    registered = auth_client.post("/api/v1/auth/register", json=registration_payload(email))
+    registered = register_verify_login(auth_client, email, password=password)
     second = auth_client.post(
         "/api/v1/auth/login",
         json={"email": email, "password": password},
     )
-    assert registered.status_code == 201
     assert second.status_code == 200
-    tokens = [registered.json()["access_token"], second.json()["access_token"]]
+    tokens = [registered["access_token"], second.json()["access_token"]]
     delivered: list[str] = []
     monkeypatch.setattr(
         "api.app.services.auth.send_password_reset_email",
@@ -309,10 +515,8 @@ def test_reset_rejects_current_and_older_passwords_without_consuming_link(
 ) -> None:
     email = f"history-{uuid4()}@example.com"
     original, second, third = "OriginalPassword2026!", "SecondPassword2026!", "ThirdPassword2026!"
-    payload = registration_payload(email) | {"password": original}
-    registered = auth_client.post("/api/v1/auth/register", json=payload)
-    assert registered.status_code == 201
-    user_id = registered.json()["user"]["id"]
+    session = register_verify_login(auth_client, email, password=original)
+    user_id = session["user"]["id"]
     tokens: list[str] = []
     monkeypatch.setattr(
         "api.app.services.auth.send_password_reset_email",
@@ -383,9 +587,8 @@ def test_concurrent_resets_cannot_both_accept_the_same_new_password(
     seeded_database_url: str,
 ) -> None:
     email = f"history-race-{uuid4()}@example.com"
-    registered = auth_client.post("/api/v1/auth/register", json=registration_payload(email))
-    assert registered.status_code == 201
-    user_id = registered.json()["user"]["id"]
+    session = register_verify_login(auth_client, email)
+    user_id = session["user"]["id"]
     tokens = [uuid4().hex + uuid4().hex for _ in range(2)]
     with psycopg.connect(seeded_database_url) as connection:
         for token in tokens:
@@ -423,9 +626,8 @@ def test_invalid_reset_cannot_change_password_or_history(
     invalid_reason: str,
 ) -> None:
     email = f"history-invalid-{uuid4()}@example.com"
-    registered = auth_client.post("/api/v1/auth/register", json=registration_payload(email))
-    assert registered.status_code == 201
-    user_id = registered.json()["user"]["id"]
+    session = register_verify_login(auth_client, email)
+    user_id = session["user"]["id"]
     token = uuid4().hex + uuid4().hex
     with psycopg.connect(seeded_database_url) as connection:
         expires_at = datetime.now(UTC) + timedelta(

@@ -50,18 +50,21 @@ def _verification_url(settings: Settings, token: str) -> str:
 
 
 def _send_message(settings: Settings, message: EmailMessage) -> None:
+    smtp_host = settings.smtp_host
+    if not smtp_host:
+        raise EmailDeliveryError("SMTP is not configured")
     try:
         client: smtplib.SMTP
         if settings.smtp_ssl:
             client = smtplib.SMTP_SSL(
-                settings.smtp_host,
+                smtp_host,
                 settings.smtp_port,
                 timeout=settings.smtp_timeout_seconds,
                 context=_smtp_tls_context(),
             )
         else:
             client = smtplib.SMTP(
-                settings.smtp_host,
+                smtp_host,
                 settings.smtp_port,
                 timeout=settings.smtp_timeout_seconds,
             )

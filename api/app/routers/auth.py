@@ -11,9 +11,11 @@ from api.app.repositories.users import UserRepository
 from api.app.schemas.auth import (
     AccountCloseRequest,
     AccountExportResponse,
+    EmailVerificationConfirm,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
+    PendingVerificationResponse,
     RegisterRequest,
     SessionResponse,
 )
@@ -35,15 +37,29 @@ def get_auth_service(
 
 @router.post(
     "/register",
-    response_model=SessionResponse,
-    status_code=status.HTTP_201_CREATED,
-    responses={409: {"model": ErrorEnvelope}},
+    response_model=PendingVerificationResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={409: {"model": ErrorEnvelope}, 503: {"model": ErrorEnvelope}},
 )
 async def register(
     payload: RegisterRequest,
     service: Annotated[AuthService, Depends(get_auth_service)],
-) -> SessionResponse:
+) -> PendingVerificationResponse:
     return await service.register(payload)
+
+
+@router.post(
+    "/email-verification/confirm",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    responses={400: {"model": ErrorEnvelope}},
+)
+async def confirm_email_verification(
+    payload: EmailVerificationConfirm,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+) -> Response:
+    await service.confirm_email_verification(payload)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

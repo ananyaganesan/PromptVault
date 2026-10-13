@@ -18,6 +18,7 @@ class UserRecord:
     password_hash: str
     role: UserRole
     is_active: bool
+    email_verified_at: datetime | None
     created_at: datetime
 
 
@@ -29,6 +30,7 @@ def _user_from_row(row: Mapping[str, Any]) -> UserRecord:
         password_hash=str(row["password_hash"]),
         role=cast(UserRole, row["role"]),
         is_active=bool(row["is_active"]),
+        email_verified_at=cast(datetime | None, row["email_verified_at"]),
         created_at=cast(datetime, row["created_at"]),
     )
 
@@ -48,7 +50,8 @@ class UserRepository:
             """
             INSERT INTO users (email, display_name, password_hash, role)
             VALUES (%s, %s, %s, 'user')
-            RETURNING id, email, display_name, password_hash, role, is_active, created_at
+            RETURNING id, email, display_name, password_hash, role, is_active,
+                      email_verified_at, created_at
             """,
             (email, display_name, password_hash),
         )
@@ -60,7 +63,8 @@ class UserRepository:
     async def get_by_email(self, email: str) -> UserRecord | None:
         cursor = await self.connection.execute(
             """
-            SELECT id, email, display_name, password_hash, role, is_active, created_at
+            SELECT id, email, display_name, password_hash, role, is_active,
+                   email_verified_at, created_at
             FROM users
             WHERE email = %s
             """,
@@ -72,7 +76,8 @@ class UserRepository:
     async def get_by_id(self, user_id: UUID) -> UserRecord | None:
         cursor = await self.connection.execute(
             """
-            SELECT id, email, display_name, password_hash, role, is_active, created_at
+            SELECT id, email, display_name, password_hash, role, is_active,
+                   email_verified_at, created_at
             FROM users
             WHERE id = %s
             """,
@@ -206,11 +211,34 @@ class UserRepository:
             (user_id, token_hash, expires_at),
         )
 
+    async def create_email_verification_token(
+        self,
+        *,
+        user_id: UUID,
+        token_hash: str,
+        expires_at: datetime,
+    ) -> None:
+        await self.connection.execute(
+            """
+            INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+            VALUES (%s, %s, %s)
+            """,
+            (user_id, token_hash, expires_at),
+        )
+
+    async def confirm_email_verification(self, token_hash: str) -> bool:
+        cursor = await self.connection.execute(
+            "SELECT confirm_email_verification(%s) AS confirmed",
+            (token_hash,),
+        )
+        row = await cursor.fetchone()
+        return bool(row and row["confirmed"])
+
     async def lock_password_reset_user(self, token_hash: str) -> UserRecord | None:
         cursor = await self.connection.execute(
             """
             SELECT u.id, u.email, u.display_name, u.password_hash, u.role,
-                   u.is_active, u.created_at
+                   u.is_active, u.email_verified_at, u.created_at
             FROM users u
             JOIN password_reset_tokens t ON t.user_id = u.id
             WHERE t.token_hash = %s AND t.used_at IS NULL

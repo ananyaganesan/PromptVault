@@ -14,6 +14,7 @@ from api.app.config import Settings
 from api.app.main import create_app
 from api.app.security import encrypt_provider_secret
 from fastapi.testclient import TestClient
+from tests.auth_support import create_verified_test_user
 
 
 @pytest.fixture(scope="module")
@@ -44,17 +45,7 @@ def single_connection_run_client(
 
 
 def register_user(client: TestClient, label: str) -> tuple[dict[str, object], dict[str, str]]:
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": f"{label}-{uuid4()}@example.com",
-            "password": "CorrectHorse2026!",
-            "display_name": label.replace("-", " ").title(),
-        },
-    )
-    assert response.status_code == 201
-    session = response.json()
-    return session["user"], {"Authorization": f"Bearer {session['access_token']}"}
+    return create_verified_test_user(client, label)
 
 
 def create_prompt_version(

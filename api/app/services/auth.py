@@ -5,15 +5,21 @@ from secrets import token_urlsafe
 from uuid import UUID, uuid4
 
 from api.app.config import Settings
-from api.app.email import EmailDeliveryError, send_password_reset_email
+from api.app.email import (
+    EmailDeliveryError,
+    send_email_verification_email,
+    send_password_reset_email,
+)
 from api.app.errors import AppError
 from api.app.repositories.users import UserRecord, UserRepository
 from api.app.schemas.auth import (
     AccountCloseRequest,
     AccountExportResponse,
+    EmailVerificationConfirm,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
+    PendingVerificationResponse,
     RegisterRequest,
     SessionResponse,
 )
@@ -35,7 +41,7 @@ class AuthService:
         self.repository = repository
         self.settings = settings
 
-    async def register(self, request: RegisterRequest) -> SessionResponse:
+    async def register(self, request: RegisterRequest) -> PendingVerificationResponse:
         encoded_password = await run_in_threadpool(
             hash_password,
             request.password.get_secret_value(),
@@ -52,7 +58,43 @@ class AuthService:
                 "duplicate_email",
                 "An account with this email already exists",
             ) from exc
-        return await self._session(user)
+        token = token_urlsafe(32)
+        expires_at = datetime.now(UTC) + timedelta(
+            minutes=self.settings.email_verification_ttl_minutes
+        )
+        await self.repository.create_email_verification_token(
+            user_id=user.id,
+            token_hash=hash_one_time_token(token),
+            expires_at=expires_at,
+        )
+        try:
+            await run_in_threadpool(
+                send_email_verification_email,
+                self.settings,
+                user.email,
+                token,
+            )
+        except EmailDeliveryError as exc:
+            raise AppError(
+                503,
+                "email_delivery_unavailable",
+                "Verification email could not be delivered",
+            ) from exc
+        return PendingVerificationResponse(
+            email=user.email,
+            message="Check your email to verify your account",
+        )
+
+    async def confirm_email_verification(self, request: EmailVerificationConfirm) -> None:
+        confirmed = await self.repository.confirm_email_verification(
+            hash_one_time_token(request.token)
+        )
+        if not confirmed:
+            raise AppError(
+                400,
+                "invalid_verification_token",
+                "Email verification link is invalid or expired",
+            )
 
     async def login(self, request: LoginRequest) -> SessionResponse:
         user = await self.repository.get_by_email(str(request.email))
@@ -77,6 +119,12 @@ class AuthService:
             )
         if not user.is_active:
             raise AppError(403, "inactive_user", "User account is inactive")
+        if user.email_verified_at is None:
+            raise AppError(
+                403,
+                "email_unverified",
+                "Verify your email before signing in",
+            )
         return await self._session(user)
 
     async def logout(self, *, session_id: UUID, user_id: UUID) -> None:
