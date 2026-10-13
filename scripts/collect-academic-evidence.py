@@ -14,6 +14,7 @@ from psycopg.rows import dict_row
 ENTITIES = {
     "users": "Account identity, display name, credentials and authorization role.",
     "projects": "Owned workspace containing prompts and scoped memberships.",
+    "project_invitations": "Pending, expiring recipient-accepted project access invitations.",
     "project_members": "Many-to-many access relationship between users and projects.",
     "prompts": "Named prompt identity within a project.",
     "prompt_versions": "Immutable template and configuration snapshots with lineage.",
@@ -46,6 +47,8 @@ PURPOSES = {
     "owner_id": "User owning the project.",
     "project_id": "Referenced project/workspace.",
     "user_id": "Referenced account/actor or user budget target.",
+    "invited_by": "Account issuing a project invitation.",
+    "accepted_at": "Timestamp of recipient acceptance and membership creation.",
     "added_by": "User who granted membership, if retained.",
     "prompt_id": "Referenced prompt identity.",
     "version_id": "Referenced immutable prompt version.",

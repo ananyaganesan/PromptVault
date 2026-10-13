@@ -38,7 +38,7 @@ def assert_preserved_rows_and_fk(url: str, user_id: str, token_hash: str) -> Non
     with psycopg.connect(url) as connection:
         assert connection.execute(
             "SELECT count(*) FROM schema_migrations"
-        ).fetchone() == (23,)
+        ).fetchone() == (24,)
         assert connection.execute(
             "SELECT email FROM users WHERE id = %s", (user_id,)
         ).fetchone() == ("migration-check@example.com",)
@@ -86,7 +86,7 @@ def insert_existing_rows(url: str) -> tuple[str, str]:
 def test_fresh_migrations_are_idempotent_and_preserve_rows(
     temporary_database_url: str,
 ) -> None:
-    assert len(migrate_database(temporary_database_url, MIGRATIONS)) == 23
+    assert len(migrate_database(temporary_database_url, MIGRATIONS)) == 24
     user_id, token_hash = insert_existing_rows(temporary_database_url)
 
     assert migrate_database(temporary_database_url, MIGRATIONS) == []
@@ -124,6 +124,7 @@ def test_legacy_password_reset_history_upgrades_without_resetting_data(
         21,
         22,
         23,
+        24,
     ]
     assert_preserved_rows_and_fk(temporary_database_url, user_id, token_hash)
     with psycopg.connect(temporary_database_url) as connection:

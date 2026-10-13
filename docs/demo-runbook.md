@@ -21,7 +21,7 @@ These are local-development fixtures. Use separate browser tabs when showing bot
 ## Presentation walkthrough (10–12 minutes)
 
 1. **Authentication (1 minute).** Sign in as User, reload `/dashboard` to show session restoration, then briefly show that `/admin` resolves to the access-restricted screen.
-2. **Project and membership (1 minute).** Open Projects, create a uniquely named project, and add `admin@promptvault.dev` as a member. Re-adding the member demonstrates conflict feedback.
+2. **Project and membership (1 minute).** Open Projects, create a uniquely named project, and invite a registered teammate using an inbox you can access. Show the pending invitation and unchanged member count. Open the emailed link, sign in as the recipient, and click Accept invitation before showing project access. Re-inviting a pending or existing member demonstrates conflict feedback. Use local SMTP capture for seeded example addresses.
 3. **Prompt versions (1.5 minutes).** Create a prompt containing `{{customer_message}}`. Save v2 and v3 with commit messages, then open history, v3 detail, diff, and lineage. Reload to demonstrate persistence and immutable snapshots.
 4. **Run history (1 minute).** Open Playground, provide every variable, and run the selected version. Show output, token counts, latency, and status; then open its run detail and Runs.
 5. **Staging and production (1.5 minutes).** Create a staging deployment and show immediate activation. Create a production deployment and show that it remains pending.

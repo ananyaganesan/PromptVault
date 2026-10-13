@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-12T16:30:26.673790+00:00",
-  "logical_tables": 17,
+  "generated_at": "2026-10-13T04:17:04.153545+00:00",
+  "logical_tables": 18,
   "migrations": [
     {
       "version": 1,
@@ -116,6 +116,11 @@
       "version": 23,
       "name": "self_profile",
       "checksum": "4f11d55d22ae0fd6e18eb1b215c85aa91854b8247fde353f8f57f4f2c12252b5"
+    },
+    {
+      "version": 24,
+      "name": "project_invitations",
+      "checksum": "83559c93ea09030d91e63863f6ddf4eb8d415d95852845be8d70259ba8c30bd9"
     }
   ],
   "tables": [
@@ -1315,6 +1320,179 @@
         {
           "name": "password_reset_tokens_token_hash_key",
           "definition": "CREATE UNIQUE INDEX password_reset_tokens_token_hash_key ON public.password_reset_tokens USING btree (token_hash)"
+        }
+      ]
+    },
+    {
+      "name": "project_invitations",
+      "purpose": "Pending, expiring recipient-accepted project access invitations.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": "gen_random_uuid()",
+          "purpose": "Surrogate row identity (runs also includes creation time in its primary key)."
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced project/workspace."
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Referenced account/actor or user budget target."
+        },
+        {
+          "name": "invited_by",
+          "type": "uuid",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Account issuing a project invitation."
+        },
+        {
+          "name": "token_hash",
+          "type": "text",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "SHA-256 digest of the one-time disclosed token."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": "CURRENT_TIMESTAMP",
+          "purpose": "Database timestamp when the record was created."
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "identity": "",
+          "default": null,
+          "purpose": "Time after which the credential/session is invalid."
+        },
+        {
+          "name": "accepted_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Timestamp of recipient acceptance and membership creation."
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "nullable": true,
+          "identity": "",
+          "default": null,
+          "purpose": "Optional time of explicit credential/session revocation."
+        }
+      ],
+      "constraints": [
+        {
+          "name": "project_invitations_check",
+          "kind": "c",
+          "definition": "CHECK ((expires_at > created_at))"
+        },
+        {
+          "name": "project_invitations_check1",
+          "kind": "c",
+          "definition": "CHECK (((accepted_at IS NULL) OR (revoked_at IS NULL)))"
+        },
+        {
+          "name": "project_invitations_created_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL created_at"
+        },
+        {
+          "name": "project_invitations_expires_at_not_null",
+          "kind": "n",
+          "definition": "NOT NULL expires_at"
+        },
+        {
+          "name": "project_invitations_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL id"
+        },
+        {
+          "name": "project_invitations_invited_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (invited_by) REFERENCES users(id)"
+        },
+        {
+          "name": "project_invitations_invited_by_not_null",
+          "kind": "n",
+          "definition": "NOT NULL invited_by"
+        },
+        {
+          "name": "project_invitations_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "project_invitations_project_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "project_invitations_project_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL project_id"
+        },
+        {
+          "name": "project_invitations_token_hash_check",
+          "kind": "c",
+          "definition": "CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "name": "project_invitations_token_hash_key",
+          "kind": "u",
+          "definition": "UNIQUE (token_hash)"
+        },
+        {
+          "name": "project_invitations_token_hash_not_null",
+          "kind": "n",
+          "definition": "NOT NULL token_hash"
+        },
+        {
+          "name": "project_invitations_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "project_invitations_user_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL user_id"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_project_invitations_pending",
+          "definition": "CREATE UNIQUE INDEX ix_project_invitations_pending ON public.project_invitations USING btree (project_id, user_id) WHERE ((accepted_at IS NULL) AND (revoked_at IS NULL))"
+        },
+        {
+          "name": "ix_project_invitations_user",
+          "definition": "CREATE INDEX ix_project_invitations_user ON public.project_invitations USING btree (user_id)"
+        },
+        {
+          "name": "project_invitations_pkey",
+          "definition": "CREATE UNIQUE INDEX project_invitations_pkey ON public.project_invitations USING btree (id)"
+        },
+        {
+          "name": "project_invitations_token_hash_key",
+          "definition": "CREATE UNIQUE INDEX project_invitations_token_hash_key ON public.project_invitations USING btree (token_hash)"
         }
       ]
     },
@@ -2894,6 +3072,10 @@
       "definition": "CREATE TRIGGER model_pricing_audit AFTER INSERT ON public.model_pricing FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
     },
     {
+      "name": "project_invitations_audit",
+      "definition": "CREATE TRIGGER project_invitations_audit AFTER INSERT OR DELETE OR UPDATE ON public.project_invitations FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
+    },
+    {
       "name": "project_members_audit",
       "definition": "CREATE TRIGGER project_members_audit AFTER INSERT OR DELETE ON public.project_members FOR EACH ROW EXECUTE FUNCTION record_audit_event()"
     },
@@ -2961,120 +3143,45 @@
   ],
   "joins": [
     {
-      "project": "approval-race-26500b6621b34f7f993def33647c78d3",
-      "prompt": "approval-race",
-      "version_number": 1
-    },
-    {
-      "project": "budget-fixture-mv5guvy0",
-      "prompt": "budget-fixture",
-      "version_number": 1
-    },
-    {
-      "project": "budget-fixture-mv5gv9pi",
-      "prompt": "budget-fixture",
-      "version_number": 1
-    },
-    {
       "project": "checkout-assistant",
       "prompt": "support-reply",
       "version_number": 1
     },
     {
-      "project": "live-workspace-mv5gv69w",
-      "prompt": "live-reply-mv5gv69w",
+      "project": "live-workspace-mv664yp3",
+      "prompt": "live-reply-mv664yp3",
       "version_number": 1
     },
     {
-      "project": "live-workspace-mv5gv69w",
-      "prompt": "live-reply-mv5gv69w",
+      "project": "live-workspace-mv664yp3",
+      "prompt": "live-reply-mv664yp3",
       "version_number": 2
     },
     {
-      "project": "live-workspace-mv5gv69w",
-      "prompt": "live-reply-mv5gv69w",
+      "project": "live-workspace-mv664yp3",
+      "prompt": "live-reply-mv664yp3",
       "version_number": 3
     },
     {
-      "project": "live-workspace-mv5gvk6h",
-      "prompt": "live-reply-mv5gvk6h",
+      "project": "live-workspace-mv66546h",
+      "prompt": "live-reply-mv66546h",
       "version_number": 1
     },
     {
-      "project": "live-workspace-mv5gvk6h",
-      "prompt": "live-reply-mv5gvk6h",
+      "project": "live-workspace-mv66546h",
+      "prompt": "live-reply-mv66546h",
       "version_number": 2
     },
     {
-      "project": "live-workspace-mv5gvk6h",
-      "prompt": "live-reply-mv5gvk6h",
+      "project": "live-workspace-mv66546h",
+      "prompt": "live-reply-mv66546h",
       "version_number": 3
-    },
-    {
-      "project": "release-project-mv5gv169",
-      "prompt": "release-reply-mv5gv169",
-      "version_number": 1
-    },
-    {
-      "project": "release-project-mv5gv169",
-      "prompt": "release-reply-mv5gv169",
-      "version_number": 2
-    },
-    {
-      "project": "release-project-mv5gv169",
-      "prompt": "release-reply-mv5gv169",
-      "version_number": 3
-    },
-    {
-      "project": "release-project-mv5gvf55",
-      "prompt": "release-reply-mv5gvf55",
-      "version_number": 1
-    },
-    {
-      "project": "release-project-mv5gvf55",
-      "prompt": "release-reply-mv5gvf55",
-      "version_number": 2
-    },
-    {
-      "project": "release-project-mv5gvf55",
-      "prompt": "release-reply-mv5gvf55",
-      "version_number": 3
-    },
-    {
-      "project": "version-race-308bd12067364e42b3302a080c147d29",
-      "prompt": "race-prompt",
-      "version_number": 1
-    },
-    {
-      "project": "version-race-308bd12067364e42b3302a080c147d29",
-      "prompt": "race-prompt",
-      "version_number": 2
-    },
-    {
-      "project": "version-race-308bd12067364e42b3302a080c147d29",
-      "prompt": "race-prompt",
-      "version_number": 3
-    },
-    {
-      "project": "version-race-308bd12067364e42b3302a080c147d29",
-      "prompt": "race-prompt",
-      "version_number": 4
-    },
-    {
-      "project": "version-race-308bd12067364e42b3302a080c147d29",
-      "prompt": "race-prompt",
-      "version_number": 5
     }
   ],
   "aggregates": [
     {
       "status": "completed",
-      "runs": 7,
-      "cost": "0.000066"
-    },
-    {
-      "status": "blocked",
-      "runs": 2,
+      "runs": 1,
       "cost": "0.000000"
     }
   ],
@@ -3083,30 +3190,6 @@
       "provider": "mock",
       "model": "deterministic-v1",
       "completed_runs": 1,
-      "cost": "0.000000"
-    },
-    {
-      "provider": "mock",
-      "model": "deterministic-v1",
-      "completed_runs": 1,
-      "cost": "0.000033"
-    },
-    {
-      "provider": "mock",
-      "model": "deterministic-v1",
-      "completed_runs": 4,
-      "cost": "0.000000"
-    },
-    {
-      "provider": "mock",
-      "model": "deterministic-v1",
-      "completed_runs": 1,
-      "cost": "0.000033"
-    },
-    {
-      "provider": "mock",
-      "model": "deterministic-v1",
-      "completed_runs": 0,
       "cost": "0.000000"
     }
   ],
@@ -3122,7 +3205,7 @@
           "Plan Rows": 1,
           "Plan Width": 20,
           "Actual Startup Time": 0.005,
-          "Actual Total Time": 0.005,
+          "Actual Total Time": 0.006,
           "Actual Rows": 3.0,
           "Actual Loops": 1,
           "Disabled": false,
@@ -3147,8 +3230,8 @@
               "Total Cost": 0.53,
               "Plan Rows": 1,
               "Plan Width": 16,
-              "Actual Startup Time": 0.001,
-              "Actual Total Time": 0.001,
+              "Actual Startup Time": 0.002,
+              "Actual Total Time": 0.002,
               "Actual Rows": 1.0,
               "Actual Loops": 1,
               "Disabled": false,
@@ -3176,8 +3259,8 @@
                   "Total Cost": 50.09,
                   "Plan Rows": 130,
                   "Plan Width": 16,
-                  "Actual Startup Time": 0.001,
-                  "Actual Total Time": 0.001,
+                  "Actual Startup Time": 0.002,
+                  "Actual Total Time": 0.002,
                   "Actual Rows": 1.0,
                   "Actual Loops": 1,
                   "Disabled": false,
@@ -3209,7 +3292,7 @@
               "Total Cost": 8.16,
               "Plan Rows": 1,
               "Plan Width": 20,
-              "Actual Startup Time": 0.005,
+              "Actual Startup Time": 0.004,
               "Actual Total Time": 0.005,
               "Actual Rows": 3.0,
               "Actual Loops": 1,
@@ -3243,9 +3326,9 @@
           "Temp Read Blocks": 0,
           "Temp Written Blocks": 0
         },
-        "Planning Time": 0.03,
+        "Planning Time": 0.05,
         "Triggers": [],
-        "Execution Time": 0.009
+        "Execution Time": 0.013
       }
     ]
   },
@@ -3274,9 +3357,9 @@
   },
   "execution_fixture": "rollback-only synthetic mock row; no provider call",
   "source_sha256": {
-    "scripts/collect-academic-evidence.py": "aede1df6a9e30fcf59185e737ccdceae6a6bfc38b9b4ff80c349c5ea28a42c7b",
-    "docs/erd.md": "10408e8f77cee28f39168509662b51eac5ff7b014e960cd5b468e5884229a923",
-    "docs/normalization.md": "dbfe456ae94923574e950890c462145c43c2be5ab75d173b3ca8fa7ae1dc2d85",
+    "scripts/collect-academic-evidence.py": "b5ff6dbef99a20487014b4e1b87f3c08d540c6ef9f85bb57e4f02e02e4fc889f",
+    "docs/erd.md": "c6c455516d00c53bdeffea3d22f2ec7d2259f795853bea4e891b955f27835af4",
+    "docs/normalization.md": "027c80178240d5f320271e332a50580b4a091eb7c093a3e14e1806b5d08bb1b6",
     "db/migrations/001_extensions_enums.sql": "12d3e8e701813d581ad6d253aca74411affb0684630a9d5b1b079dc38b128251",
     "db/migrations/002_tables.sql": "c53b345ca785711c0694c2656cbf81c64362e02f6d9ae7992bb8c28f47a5d73c",
     "db/migrations/003_constraints_indexes.sql": "d3605390661c35bcaf711b55e3f5cf63501fdcddd22cc6e0837aa6cdbd1c1fc1",
@@ -3299,7 +3382,8 @@
     "db/migrations/020_auth_sessions.sql": "a63f01dd2d6f187bb7b6b484b77abe153b85dae722aa1d547206616bf4449475",
     "db/migrations/021_system_maintenance.sql": "42fea185279cb30b378ea61d5ca7a983ce80f0dc979eff6068601dc4f0efdecf",
     "db/migrations/022_account_lifecycle.sql": "507dd5252264ce53a3d0b4793fe2b8f5993e1bdf6b76fa5dd378a0e5cba95f0a",
-    "db/migrations/023_self_profile.sql": "4f11d55d22ae0fd6e18eb1b215c85aa91854b8247fde353f8f57f4f2c12252b5"
+    "db/migrations/023_self_profile.sql": "4f11d55d22ae0fd6e18eb1b215c85aa91854b8247fde353f8f57f4f2c12252b5",
+    "db/migrations/024_project_invitations.sql": "83559c93ea09030d91e63863f6ddf4eb8d415d95852845be8d70259ba8c30bd9"
   },
-  "dictionary_sha256": "0396a56925243788b4c1fc3524122447cd1098bb95bc6b971589cfa2af8c4134"
+  "dictionary_sha256": "e1c8cb1448815c413f978f80f888ebf05167677e3e8d2a5c12439280410e4c2a"
 }

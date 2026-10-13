@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.app.config import Settings
+from tests.invitation_support import accept_invitation
 from tests.support import add_version, create_project, create_prompt, register
 
 
@@ -22,6 +23,7 @@ def test_user_can_build_version_and_execute_a_prompt(api_client: TestClient) -> 
         json={"email": member["email"]},
     )
     assert added.status_code == 201
+    accept_invitation(api_client, str(member["email"]), member_headers)
 
     prompt = create_prompt(api_client, owner_headers, project["id"])
     v1 = prompt["latest_version"]

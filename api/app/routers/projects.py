@@ -14,6 +14,8 @@ from api.app.repositories.users import UserRepository
 from api.app.schemas.common import Page
 from api.app.schemas.projects import (
     ProjectCreate,
+    ProjectInvitationAccept,
+    ProjectInvitationResponse,
     ProjectMemberCreate,
     ProjectMemberResponse,
     ProjectResponse,
@@ -33,6 +35,7 @@ def get_project_service(
         ProjectRepository(connection),
         UserRepository(connection),
         get_request_id(request),
+        request.app.state.settings,
     )
 
 
@@ -123,16 +126,14 @@ async def list_project_members(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
 ) -> Page[ProjectMemberResponse]:
-    return await service.list_members(
-        project_id, current_user, page=page, page_size=page_size
-    )
+    return await service.list_members(project_id, current_user, page=page, page_size=page_size)
 
 
 @router.post(
     "/projects/{project_id}/members",
-    response_model=ProjectMemberResponse,
+    response_model=ProjectInvitationResponse,
     status_code=status.HTTP_201_CREATED,
-    responses=error_responses(401, 403, 404, 409, 422),
+    responses=error_responses(401, 403, 404, 409, 422, 503),
     dependencies=[Depends(allow_query_parameters())],
 )
 async def add_project_member(
@@ -140,7 +141,7 @@ async def add_project_member(
     payload: ProjectMemberCreate,
     current_user: ProjectOwner,
     service: ProjectServiceDependency,
-) -> ProjectMemberResponse:
+) -> ProjectInvitationResponse:
     return await service.add_member(project_id, str(payload.email), current_user)
 
 
@@ -159,3 +160,28 @@ async def remove_project_member(
 ) -> Response:
     await service.remove_member(project_id, user_id, current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/projects/{project_id}/invitations", response_model=list[ProjectInvitationResponse])
+async def list_project_invitations(
+    project_id: UUID, current_user: ProjectOwner, service: ProjectServiceDependency
+) -> list[ProjectInvitationResponse]:
+    return await service.list_invitations(project_id, current_user)
+
+
+@router.delete("/projects/{project_id}/invitations/{invitation_id}", status_code=204)
+async def cancel_project_invitation(
+    project_id: UUID,
+    invitation_id: UUID,
+    current_user: ProjectOwner,
+    service: ProjectServiceDependency,
+) -> Response:
+    await service.revoke_invitation(project_id, invitation_id, current_user)
+    return Response(status_code=204)
+
+
+@router.post("/project-invitations/accept", response_model=ProjectResponse)
+async def accept_project_invitation(
+    payload: ProjectInvitationAccept, current_user: CurrentUser, service: ProjectServiceDependency
+) -> ProjectResponse:
+    return await service.accept_invitation(payload.token, current_user)

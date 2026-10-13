@@ -1,3 +1,4 @@
+import { projectsApi } from './api'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -23,6 +24,7 @@ beforeEach(() => {
     { user_id: 'owner', display_name: 'Owner', email: 'owner@example.com', role: 'owner', joined_at: '2026-10-10T00:00:00Z' },
     { user_id: 'member', display_name: 'Member', email: 'member@example.com', role: 'member', joined_at: '2026-10-10T00:00:00Z' },
   ]
+  vi.spyOn(projectsApi, 'listInvitations').mockResolvedValue([])
   vi.spyOn(workspaceService, 'loadMembers').mockResolvedValue(memberStore.project)
 })
 afterEach(() => vi.restoreAllMocks())
@@ -55,10 +57,10 @@ it.each(['member', 'owner', 'admin'])('shows member management only for owner/ad
   setup('project')
   await userEvent.setup().click(screen.getByRole('button', { name: /Members/ }))
   if (role === 'member') {
-    expect(screen.queryByRole('button', { name: 'Add member' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Invite member' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
   } else {
-    expect(screen.getByRole('button', { name: 'Add member' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Invite member' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1)
   }
 })

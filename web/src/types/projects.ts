@@ -43,3 +43,13 @@ export interface AddProjectMemberRequest {
 export interface ProjectListQuery extends PageQuery {
   search?: string
 }
+
+
+export interface ProjectInvitation {
+  id: Id
+  project_id: Id
+  email: string
+  display_name: string
+  created_at: IsoDateString
+  expires_at: IsoDateString
+}

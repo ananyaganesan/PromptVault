@@ -1,7 +1,7 @@
 # Demo storyboard (Phase 0)
 
 1. Register and log in as a User.
-2. Create a project and add a member.
+2. Create a project, email an invitation, and have the recipient accept before membership is added.
 3. Create a prompt with two variables and its initial version.
 4. Save two additional versions; show immutable history, diff, and lineage.
 5. Run v3 with the deterministic mock provider; show output, tokens, latency, and cost.

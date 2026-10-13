@@ -7,6 +7,7 @@ from api.app.config import Settings
 from api.app.main import create_app
 from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
+from tests.invitation_support import accept_invitation
 
 
 @pytest.fixture(scope="module")
@@ -77,8 +78,8 @@ def test_project_membership_is_scoped_and_owner_controls_mutations(
         json={"email": member["email"]},
     )
     assert added.status_code == 201
-    assert added.json()["id"] == member["id"]
-    assert added.json()["is_owner"] is False
+    assert added.json()["email"] == member["email"]
+    accept_invitation(domain_client, str(member["email"]), member_headers)
 
     duplicate = domain_client.post(
         f"/api/v1/projects/{project_id}/members",
@@ -360,6 +361,7 @@ def test_project_member_can_create_and_update_prompt_but_anonymous_user_cannot(
         json={"email": member["email"]},
     )
     assert added.status_code == 201
+    accept_invitation(domain_client, str(member["email"]), member_headers)
 
     created = domain_client.post(
         f"/api/v1/projects/{project['id']}/prompts",

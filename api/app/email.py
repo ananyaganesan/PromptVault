@@ -15,6 +15,9 @@ from api.app.config import Settings
 _RESET_TEMPLATE = Template(
     (Path(__file__).parent / "templates" / "password-reset.html").read_text(encoding="utf-8")
 )
+_INVITATION_TEMPLATE = Template(
+    (Path(__file__).parent / "templates" / "project-invitation.html").read_text(encoding="utf-8")
+)
 _LOGO_PNG = (Path(__file__).parent / "templates" / "assets" / "promptvault-logo.png").read_bytes()
 
 
@@ -59,6 +62,43 @@ def send_password_reset_email(settings: Settings, recipient: str, token: str) ->
         ),
         subtype="html",
     )
+    _attach_logo(message)
+
+    _send_message(settings, message)
+
+
+def send_project_invitation_email(
+    settings: Settings, recipient: str, token: str, project_name: str, inviter_name: str
+) -> None:
+    if not settings.smtp_host or not settings.smtp_from_email:
+        raise EmailDeliveryError("SMTP is not configured")
+    # Fragments do not enter HTTP request/access logs or Referer headers.
+    invitation_url = f"{settings.project_invitation_url}#token={token}"
+    message = EmailMessage()
+    message["Subject"] = "Invitation to join a PromptVault project"
+    message["From"] = f"PromptVault <{settings.smtp_from_email}>"
+    message["To"] = recipient
+    message.set_content(
+        f"{inviter_name} invited you to join {project_name} on PromptVault.\n\n"
+        f"Review and accept: {invitation_url}\n\n"
+        "Sign in to the account receiving this email, then choose Accept invitation. "
+        "This link expires in seven days and can be used once. "
+        "You will only get project access after accepting. "
+        "If you do not want to join, ignore this email."
+    )
+    message.add_alternative(
+        _INVITATION_TEMPLATE.substitute(
+            invitation_url=escape(invitation_url, quote=True),
+            project_name=escape(project_name),
+            inviter_name=escape(inviter_name),
+        ),
+        subtype="html",
+    )
+    _attach_logo(message)
+    _send_message(settings, message)
+
+
+def _attach_logo(message: EmailMessage) -> None:
     html_part = message.get_body(preferencelist=("html",))
     if html_part is None:
         raise EmailDeliveryError("HTML email could not be constructed")
@@ -71,6 +111,9 @@ def send_password_reset_email(settings: Settings, recipient: str, token: str) ->
         filename="promptvault-logo.png",
     )
 
+def _send_message(settings: Settings, message: EmailMessage) -> None:
+    if not settings.smtp_host or not settings.smtp_from_email:
+        raise EmailDeliveryError("SMTP is not configured")
     try:
         client: smtplib.SMTP
         if settings.smtp_ssl:

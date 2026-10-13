@@ -66,6 +66,7 @@ def main() -> None:
         database_url=database_url,
         secret_key="local-auth-only-secret-at-least-32-characters",
         cors_origins="http://127.0.0.1:5178",
+        project_invitation_url="http://127.0.0.1:5178/project-invitations",
         password_reset_url="http://127.0.0.1:5178/reset-password",
         smtp_host="127.0.0.1",
         smtp_port=1026,

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from api.app.repositories.pagination import read_page
 from api.app.schemas.projects import (
+    ProjectInvitationResponse,
     ProjectMemberResponse,
     ProjectOwnerResponse,
     ProjectResponse,
@@ -48,9 +49,7 @@ class ProjectRepository:
             (str(user_id), request_id),
         )
 
-    async def lock_member_access(
-        self, project_id: UUID, user_id: UUID, role: UserRole
-    ) -> bool:
+    async def lock_member_access(self, project_id: UUID, user_id: UUID, role: UserRole) -> bool:
         if role == "admin":
             cursor = await self.connection.execute(
                 "SELECT id FROM projects WHERE id = %s FOR KEY SHARE",
@@ -70,9 +69,7 @@ class ProjectRepository:
             )
         return await cursor.fetchone() is not None
 
-    async def lock_owner_access(
-        self, project_id: UUID, user_id: UUID, role: UserRole
-    ) -> bool:
+    async def lock_owner_access(self, project_id: UUID, user_id: UUID, role: UserRole) -> bool:
         if role == "admin":
             cursor = await self.connection.execute(
                 "SELECT id FROM projects WHERE id = %s FOR KEY SHARE",
@@ -169,7 +166,7 @@ class ProjectRepository:
             parameters=parameters,
             page=page,
             page_size=page_size,
-            order_by=f'{sort_column.removeprefix("p.")} {order}, id {order}',
+            order_by=f"{sort_column.removeprefix('p.')} {order}, id {order}",
         )
         return [_project_from_row(row) for row in rows], total
 
@@ -216,7 +213,7 @@ class ProjectRepository:
             parameters=(project_id,),
             page=page,
             page_size=page_size,
-            order_by='is_owner DESC, display_name ASC, id ASC',
+            order_by="is_owner DESC, display_name ASC, id ASC",
         )
         items = [ProjectMemberResponse.model_validate(row) for row in rows]
         return items, total
@@ -251,3 +248,55 @@ class ProjectRepository:
             (project_id, user_id),
         )
         return cursor.rowcount == 1
+
+    async def create_invitation(
+        self, project_id: UUID, user_id: UUID, invited_by: UUID, token_hash: str
+    ) -> UUID:
+        # Allow a fresh invitation after expiry while retaining its audit history.
+        await self.connection.execute(
+            """UPDATE project_invitations SET revoked_at = clock_timestamp()
+            WHERE project_id = %s AND user_id = %s AND accepted_at IS NULL
+              AND revoked_at IS NULL AND expires_at <= clock_timestamp()""",
+            (project_id, user_id),
+        )
+        cursor = await self.connection.execute(
+            """INSERT INTO project_invitations
+            (project_id, user_id, invited_by, token_hash, expires_at)
+            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP + INTERVAL '7 days') RETURNING id""",
+            (project_id, user_id, invited_by, token_hash),
+        )
+        row = await cursor.fetchone()
+        assert row is not None
+        return cast(UUID, row["id"])
+
+    async def list_invitations(self, project_id: UUID) -> list[ProjectInvitationResponse]:
+        cursor = await self.connection.execute(
+            """SELECT i.id, i.project_id, u.email, u.display_name, i.created_at, i.expires_at
+            FROM project_invitations i JOIN users u ON u.id = i.user_id
+            WHERE i.project_id = %s AND i.accepted_at IS NULL AND i.revoked_at IS NULL
+            ORDER BY i.created_at DESC, i.id""",
+            (project_id,),
+        )
+        return [ProjectInvitationResponse.model_validate(row) for row in await cursor.fetchall()]
+
+    async def revoke_invitation(self, project_id: UUID, invitation_id: UUID) -> bool:
+        cursor = await self.connection.execute(
+            """UPDATE project_invitations SET revoked_at = clock_timestamp()
+            WHERE project_id = %s AND id = %s AND accepted_at IS NULL AND revoked_at IS NULL""",
+            (project_id, invitation_id),
+        )
+        return cursor.rowcount == 1
+
+    async def lock_invitation(self, token_hash: str) -> dict[str, Any] | None:
+        cursor = await self.connection.execute(
+            """SELECT i.*, (i.expires_at > clock_timestamp()) AS unexpired
+            FROM project_invitations i WHERE token_hash = %s FOR UPDATE""",
+            (token_hash,),
+        )
+        return await cursor.fetchone()
+
+    async def consume_invitation(self, invitation_id: UUID) -> None:
+        await self.connection.execute(
+            "UPDATE project_invitations SET accepted_at = clock_timestamp() WHERE id = %s",
+            (invitation_id,),
+        )

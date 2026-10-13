@@ -296,6 +296,47 @@ Indexes:
 - `CREATE UNIQUE INDEX password_reset_tokens_pkey ON public.password_reset_tokens USING btree (id)`
 - `CREATE UNIQUE INDEX password_reset_tokens_token_hash_key ON public.password_reset_tokens USING btree (token_hash)`
 
+## `project_invitations`
+
+Pending, expiring recipient-accepted project access invitations.
+
+| Column | Type | Nullable | Default / identity | Purpose |
+|---|---|---|---|---|
+| id | uuid | False | gen_random_uuid() | Surrogate row identity (runs also includes creation time in its primary key). |
+| project_id | uuid | False | — | Referenced project/workspace. |
+| user_id | uuid | False | — | Referenced account/actor or user budget target. |
+| invited_by | uuid | False | — | Account issuing a project invitation. |
+| token_hash | text | False | — | SHA-256 digest of the one-time disclosed token. |
+| created_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Database timestamp when the record was created. |
+| expires_at | timestamp with time zone | False | — | Time after which the credential/session is invalid. |
+| accepted_at | timestamp with time zone | True | — | Timestamp of recipient acceptance and membership creation. |
+| revoked_at | timestamp with time zone | True | — | Optional time of explicit credential/session revocation. |
+
+Constraints and keys:
+
+- `CHECK ((expires_at > created_at))`
+- `CHECK (((accepted_at IS NULL) OR (revoked_at IS NULL)))`
+- `NOT NULL created_at`
+- `NOT NULL expires_at`
+- `NOT NULL id`
+- `FOREIGN KEY (invited_by) REFERENCES users(id)`
+- `NOT NULL invited_by`
+- `PRIMARY KEY (id)`
+- `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`
+- `NOT NULL project_id`
+- `CHECK ((token_hash ~ '^[0-9a-f]{64}$'::text))`
+- `UNIQUE (token_hash)`
+- `NOT NULL token_hash`
+- `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
+- `NOT NULL user_id`
+
+Indexes:
+
+- `CREATE UNIQUE INDEX ix_project_invitations_pending ON public.project_invitations USING btree (project_id, user_id) WHERE ((accepted_at IS NULL) AND (revoked_at IS NULL))`
+- `CREATE INDEX ix_project_invitations_user ON public.project_invitations USING btree (user_id)`
+- `CREATE UNIQUE INDEX project_invitations_pkey ON public.project_invitations USING btree (id)`
+- `CREATE UNIQUE INDEX project_invitations_token_hash_key ON public.project_invitations USING btree (token_hash)`
+
 ## `project_members`
 
 Many-to-many access relationship between users and projects.

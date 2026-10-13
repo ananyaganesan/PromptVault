@@ -9,6 +9,7 @@ import pytest
 from api.app.config import Settings
 from api.app.main import create_app
 from fastapi.testclient import TestClient
+from tests.invitation_support import accept_invitation
 
 
 @pytest.fixture(scope="module")
@@ -198,6 +199,7 @@ def test_pending_deployment_cancellation_requires_requester(
         json={"email": member_user["email"]},
     )
     assert member.status_code == 201
+    accept_invitation(deployment_client, str(member_user["email"]), member_headers)
     member_token_attempt = deployment_client.post(
         "/api/v1/api-tokens",
         headers=member_headers,

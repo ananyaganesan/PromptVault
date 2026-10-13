@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     password_reset_ttl_minutes: int = 30
     password_reset_url: str = "http://localhost:5173/reset-password"
+    project_invitation_url: str = "http://localhost:5173/project-invitations"
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None
@@ -109,6 +110,21 @@ class Settings(BaseSettings):
             raise ValueError("authentication rate limits must be positive")
         if self.password_reset_ttl_minutes <= 0:
             raise ValueError("PASSWORD_RESET_TTL_MINUTES must be positive")
+        invitation_url = urlsplit(self.project_invitation_url)
+        if (
+            invitation_url.scheme not in {"http", "https"}
+            or not invitation_url.netloc
+            or invitation_url.username is not None
+            or invitation_url.password is not None
+            or invitation_url.query
+            or invitation_url.fragment
+        ):
+            raise ValueError(
+                "PROJECT_INVITATION_URL must be an absolute HTTP URL "
+                "without credentials, query or fragment"
+            )
+        if self.environment == "production" and self.smtp_host and invitation_url.scheme != "https":
+            raise ValueError("production PROJECT_INVITATION_URL must use HTTPS")
         reset_url = urlsplit(self.password_reset_url)
         if (
             reset_url.scheme not in {"http", "https"}

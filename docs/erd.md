@@ -21,6 +21,9 @@ erDiagram
     projects ||--o{ api_tokens : scopes
     users ||--o{ provider_keys : creates
     users ||--o{ model_pricing : creates
+    projects ||--o{ project_invitations : invites
+    users ||--o{ project_invitations : receives
+    users ||--o{ project_invitations : sends
     users ||--o{ audit_events : acts
     users ||--o{ password_reset_tokens : resets
     users ||--o{ password_history : remembers
@@ -37,6 +40,7 @@ erDiagram
 |---|---|---|
 | `users` | UUID; normalized `citext` email | Case-insensitive unique email; `user`/`admin`; last active admin protected |
 | `projects` | Owned by one user | Globally unique stable key; owner membership inserted automatically |
+| `project_invitations` | UUID; references project, recipient and inviter | Single-use hashed token; pending invitations grant no access |
 | `project_members` | Project/user composite key | No duplicate membership; owner membership cannot be deleted |
 | `prompts` | Belongs to one project | Key unique within project |
 | `prompt_versions` | Belongs to one prompt and author | Immutable; unique per-prompt version; parent must belong to same prompt |
@@ -61,6 +65,7 @@ Primary keys are underlined conceptually below; arrows name foreign-key targets.
 |---|---|---|
 | `users` | `id` | `email` unique (case-insensitive) |
 | `projects` | `id` | `owner_id → users`; `key` unique |
+| `project_invitations` | `id` | project/recipient/inviter → corresponding entities; `token_hash` unique; partial unique pending project/recipient |
 | `project_members` | `(project_id, user_id)` | both columns and `added_by → users` |
 | `prompts` | `id` | `project_id → projects`; `(project_id,key)` unique |
 | `prompt_versions` | `id` | `prompt_id → prompts`, `parent_version_id → prompt_versions`, `created_by → users`; `(prompt_id,version_number)` unique |
@@ -86,3 +91,19 @@ columns, dependencies or cardinality changes. It links the existing authenticate
 `users` row and `auth_sessions` row under locks, updates `users.display_name` only,
 and uses the existing redacted audit trigger. Session, role and account-security
 attributes remain on their separate reviewed flows.
+
+## Project invitation design (2026-10-13, before migration 024)
+
+A project has many `project_invitations`; each invitation targets one existing
+user and records the inviting user. Pending invitations are separate from
+`project_members` and confer no access. Owner membership remains automatic.
+
+Relation: `project_invitations(id UUID PK, project_id UUID FK → projects,
+user_id UUID FK → users, invited_by UUID FK → users, token_hash TEXT UNIQUE,
+created_at TIMESTAMPTZ, expires_at TIMESTAMPTZ, accepted_at TIMESTAMPTZ NULL,
+revoked_at TIMESTAMPTZ NULL)`. Project/recipient is unique while neither accepted
+nor revoked; expired invitations can be replaced. Only SHA-256 hashes persist.
+Acceptance locks the invitation, checks expiry, recipient identity and inviter
+permission, then inserts membership and consumes the invitation atomically.
+Cancellation and acceptance serialize on the same row. Invitations expire after
+seven days; SMTP failure rolls back creation. Existing memberships are preserved.

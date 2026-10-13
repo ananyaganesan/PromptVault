@@ -105,3 +105,13 @@ open; they do not require additional application code.
 Email verification, deployment infrastructure and staging URLs remain excluded.
 The fixed external providers remain Gemini, OpenRouter and Groq. Real free-tier
 account calls remain pending as documented in [A1 acceptance](a1-local-acceptance.md).
+
+
+## Invitation schema update (2026-10-13)
+
+Migration 024 adds `project_invitations` following its recorded ER/schema and 3NF
+design. The dictionary and machine-readable catalog evidence have been refreshed
+from the isolated invitation browser database: 18 logical tables and 157 columns.
+The earlier counts above describe the original October 12 acceptance. See
+[invitation acceptance](project-invitations-local-acceptance.md) for the current
+regression and browser results.
