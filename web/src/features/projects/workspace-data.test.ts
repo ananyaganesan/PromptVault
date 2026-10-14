@@ -197,12 +197,13 @@ describe('workspaceService', () => {
     expect(fetcher.mock.calls.map(([url]) => url)).toContain('http://localhost:8000/api/v1/prompts/prompt-0/versions?page=2&page_size=100')
   })
 
-  it('creates and updates a project through the API even with demo-shaped IDs', async () => {
+  it('creates, updates, and deletes a project through the API even with demo-shaped IDs', async () => {
     const owner = { id: 'usr_demo_owner', display_name: 'Owner' }
     const base = { id: 'project-123', key: 'live-project', description: null, owner, member_count: 1, prompt_count: 0, created_at: '2026-09-27T00:00:00Z', updated_at: '2026-09-27T00:00:00Z' }
     const fetcher = vi.fn()
       .mockResolvedValueOnce(json({ ...base, name: 'Live Project' }))
       .mockResolvedValueOnce(json({ ...base, name: 'Renamed Project', description: 'Saved in PostgreSQL' }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetcher)
 
     const created = await workspaceService.createProject({ name: 'Live Project', key: 'live-project' }, owner.id)
@@ -210,9 +211,12 @@ describe('workspaceService', () => {
 
     expect(updated.name).toBe('Renamed Project')
     expect(projectStore).toEqual([expect.objectContaining({ id: 'project-123', name: 'Renamed Project', description: 'Saved in PostgreSQL' })])
+    await workspaceService.deleteProject(created.id)
+    expect(projectStore).toEqual([])
     expect(fetcher.mock.calls.map(([url, options]) => [url, options.method])).toEqual([
       ['http://localhost:8000/api/v1/projects', 'POST'],
       ['http://localhost:8000/api/v1/projects/project-123', 'PATCH'],
+      ['http://localhost:8000/api/v1/projects/project-123', 'DELETE'],
     ])
   })
 

@@ -6,7 +6,7 @@ import { AuditLogPage, BudgetManagementPage, MaintenanceHealthPage, PricingManag
 import { DeploymentApprovalQueuePage, DeploymentApprovalReviewPage, DeploymentRollbackPage } from '../features/admin/deployment-governance'
 import { AdminOnly } from '../features/admin/admin-only'
 import { ApiTokensPage, ProfilePage } from '../features/account/account-pages'
-import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from '../features/auth/pages'
+import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage, VerifyEmailPage } from '../features/auth/pages'
 import { AuthProvider } from '../features/auth/auth-context'
 import { RequireAuth } from '../features/auth/guards'
 import { DashboardPage } from '../features/dashboard/dashboard-page'
@@ -27,6 +27,7 @@ export function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/403" element={<ErrorPage code="403" />} />
       <Route path="/404" element={<ErrorPage code="404" />} />
     </Route>
@@ -36,7 +37,9 @@ export function App() {
     <Route element={<RequireAuth />}><Route element={<WorkspaceBoundary />}><Route element={<AppLayout />}>
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/projects" element={<ProjectsPage />} />
-      <Route path="/projects/new" element={<NewProjectPage />} />
+      <Route element={<AdminOnly />}>
+        <Route path="/projects/new" element={<NewProjectPage />} />
+      </Route>
       <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
       <Route path="/prompts" element={<PromptsPage />} />
       <Route path="/prompts/new" element={<NewPromptPage />} />

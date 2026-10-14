@@ -38,6 +38,8 @@ class ProjectService:
         self.settings = settings
 
     async def create(self, payload: ProjectCreate, actor: UserRecord) -> ProjectResponse:
+        if actor.role != "admin":
+            raise AppError(403, "forbidden", "Super Admin access is required")
         await self.repository.set_audit_context(actor.id, self.request_id)
         try:
             project_id = await self.repository.create(
@@ -100,6 +102,12 @@ class ProjectService:
         if not updated:
             raise AppError(404, "not_found", "Project was not found")
         return await self.require_project(project_id)
+
+    async def delete(self, project_id: UUID, actor: UserRecord) -> None:
+        if actor.role != "admin":
+            raise AppError(403, "forbidden", "Super Admin access is required")
+        if not await self.repository.delete(project_id, actor.id, self.request_id):
+            raise AppError(404, "not_found", "Project was not found")
 
     async def list_members(
         self, project_id: UUID, actor: UserRecord, *, page: int, page_size: int

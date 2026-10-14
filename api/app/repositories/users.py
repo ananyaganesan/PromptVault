@@ -2,7 +2,8 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
+from math import ceil
 from typing import Any, cast
 from uuid import UUID
 
@@ -18,6 +19,7 @@ class UserRecord:
     password_hash: str
     role: UserRole
     is_active: bool
+    email_verified_at: datetime | None
     created_at: datetime
 
 
@@ -29,6 +31,7 @@ def _user_from_row(row: Mapping[str, Any]) -> UserRecord:
         password_hash=str(row["password_hash"]),
         role=cast(UserRole, row["role"]),
         is_active=bool(row["is_active"]),
+        email_verified_at=cast(datetime | None, row["email_verified_at"]),
         created_at=cast(datetime, row["created_at"]),
     )
 
@@ -48,7 +51,8 @@ class UserRepository:
             """
             INSERT INTO users (email, display_name, password_hash, role)
             VALUES (%s, %s, %s, 'user')
-            RETURNING id, email, display_name, password_hash, role, is_active, created_at
+            RETURNING id, email, display_name, password_hash, role, is_active,
+                      email_verified_at, created_at
             """,
             (email, display_name, password_hash),
         )
@@ -60,7 +64,8 @@ class UserRepository:
     async def get_by_email(self, email: str) -> UserRecord | None:
         cursor = await self.connection.execute(
             """
-            SELECT id, email, display_name, password_hash, role, is_active, created_at
+            SELECT id, email, display_name, password_hash, role, is_active,
+                   email_verified_at, created_at
             FROM users
             WHERE email = %s
             """,
@@ -72,7 +77,8 @@ class UserRepository:
     async def get_by_id(self, user_id: UUID) -> UserRecord | None:
         cursor = await self.connection.execute(
             """
-            SELECT id, email, display_name, password_hash, role, is_active, created_at
+            SELECT id, email, display_name, password_hash, role, is_active,
+                   email_verified_at, created_at
             FROM users
             WHERE id = %s
             """,
@@ -206,11 +212,85 @@ class UserRepository:
             (user_id, token_hash, expires_at),
         )
 
+    async def create_email_verification_token(
+        self,
+        *,
+        user_id: UUID,
+        token_hash: str,
+        expires_at: datetime,
+    ) -> None:
+        await self.connection.execute(
+            """
+            INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+            VALUES (%s, %s, %s)
+            """,
+            (user_id, token_hash, expires_at),
+        )
+
+    async def confirm_email_verification(self, token_hash: str) -> bool:
+        cursor = await self.connection.execute(
+            "SELECT confirm_email_verification(%s) AS confirmed",
+            (token_hash,),
+        )
+        row = await cursor.fetchone()
+        return bool(row and row["confirmed"])
+
+    async def replace_email_verification_token(
+        self,
+        *,
+        user_id: UUID,
+        token_hash: str,
+        expires_at: datetime,
+        cooldown_seconds: int,
+    ) -> int | None:
+        locked = await self.connection.execute(
+            "SELECT id FROM users WHERE id = %s FOR UPDATE",
+            (user_id,),
+        )
+        if await locked.fetchone() is None:
+            raise RuntimeError("verification user disappeared during replacement")
+
+        latest = await self.connection.execute(
+            """
+            SELECT created_at
+            FROM email_verification_tokens
+            WHERE user_id = %s
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (user_id,),
+        )
+        latest_row = await latest.fetchone()
+        if latest_row is not None:
+            created_at = cast(datetime, latest_row["created_at"])
+            remaining = (
+                created_at + timedelta(seconds=cooldown_seconds) - datetime.now(UTC)
+            ).total_seconds()
+            if remaining > 0:
+                return max(1, ceil(remaining))
+
+        await self.connection.execute(
+            """
+            UPDATE email_verification_tokens
+            SET used_at = clock_timestamp()
+            WHERE user_id = %s AND used_at IS NULL
+            """,
+            (user_id,),
+        )
+        await self.connection.execute(
+            """
+            INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+            VALUES (%s, %s, %s)
+            """,
+            (user_id, token_hash, expires_at),
+        )
+        return None
+
     async def lock_password_reset_user(self, token_hash: str) -> UserRecord | None:
         cursor = await self.connection.execute(
             """
             SELECT u.id, u.email, u.display_name, u.password_hash, u.role,
-                   u.is_active, u.created_at
+                   u.is_active, u.email_verified_at, u.created_at
             FROM users u
             JOIN password_reset_tokens t ON t.user_id = u.id
             WHERE t.token_hash = %s AND t.used_at IS NULL

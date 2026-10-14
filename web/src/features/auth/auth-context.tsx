@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { clearAccessToken, setAccessToken, subscribeUnauthorized } from '../../lib/api/client'
-import type { ApiUserSummary, LoginRequest, RegisterRequest, UserSummary } from '../../types/auth'
+import type { ApiUserSummary, LoginRequest, PendingVerificationResponse, RegisterRequest, UserSummary } from '../../types/auth'
 import { authApi } from './api'
 const apiSessionKey = 'promptvault.api.session'
 
@@ -27,7 +27,7 @@ type AuthValue = {
   user: UserSummary | null
   restoring: boolean
   login: (request: LoginRequest) => Promise<UserSummary>
-  register: (request: RegisterRequest) => Promise<UserSummary>
+  register: (request: RegisterRequest) => Promise<PendingVerificationResponse>
   updateProfile: (displayName: string) => Promise<UserSummary>
   logout: () => void
 }
@@ -82,14 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return account
     },
     async register(request) {
-      const session = await authApi.register(request)
-      if (!session.access_token) throw new Error('The server did not return a session token.')
-      const account = frontendUser(session.user)
-      currentToken.current = session.access_token
-      saveApiToken(session.access_token)
-      setUser(account)
-      setRestoring(false)
-      return account
+      return authApi.register(request)
     },
     async updateProfile(displayName) {
       const token = currentToken.current

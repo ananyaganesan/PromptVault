@@ -34,6 +34,11 @@ export interface RegisterRequest {
   password: string
 }
 
+export interface PendingVerificationResponse {
+  email: string
+  message: string
+}
+
 export interface LoginRequest {
   email: string
   password: string

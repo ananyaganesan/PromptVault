@@ -295,6 +295,16 @@ export const workspaceService = {
     notifyMutation()
     return project
   },
+  async deleteProject(projectId: string) {
+    if (!useDemoData) await apiClient.request<void>(`/projects/${projectId}`, { method: 'DELETE' })
+    const removedPrompts = promptStore.filter((prompt) => prompt.project_id === projectId)
+    for (const prompt of removedPrompts) delete versionStore[prompt.id]
+    replaceArray(promptStore, promptStore.filter((prompt) => prompt.project_id !== projectId))
+    replaceArray(projectStore, projectStore.filter((project) => project.id !== projectId))
+    delete memberStore[projectId]
+    notifyMutation()
+    refreshLiveData()
+  },
   async loadMembers(projectId: string) {
     if (useDemoData) return memberStore[projectId] ?? []
     const generation = (memberGenerations.get(projectId) ?? 0) + 1

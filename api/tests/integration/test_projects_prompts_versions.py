@@ -7,6 +7,7 @@ from api.app.config import Settings
 from api.app.main import create_app
 from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
+from tests.auth_support import create_verified_test_user
 from tests.invitation_support import accept_invitation
 
 
@@ -22,17 +23,7 @@ def domain_client(
 
 
 def register_user(client: TestClient, label: str) -> tuple[dict[str, object], dict[str, str]]:
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": f"{label}-{uuid4()}@example.com",
-            "password": "CorrectHorse2026!",
-            "display_name": label.replace("-", " ").title(),
-        },
-    )
-    assert response.status_code == 201
-    session = response.json()
-    return session["user"], {"Authorization": f"Bearer {session['access_token']}"}
+    return create_verified_test_user(client, label)
 
 
 def create_project(client: TestClient, headers: dict[str, str]) -> dict[str, object]:

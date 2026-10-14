@@ -34,14 +34,21 @@ def temporary_database_url(database_url: str) -> Iterator[str]:
             )
 
 
-def assert_preserved_rows_and_fk(url: str, user_id: str, token_hash: str) -> None:
+def assert_preserved_rows_and_fk(
+    url: str,
+    user_id: str,
+    token_hash: str,
+    *,
+    expected_verified: bool,
+) -> None:
     with psycopg.connect(url) as connection:
         assert connection.execute(
             "SELECT count(*) FROM schema_migrations"
         ).fetchone() == (24,)
         assert connection.execute(
-            "SELECT email FROM users WHERE id = %s", (user_id,)
-        ).fetchone() == ("migration-check@example.com",)
+            "SELECT email, email_verified_at IS NOT NULL FROM users WHERE id = %s",
+            (user_id,),
+        ).fetchone() == ("migration-check@example.com", expected_verified)
         assert connection.execute(
             "SELECT token_hash FROM password_reset_tokens WHERE user_id = %s",
             (user_id,),
@@ -64,6 +71,7 @@ def assert_preserved_rows_and_fk(url: str, user_id: str, token_hash: str) -> Non
             ("run_reservations", "prompts"),
             ("run_reservations", "prompt_versions"),
             ("auth_sessions", "users"),
+            ("email_verification_tokens", "users"),
         } <= foreign_keys
 
 
@@ -90,7 +98,9 @@ def test_fresh_migrations_are_idempotent_and_preserve_rows(
     user_id, token_hash = insert_existing_rows(temporary_database_url)
 
     assert migrate_database(temporary_database_url, MIGRATIONS) == []
-    assert_preserved_rows_and_fk(temporary_database_url, user_id, token_hash)
+    assert_preserved_rows_and_fk(
+        temporary_database_url, user_id, token_hash, expected_verified=False
+    )
 
 
 def test_legacy_password_reset_history_upgrades_without_resetting_data(
@@ -126,7 +136,9 @@ def test_legacy_password_reset_history_upgrades_without_resetting_data(
         23,
         24,
     ]
-    assert_preserved_rows_and_fk(temporary_database_url, user_id, token_hash)
+    assert_preserved_rows_and_fk(
+        temporary_database_url, user_id, token_hash, expected_verified=True
+    )
     with psycopg.connect(temporary_database_url) as connection:
         assert connection.execute(
             "SELECT checksum FROM schema_migrations WHERE version = 15"

@@ -194,6 +194,14 @@ class ProjectRepository:
         )
         return cursor.rowcount == 1
 
+    async def delete(self, project_id: UUID, actor_id: UUID, request_id: str) -> bool:
+        cursor = await self.connection.execute(
+            "SELECT delete_project(%s, %s, %s) AS deleted",
+            (project_id, actor_id, request_id),
+        )
+        row = await cursor.fetchone()
+        return bool(row and row["deleted"])
+
     async def list_members(
         self, project_id: UUID, *, page: int, page_size: int
     ) -> tuple[list[ProjectMemberResponse], int]:

@@ -2,6 +2,7 @@ import smtplib
 import ssl
 
 import pytest
+from api.app import email as email_module
 from api.app.config import Settings
 from api.app.email import (
     EmailDeliveryError,
@@ -202,3 +203,76 @@ def test_smtp_verifies_certificates_when_python_system_trust_store_is_empty(
     assert context.cert_store_stats()['x509_ca'] > 0
     assert context.verify_mode == ssl.CERT_REQUIRED
     assert context.check_hostname is True
+
+
+def test_email_verification_email_uses_configured_smtp_and_hashed_link_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeSMTP.instances.clear()
+    monkeypatch.setattr("api.app.email.smtplib.SMTP", FakeSMTP)
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql://promptvault:promptvault@localhost:5432/promptvault",
+        secret_key="test-secret-that-is-long-enough",
+        smtp_host="smtp.example.com",
+        smtp_username="smtp-user",
+        smtp_password="smtp-password",
+        smtp_from_email="no-reply@example.com",
+        email_verification_url="https://app.example.com/verify-email?source=registration",
+    )
+
+    email_module.send_email_verification_email(
+        settings, "alex@example.com", "verification-token"
+    )
+
+    client = FakeSMTP.instances[0]
+    assert client.started_tls is True
+    assert client.login_values == ("smtp-user", "smtp-password")
+    message = client.messages[0]
+    assert message["Subject"] == "Verify your PromptVault email"
+    assert message["To"] == "alex@example.com"
+    plain = message.get_body(preferencelist=("plain",)).get_content()
+    assert "source=registration&token=verification-token" in plain
+    assert "30 minutes" in plain
+    html = message.get_body(preferencelist=("html",)).get_content()
+    assert "Verify email address</a>" in html
+    assert (
+        'href="https://app.example.com/verify-email?source=registration&amp;token=verification-token"'
+        in html
+    )
+    logo = next(part for part in message.walk() if part.get_content_type() == "image/png")
+    assert logo["Content-ID"] == "<promptvault-logo>"
+
+
+def test_email_verification_email_requires_smtp_configuration() -> None:
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql://promptvault:promptvault@localhost:5432/promptvault",
+        secret_key="test-secret-that-is-long-enough",
+    )
+
+    with pytest.raises(EmailDeliveryError, match="^SMTP is not configured$"):
+        email_module.send_email_verification_email(
+            settings, "alex@example.com", "verification-token"
+        )
+
+
+def test_email_verification_email_hides_smtp_failure_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_to_connect(*_: object, **__: object) -> smtplib.SMTP:
+        raise OSError("sensitive transport detail")
+
+    monkeypatch.setattr("api.app.email.smtplib.SMTP", fail_to_connect)
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql://promptvault:promptvault@localhost:5432/promptvault",
+        secret_key="test-secret-that-is-long-enough",
+        smtp_host="smtp.example.com",
+        smtp_from_email="no-reply@example.com",
+    )
+
+    with pytest.raises(EmailDeliveryError, match="^SMTP delivery failed$"):
+        email_module.send_email_verification_email(
+            settings, "alex@example.com", "verification-token"
+        )

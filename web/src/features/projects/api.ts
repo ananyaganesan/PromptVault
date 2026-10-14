@@ -7,6 +7,7 @@ export const projectsApi = {
   create: (request: CreateProjectRequest) => apiClient.request<Project>('/projects', { method: 'POST', body: request }),
   get: (projectId: Id, signal?: AbortSignal) => apiClient.request<Project>(`/projects/${projectId}`, { signal }),
   update: (projectId: Id, request: UpdateProjectRequest) => apiClient.request<Project>(`/projects/${projectId}`, { method: 'PATCH', body: request }),
+  delete: (projectId: Id) => apiClient.request<void>(`/projects/${projectId}`, { method: 'DELETE' }),
   listMembers: (projectId: Id, signal?: AbortSignal) => apiClient.request<ProjectMember[]>(`/projects/${projectId}/members`, { signal }),
   addMember: (projectId: Id, request: AddProjectMemberRequest) => apiClient.request<ProjectInvitation>(`/projects/${projectId}/members`, { method: 'POST', body: request }),
   listInvitations: (projectId: Id, signal?: AbortSignal) => apiClient.request<ProjectInvitation[]>(`/projects/${projectId}/invitations`, { signal }),

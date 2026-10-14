@@ -70,6 +70,7 @@ def create_app(
         responses=error_responses(413),
     )
     application.state.settings = resolved_settings
+    application.state.rate_limit_store = resolved_rate_limit_store
     application_metrics = ApplicationMetrics()
     application.state.metrics = application_metrics
     install_exception_handlers(application)

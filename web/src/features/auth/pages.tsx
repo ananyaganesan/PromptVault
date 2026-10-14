@@ -1,10 +1,49 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Logo } from '../../components/layout/brand'
 import { Button, Field } from '../../components/ui/prototype'
 import { ApiClientError } from '../../lib/api/client'
 import { useAuth } from './auth-context'
 import { authApi } from './api'
+import type { PendingVerificationResponse } from '../../types/auth'
+
+const resendSuccess = 'If this account is awaiting verification, we sent a new link.'
+
+function ResendVerification({ email, initialCooldown = 0 }: { email: string; initialCooldown?: number }) {
+  const [remaining, setRemaining] = useState(initialCooldown)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (remaining <= 0) return
+    const timer = window.setTimeout(() => setRemaining(remaining - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [remaining])
+
+  async function resend() {
+    setBusy(true)
+    setMessage('')
+    setError('')
+    try {
+      await authApi.resendEmailVerification(email)
+      setMessage(resendSuccess)
+      setRemaining(60)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to resend verification email.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <div>
+    {message && <p>{message}</p>}
+    {error && <p className="form-error" role="alert">{error}</p>}
+    <Button type="button" disabled={busy || remaining > 0} onClick={() => void resend()}>
+      {busy ? 'Sending…' : remaining > 0 ? `Resend in ${remaining}s` : 'Resend verification email'}
+    </Button>
+  </div>
+}
 
 function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const navigate = useNavigate()
@@ -16,6 +55,8 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [errors, setErrors] = useState<{ displayName?: string; email?: string; password?: string }>({})
   const [formError, setFormError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState<PendingVerificationResponse | null>(null)
+  const [unverifiedEmail, setUnverifiedEmail] = useState('')
   const update = (setter: (value: string) => void) => (event: ChangeEvent<HTMLInputElement>) => setter(event.target.value.replace(/\s/g, ''))
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -30,13 +71,23 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     if (Object.keys(next).length) return
     setBusy(true)
     try {
-      const user = mode === 'register' ? await register({ display_name: displayName.trim(), email: email.trim(), password }) : await login({ email: email.trim(), password })
+      if (mode === 'register') {
+        setPending(await register({ display_name: displayName.trim(), email: email.trim(), password }))
+        return
+      }
+      setUnverifiedEmail('')
+      await login({ email: email.trim(), password })
       const from = (location.state as { from?: string } | null)?.from
-      const requestedRoute = from?.startsWith('/') && !from.startsWith('//') && (user.role === 'super_admin' || !from.startsWith('/admin'))
+      const requestedRoute = from === '/project-invitations'
+        || from?.startsWith('/project-invitations?')
+        || from?.startsWith('/project-invitations#')
         ? from
         : null
-      navigate(requestedRoute ?? (mode === 'register' && user.role === 'super_admin' ? '/admin' : '/dashboard'), { replace: true })
+      navigate(requestedRoute ?? '/dashboard', { replace: true })
     } catch (error) {
+      if (mode === 'login' && error instanceof ApiClientError && error.code === 'email_unverified') {
+        setUnverifiedEmail(email.trim())
+      }
       if (error instanceof ApiClientError && error.fieldErrors) {
         const fields = error.fieldErrors
         setErrors({
@@ -53,6 +104,15 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     }
     finally { setBusy(false) }
   }
+  if (mode === 'register' && pending) {
+    return <main className="auth-main"><section className="auth-card">
+      <h1>Check your email</h1>
+      <p>{pending.message}</p>
+      <p>{pending.email}</p>
+      <ResendVerification email={pending.email} initialCooldown={60} />
+      <p className="switch"><Link to="/login">Back to sign in</Link></p>
+    </section></main>
+  }
   return <main className="auth-main"><form className="auth-card" onSubmit={submit} noValidate>
     {mode === 'login' && <div className="login-logo"><Logo to="/login" /></div>}
     <h1>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
@@ -61,6 +121,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     <Field label="Email address" placeholder="you@company.com" type="email" value={email} onChange={update(setEmail)} error={errors.email} />
     <Field label="Password" placeholder={mode === 'login' ? 'Enter your password' : 'Create a strong password (12+ characters, no spaces)'} type="password" value={password} onChange={mode === 'login' ? (event) => setPassword(event.target.value) : update(setPassword)} error={errors.password} />
     {formError && <p className="form-error" role="alert">{formError}</p>}
+    {mode === 'login' && unverifiedEmail && <ResendVerification email={unverifiedEmail} />}
     {mode === 'login' && <div className="form-row"><span /><Link to="/forgot-password">Forgot password?</Link></div>}
     <Button type="submit" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</Button>
     <p className="switch">{mode === 'login' ? "Don't have an account?" : 'Already have an account?'} <Link to={mode === 'login' ? '/register' : '/login'}>{mode === 'login' ? 'Register' : 'Sign in'}</Link></p>
@@ -68,6 +129,37 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 }
 export function LoginPage() { return <AuthPage mode="login" /> }
 export function RegisterPage() { return <AuthPage mode="register" /> }
+
+export function VerifyEmailPage() {
+  const [params] = useSearchParams()
+  const token = params.get('token') ?? ''
+  const [state, setState] = useState<'verifying' | 'verified' | 'invalid'>(token ? 'verifying' : 'invalid')
+  const [message, setMessage] = useState(token ? '' : 'This email verification link is invalid or expired.')
+  const confirmation = useRef<{ token: string; request: Promise<void> } | null>(null)
+
+  useEffect(() => {
+    if (!token) return
+    if (confirmation.current?.token !== token) {
+      confirmation.current = { token, request: authApi.confirmEmailVerification(token) }
+    }
+    let active = true
+    confirmation.current.request
+      .then(() => { if (active) setState('verified') })
+      .catch((cause) => {
+        if (!active) return
+        setMessage(cause instanceof Error ? cause.message : 'Email verification link is invalid or expired')
+        setState('invalid')
+      })
+    return () => { active = false }
+  }, [token])
+
+  return <main className="auth-main"><section className="auth-card">
+    <h1>{state === 'verifying' ? 'Verifying your email' : state === 'verified' ? 'Email verified' : 'Invalid verification link'}</h1>
+    {state === 'verifying' && <p>Checking your verification link…</p>}
+    {state === 'verified' && <><p>Your email has been verified.</p><Link className="button" to="/login">Sign in</Link></>}
+    {state === 'invalid' && <><p className="form-error" role="alert">{message}</p><p className="switch"><Link to="/login">Back to sign in</Link></p></>}
+  </section></main>
+}
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')

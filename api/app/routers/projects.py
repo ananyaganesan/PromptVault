@@ -5,7 +5,7 @@ from uuid import UUID
 
 from api.app.db.transactions import DatabaseConnection, get_connection
 from api.app.dependencies.auth import CurrentUser
-from api.app.dependencies.authorization import ProjectMember, ProjectOwner
+from api.app.dependencies.authorization import ProjectMember, ProjectOwner, SuperAdmin
 from api.app.dependencies.query import allow_query_parameters
 from api.app.dependencies.request_context import get_request_id
 from api.app.errors import error_responses
@@ -78,7 +78,7 @@ async def list_projects(
 )
 async def create_project(
     payload: ProjectCreate,
-    current_user: CurrentUser,
+    current_user: SuperAdmin,
     service: ProjectServiceDependency,
 ) -> ProjectResponse:
     return await service.create(payload, current_user)
@@ -111,6 +111,22 @@ async def update_project(
     service: ProjectServiceDependency,
 ) -> ProjectResponse:
     return await service.update(project_id, payload, current_user)
+
+
+@router.delete(
+    "/projects/{project_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    responses=error_responses(401, 403, 404, 422),
+    dependencies=[Depends(allow_query_parameters())],
+)
+async def delete_project(
+    project_id: UUID,
+    current_user: SuperAdmin,
+    service: ProjectServiceDependency,
+) -> Response:
+    await service.delete(project_id, current_user)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

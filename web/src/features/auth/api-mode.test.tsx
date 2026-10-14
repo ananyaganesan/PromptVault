@@ -27,7 +27,7 @@ const backendUser = {
   created_at: '2026-09-23T00:00:00Z',
 }
 
-afterEach(() => { vi.restoreAllMocks(); clearAccessToken(); sessionStorage.removeItem('promptvault.api.session') })
+afterEach(() => { vi.restoreAllMocks(); clearAccessToken(); sessionStorage.clear() })
 
 describe('PostgreSQL-backed authentication', () => {
   it('uses the API response and bearer token for login', async () => {
@@ -46,19 +46,36 @@ describe('PostgreSQL-backed authentication', () => {
     expect(sessionStorage.getItem('promptvault.api.session')).toBe('server-jwt')
   })
 
-  it('returns to the requested page after login, including its query and hash', async () => {
+  it('routes protected-page sign-ins to the dashboard', async () => {
     vi.spyOn(authApi, 'login').mockResolvedValue({ user: backendUser, access_token: 'server-jwt', token_type: 'bearer', expires_in: 1800 })
     const user = userEvent.setup()
     render(<AuthProvider><MemoryRouter initialEntries={['/projects?search=checkout#results']}><Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}><Route path="/projects" element={<Location />} /></Route>
+      <Route element={<RequireAuth />}><Route path="/dashboard" element={<Location />} /></Route>
     </Routes></MemoryRouter></AuthProvider>)
 
     await user.type(await screen.findByLabelText('Email address'), backendUser.email)
     await user.type(screen.getByLabelText('Password'), 'UserDemo2026!')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByTestId('location')).toHaveTextContent('/projects?search=checkout#results')
+    expect(await screen.findByTestId('location')).toHaveTextContent('/dashboard')
+  })
+
+  it('preserves an emailed project invitation through login', async () => {
+    vi.spyOn(authApi, 'login').mockResolvedValue({ user: backendUser, access_token: 'server-jwt', token_type: 'bearer', expires_in: 1800 })
+    const user = userEvent.setup()
+    render(<AuthProvider><MemoryRouter initialEntries={['/project-invitations#token=invite-token']}><Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<RequireAuth />}><Route path="/project-invitations" element={<Location />} /></Route>
+      <Route element={<RequireAuth />}><Route path="/dashboard" element={<Location />} /></Route>
+    </Routes></MemoryRouter></AuthProvider>)
+
+    await user.type(await screen.findByLabelText('Email address'), backendUser.email)
+    await user.type(screen.getByLabelText('Password'), 'UserDemo2026!')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByTestId('location')).toHaveTextContent('/project-invitations#token=invite-token')
   })
 
   it('restores a saved session after a page refresh', async () => {
@@ -111,17 +128,36 @@ describe('PostgreSQL-backed authentication', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Invalid email or password.')
   })
 
-  it('submits registration attributes and uses the new database identity', async () => {
-    const register = vi.spyOn(authApi, 'register').mockResolvedValue({ user: { ...backendUser, id: '22222222-2222-4222-8222-222222222222', email: 'new@example.com', display_name: 'New User' }, access_token: 'new-jwt', token_type: 'bearer', expires_in: 1800 })
+  it('shows the pending account without creating a browser session', async () => {
+    const register = vi.spyOn(authApi, 'register').mockResolvedValue({ email: 'new@example.com', message: 'Check your email to verify your account' })
     const user = userEvent.setup()
     renderAuth('/register')
     await user.type(screen.getByLabelText('Display name'), 'New User')
-    await user.type(screen.getByLabelText('Email address'), 'new@example.com')
+    await user.type(screen.getByLabelText('Email address'), 'NEW@EXAMPLE.COM')
     await user.type(screen.getByLabelText('Password'), 'StrongPassword2026!')
     await user.click(screen.getByRole('button', { name: 'Create account' }))
 
-    expect(await screen.findByTestId('location')).toHaveTextContent('/dashboard')
-    expect(register).toHaveBeenCalledWith({ display_name: 'New User', email: 'new@example.com', password: 'StrongPassword2026!' })
+    expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeInTheDocument()
+    expect(screen.getByText('new@example.com')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Resend in 60s' })).toBeDisabled()
+    expect(screen.queryByTestId('location')).not.toBeInTheDocument()
+    expect(sessionStorage.getItem('promptvault.api.session')).toBeNull()
+    expect(register).toHaveBeenCalledWith({ display_name: 'New User', email: 'NEW@EXAMPLE.COM', password: 'StrongPassword2026!' })
+  })
+
+  it('shows the exact duplicate-account feedback', async () => {
+    vi.spyOn(authApi, 'register').mockRejectedValue(new ApiClientError(409, {
+      code: 'duplicate_email',
+      message: 'An account with this email already exists',
+    }))
+    const user = userEvent.setup()
+    renderAuth('/register')
+    await user.type(screen.getByLabelText('Display name'), 'Existing User')
+    await user.type(screen.getByLabelText('Email address'), 'existing@example.com')
+    await user.type(screen.getByLabelText('Password'), 'StrongPassword2026!')
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('An account with this email already exists')
   })
 
   it('does not count spaces toward a new password', async () => {

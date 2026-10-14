@@ -9,6 +9,7 @@ from api.app.main import create_app
 from api.app.security import create_access_token
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from tests.auth_support import create_verified_test_user
 
 PROJECT_ID = UUID("33333333-3333-4333-8333-333333333333")
 USER_ID = UUID("11111111-1111-4111-8111-111111111111")
@@ -98,16 +99,7 @@ def test_member_cannot_use_owner_guard_and_outsider_cannot_use_either_guard(
     authorization_client: TestClient,
     seeded_database_url: str,
 ) -> None:
-    email = f"member-{uuid4()}@example.com"
-    session = authorization_client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": email,
-            "password": "CorrectHorse2026!",
-            "display_name": "Project Member",
-        },
-    ).json()
-    headers = {"Authorization": f"Bearer {session['access_token']}"}
+    user, headers = create_verified_test_user(authorization_client, "member")
 
     outsider_member = authorization_client.get(
         f"/_test/projects/{PROJECT_ID}/member", headers=headers
@@ -121,7 +113,7 @@ def test_member_cannot_use_owner_guard_and_outsider_cannot_use_either_guard(
     with psycopg.connect(seeded_database_url, autocommit=True) as connection:
         connection.execute(
             "INSERT INTO project_members (project_id, user_id, added_by) VALUES (%s, %s, %s)",
-            (PROJECT_ID, session["user"]["id"], USER_ID),
+            (PROJECT_ID, user["id"], USER_ID),
         )
 
     member = authorization_client.get(f"/_test/projects/{PROJECT_ID}/member", headers=headers)

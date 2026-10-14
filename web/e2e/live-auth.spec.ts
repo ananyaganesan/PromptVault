@@ -17,16 +17,15 @@ test('seeded user signs in through FastAPI and restores the session', async ({ p
   await expect(page).toHaveURL(/\/login$/)
 })
 
-test('registration creates a refreshable live session', async ({ page }) => {
+test('registration creates a pending account without a browser session', async ({ page }) => {
   const suffix = Date.now().toString(36)
   await page.goto('/register')
   await page.getByLabel('Display name').fill(`Live Tester ${suffix}`)
   await page.getByLabel('Email address').fill(`live-${suffix}@example.com`)
   await page.getByLabel('Password', { exact: true }).fill('LiveTester2026!')
   await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/dashboard$/)
-  await page.reload()
-  await expect(page.getByRole('heading', { name: 'Good morning, Live' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible()
+  expect(await page.evaluate(() => sessionStorage.getItem('promptvault.api.session'))).toBeNull()
 })
 
 test('a normal user is recovered to the forbidden screen for admin routes', async ({ page }) => {

@@ -48,6 +48,30 @@ class LoginRequest(AuthRequest):
     pass
 
 
+class PendingVerificationResponse(BaseModel):
+    email: EmailStr
+    message: str
+
+
+class EmailVerificationConfirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str
+
+
+class EmailVerificationResendRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+
 class PasswordResetRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

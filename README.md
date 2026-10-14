@@ -119,7 +119,14 @@ npm run dev --prefix web
 The client reads `VITE_API_BASE_URL` (or `VITE_API_URL`) and appends `/api/v1`. The default is `http://localhost:8000`. Browser sessions are tab-scoped through `sessionStorage`; authorization is always rechecked by FastAPI.
 Workspace data also uses the API by default. `VITE_USE_DEMO_DATA=true` is an explicit local example-data mode; the Docker web build keeps it disabled.
 
-## Password reset email
+## Account email and password reset
+
+New registrations return a pending response and do not create a browser session. The
+user must open the one-use `/verify-email` link sent to the normalized address before
+login succeeds. Verification links expire after 30 minutes. Resend replaces older
+unused links, has a 60-second account cooldown, and is limited to five requests per
+rolling hour for each client/email-hash pair. Existing migrated and seeded accounts
+remain verified.
 
 The **Forgot password?** form calls `POST /api/v1/auth/password-reset`. For an active account, the API stores a hashed, one-use token and sends a link to the public `/reset-password` page. The link expires after `PASSWORD_RESET_TTL_MINUTES` (default 30).
 
@@ -133,9 +140,14 @@ SMTP_PASSWORD=your-google-app-password
 SMTP_FROM_EMAIL=your-address@gmail.com
 SMTP_STARTTLS=true
 SMTP_SSL=false
+EMAIL_VERIFICATION_URL=http://localhost:5173/verify-email
+EMAIL_VERIFICATION_TTL_MINUTES=30
+EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS=60
+EMAIL_VERIFICATION_RESEND_LIMIT=5
+EMAIL_VERIFICATION_RESEND_WINDOW_SECONDS=3600
 ```
 
-Use the same Gmail address for `SMTP_USERNAME` and `SMTP_FROM_EMAIL`. For port 465, use `SMTP_SSL=true` and `SMTP_STARTTLS=false`. Restart the API after changing the settings. Without a configured SMTP server, reset requests return `503 email_delivery_unavailable`; login remains available. Gmail delivery has not been verified until an address and App Password are supplied.
+Use the same Gmail address for `SMTP_USERNAME` and `SMTP_FROM_EMAIL`. For port 465, use `SMTP_SSL=true` and `SMTP_STARTTLS=false`. Restart the API after changing the settings. Without configured SMTP, new registration and eligible resend/reset delivery return `503 email_delivery_unavailable`. Loopback SMTP acceptance is verified locally; real external inbox delivery has not been verified with user-provided credentials.
 
 Frontend verification:
 
@@ -239,7 +251,7 @@ For a production-oriented single-host deployment, use `docker-compose.production
 - Structured logs exclude query strings, request bodies, passwords, tokens, and provider keys.
 - Login/registration and password recovery have configurable per-client throttles; production requires and uses a shared Redis store, with an ingress/WAF limit still recommended.
 - Production rejects placeholder secrets and unrestricted database-role configuration; pooled API connections run as `promptvault_app`.
-- Password reset uses one-use database tokens and a configurable SMTP provider; provider setup and live delivery are deployment responsibilities.
+- Email verification and password reset use separate hashed, expiring, one-use tokens. The local acceptance harness proves delivery through loopback SMTP without contacting an external inbox.
 - The deterministic provider keeps evaluation reproducible. An optional Gemini REST adapter uses the newest active encrypted `gemini` key; upstream quotas, safety blocks, and service reliability remain external concerns.
 - JWT storage is tab-scoped for the prototype. A production deployment should evaluate an HTTPS-only cookie/BFF session model and rotate all example secrets.
 

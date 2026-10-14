@@ -28,7 +28,7 @@ describe('Playground run states', () => {
     const before = Number((await runService.dashboard()).monthly_spend)
     await user.type(screen.getByRole('textbox', { name: /customer_message/ }), 'Please check my order')
     await user.click(screen.getByRole('button', { name: 'Run prompt' }))
-    expect(await screen.findByText('View run details →')).toBeInTheDocument()
+    expect(await screen.findByText('completed')).toBeInTheDocument()
     expect(Number((await runService.dashboard()).monthly_spend)).toBeGreaterThan(before)
   })
 

@@ -233,3 +233,81 @@ def test_local_project_cannot_replace_gemini_with_another_provider(environment: 
                 "gemini_api_base_url": "https://api.deepseek.com/v1",
             }
         )
+
+
+def test_email_verification_settings_have_safe_local_defaults() -> None:
+    settings = Settings(**BASE)
+
+    assert settings.email_verification_url == "http://localhost:5173/verify-email"
+    assert settings.email_verification_ttl_minutes == 30
+    assert settings.email_verification_resend_cooldown_seconds == 60
+    assert settings.email_verification_resend_limit == 5
+    assert settings.email_verification_resend_window_seconds == 3600
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "email_verification_ttl_minutes",
+        "email_verification_resend_cooldown_seconds",
+        "email_verification_resend_limit",
+        "email_verification_resend_window_seconds",
+    ],
+)
+def test_email_verification_limits_must_be_positive(field: str) -> None:
+    with pytest.raises(ValidationError, match="email verification limits"):
+        Settings(**BASE, **{field: 0})
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "ftp://app.example.com/verify-email",
+        "https://user:password@app.example.com/verify-email",
+        "https://app.example.com/verify-email#token",
+        "not-a-url",
+    ],
+)
+def test_email_verification_url_must_be_a_safe_absolute_http_url(url: str) -> None:
+    with pytest.raises(ValidationError, match="EMAIL_VERIFICATION_URL"):
+        Settings(**BASE, email_verification_url=url)
+
+
+def test_production_with_smtp_requires_https_email_verification_url() -> None:
+    with pytest.raises(ValidationError, match="EMAIL_VERIFICATION_URL"):
+        Settings(
+            **{
+                **BASE,
+                "environment": "production",
+                "secret_key": "production-secret-that-is-at-least-32-characters",
+                "provider_encryption_key": (
+                    "independent-provider-key-that-is-at-least-32-characters"
+                ),
+                "cors_origins": "https://app.example.com",
+                "database_role": "promptvault_app",
+                "rate_limit_redis_url": "redis://redis:6379/0",
+                "smtp_host": "smtp.example.com",
+                "smtp_from_email": "sender@example.com",
+                "password_reset_url": "https://app.example.com/reset-password",
+                "project_invitation_url": "https://app.example.com/project-invitations",
+                "email_verification_url": "http://localhost:5173/verify-email",
+            }
+        )
+
+
+def test_production_without_smtp_keeps_local_email_verification_url_usable() -> None:
+    settings = Settings(
+        **{
+            **BASE,
+            "environment": "production",
+            "secret_key": "production-secret-that-is-at-least-32-characters",
+            "provider_encryption_key": (
+                "independent-provider-key-that-is-at-least-32-characters"
+            ),
+            "cors_origins": "https://app.example.com",
+            "database_role": "promptvault_app",
+            "rate_limit_redis_url": "redis://redis:6379/0",
+        }
+    )
+
+    assert settings.email_verification_url == "http://localhost:5173/verify-email"

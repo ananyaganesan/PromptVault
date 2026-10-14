@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/page-header";
 import { Button, Field, Stat, Status } from "../../components/ui/prototype";
 import { EmptyState } from "../../components/ui/empty-state";
+import { ConfirmationDialog } from "../../components/ui/confirmation-dialog";
 import { useAuth } from "../auth/auth-context";
 import { PromptDeploymentStatus } from "../versions/version-pages";
 import { projectsApi } from "./api";
@@ -78,11 +79,11 @@ export function ProjectsPage() {
       <PageHeader
         title="Projects"
         description="Organize prompts and collaborate with your team."
-        action={
+        action={user?.role === "super_admin" ? (
           <Link to="/projects/new">
             <Button>New project</Button>
           </Link>
-        }
+        ) : undefined}
       />
       <div className="toolbar">
         <input
@@ -122,7 +123,7 @@ export function ProjectsPage() {
           </Link>
         ))}
       </div>
-      {!projects.length && <EmptyState title={hasFilters ? "No projects match these filters" : "No projects yet"} description={hasFilters ? "Try another search or filter." : "Create your first project to organize prompts and collaborators."} action={!hasFilters && <Link to="/projects/new">Create project</Link>} />}
+      {!projects.length && <EmptyState title={hasFilters ? "No projects match these filters" : "No projects yet"} description={hasFilters ? "Try another search or filter." : user?.role === "super_admin" ? "Create your first project to organize prompts and collaborators." : "You’ll see a project here after accepting an invitation sent to your email."} action={!hasFilters && user?.role === "super_admin" ? <Link to="/projects/new">Create project</Link> : undefined} />}
     </>
   );
 }
@@ -197,6 +198,7 @@ export function ProjectDetailPage() {
 }
 function ProjectDetailContent({ project }: { project: Project }) {
   const refresh = useLiveRefresh();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [tab, setTab] = useState<
     "overview" | "prompts" | "members" | "settings"
@@ -237,6 +239,8 @@ function ProjectDetailContent({ project }: { project: Project }) {
   });
   const [notice, setNotice] = useState("");
   const [settingsPending, setSettingsPending] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     let active = true;
     workspaceService.loadMembers(project.id)
@@ -274,6 +278,18 @@ function ProjectDetailContent({ project }: { project: Project }) {
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : "Could not save project settings.");
     } finally { setSettingsPending(false); }
+  }
+  async function deleteProject() {
+    if (user?.role !== "super_admin" || deleting) return;
+    setDeleting(true);
+    try {
+      await workspaceService.deleteProject(project.id);
+      navigate("/projects", { replace: true });
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Could not delete the project.");
+      setConfirmDelete(false);
+      setDeleting(false);
+    }
   }
   return (
     <>
@@ -425,7 +441,8 @@ function ProjectDetailContent({ project }: { project: Project }) {
         </section>
       )}
       {tab === "settings" && (
-        <form className="form-panel" onSubmit={saveSettings}>
+        <div className="form-panel">
+        <form onSubmit={saveSettings}>
           {stale && <div role="alert"><p>Project settings changed. Your unsaved edits are preserved. Review the refreshed values before saving.</p><p>Current name: {project.name} · Current description: {project.description || "None"}</p>
             <Button secondary type="button" onClick={() => setDraft(null)}>Use refreshed settings</Button>
             <Button secondary type="button" onClick={() => setDraft({ baseName: project.name, baseDescription: project.description ?? "", name, description })}>Keep my edits</Button>
@@ -452,7 +469,21 @@ function ProjectDetailContent({ project }: { project: Project }) {
             <Button type="submit" disabled={!canManage || stale || settingsPending}>Save settings</Button>
           </div>
         </form>
+        {user?.role === "super_admin" && <section className="danger-zone">
+          <h2>Delete project</h2>
+          <p>Permanently delete this project and its prompts, versions, deployments, runs, tokens, invitations, and memberships.</p>
+          <button className="button danger" type="button" disabled={deleting} onClick={() => setConfirmDelete(true)}>Delete project</button>
+        </section>}
+        </div>
       )}
+      <ConfirmationDialog
+        open={confirmDelete}
+        title="Delete project"
+        message={`Permanently delete ${project.name} and all of its project data? This cannot be undone.`}
+        pending={deleting}
+        onConfirm={deleteProject}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </>
   );
 }

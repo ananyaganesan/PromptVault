@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     password_reset_ttl_minutes: int = 30
     password_reset_url: str = "http://localhost:5173/reset-password"
     project_invitation_url: str = "http://localhost:5173/project-invitations"
+    email_verification_ttl_minutes: int = 30
+    email_verification_url: str = "http://localhost:5173/verify-email"
+    email_verification_resend_cooldown_seconds: int = 60
+    email_verification_resend_limit: int = 5
+    email_verification_resend_window_seconds: int = 3600
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None
@@ -125,6 +130,16 @@ class Settings(BaseSettings):
             )
         if self.environment == "production" and self.smtp_host and invitation_url.scheme != "https":
             raise ValueError("production PROJECT_INVITATION_URL must use HTTPS")
+        if (
+            min(
+                self.email_verification_ttl_minutes,
+                self.email_verification_resend_cooldown_seconds,
+                self.email_verification_resend_limit,
+                self.email_verification_resend_window_seconds,
+            )
+            <= 0
+        ):
+            raise ValueError("email verification limits must be positive")
         reset_url = urlsplit(self.password_reset_url)
         if (
             reset_url.scheme not in {"http", "https"}
@@ -136,8 +151,28 @@ class Settings(BaseSettings):
             raise ValueError(
                 "PASSWORD_RESET_URL must be an absolute HTTP URL without credentials or a fragment"
             )
+        verification_url = urlsplit(self.email_verification_url)
+        if (
+            verification_url.scheme not in {"http", "https"}
+            or not verification_url.netloc
+            or verification_url.username is not None
+            or verification_url.password is not None
+            or verification_url.fragment
+        ):
+            raise ValueError(
+                "EMAIL_VERIFICATION_URL must be an absolute HTTP URL "
+                "without credentials or a fragment"
+            )
         if self.environment == "production" and self.smtp_host and reset_url.scheme != "https":
             raise ValueError("production PASSWORD_RESET_URL must use HTTPS when SMTP is enabled")
+        if (
+            self.environment == "production"
+            and self.smtp_host
+            and verification_url.scheme != "https"
+        ):
+            raise ValueError(
+                "production EMAIL_VERIFICATION_URL must use HTTPS when SMTP is enabled"
+            )
         if not 1 <= self.smtp_port <= 65535 or self.smtp_timeout_seconds <= 0:
             raise ValueError("SMTP_PORT and SMTP_TIMEOUT_SECONDS must be positive and valid")
         if bool(self.smtp_host) != bool(self.smtp_from_email):
