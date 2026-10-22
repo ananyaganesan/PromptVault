@@ -16,6 +16,7 @@ from api.app.providers.catalog import require_free_model
 from api.app.providers.errors import (
     ProviderCredentialError,
     ProviderExecutionError,
+    ProviderModelError,
     ProviderQuotaError,
     ProviderTimeoutError,
 )
@@ -233,12 +234,25 @@ class RunExecutionService:
                 error_code="provider_timeout",
             )
             raise AppError(504, "provider_timeout", "Provider request timed out") from exc
-        except (ProviderQuotaError, ProviderCredentialError) as exc:
-            code = (
-                "provider_quota_exceeded"
-                if isinstance(exc, ProviderQuotaError)
-                else "provider_configuration_error"
-            )
+        except (ProviderQuotaError, ProviderCredentialError, ProviderModelError) as exc:
+            if isinstance(exc, ProviderQuotaError):
+                status_code = 429
+                code = "provider_quota_exceeded"
+                message = "Provider free-tier quota reached. Try again later."
+            elif isinstance(exc, ProviderModelError):
+                status_code = 409
+                code = "model_not_available"
+                message = (
+                    "The selected model is no longer available. "
+                    "Save a new version with a supported model."
+                )
+            else:
+                status_code = 503
+                code = "provider_configuration_error"
+                message = (
+                    "Provider credentials were rejected. "
+                    "Ask an administrator to update the key."
+                )
             recorded = await self._record_failure(
                 actor, target, payload.variables, code, executed_at
             )
@@ -249,13 +263,7 @@ class RunExecutionService:
                 run=recorded,
                 error_code=code,
             )
-            raise AppError(
-                429 if isinstance(exc, ProviderQuotaError) else 503,
-                code,
-                "Provider free-tier quota reached. Try again later."
-                if isinstance(exc, ProviderQuotaError)
-                else "Provider credentials were rejected. Ask an administrator to update the key.",
-            ) from exc
+            raise AppError(status_code, code, message) from exc
         except ProviderExecutionError as exc:
             recorded = await self._record_failure(
                 actor, target, payload.variables, "provider_error", executed_at

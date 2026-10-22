@@ -14,6 +14,18 @@ import { useAuth } from '../auth/auth-context'
 
 const demoMode = import.meta.env.MODE === 'test' && import.meta.env.VITE_USE_MOCK_RUNS !== 'false'
 
+const DEMO_INPUTS: Record<string, string> = {
+  customer_name: 'Priya Sharma',
+  order_number: 'PV-2026-1042',
+  order_status: 'In transit — delayed at the regional sorting center',
+  estimated_delivery: 'October 17, 2026',
+  additional_context: 'Carrier tracking has not updated for 24 hours after the package reached the Bengaluru regional sorting center. No delivery attempt has been recorded.',
+  support_channel: 'email',
+  escalation_required: 'yes',
+  customer_message: 'My order is delayed and tracking has not changed since yesterday. Can you tell me what happens next?',
+  order_context: 'Order PV-2026-1042 is in transit at the Bengaluru regional sorting center. Estimated delivery is October 17, 2026.',
+}
+
 export function PlaygroundPage() {
   useSyncExternalStore(workspaceStore.subscribe, workspaceStore.getSnapshot)
   const { user } = useAuth()
@@ -33,6 +45,7 @@ export function PlaygroundPage() {
   const config = draft?.versionId === selected?.id ? draft?.config : selected?.model_config
   const providerInfo = discovery.data?.items.find((item) => item.provider === config?.provider)
   const modelInfo = providerInfo?.models.find((item) => item.id === config?.model)
+  const canLoadDemoInputs = Boolean(selected?.variables.length && selected.variables.every((variable) => !variable.required || DEMO_INPUTS[variable.name]))
   const changed = Boolean(selected && config && JSON.stringify(config) !== JSON.stringify(selected.model_config))
   const internalMock = config?.provider === 'mock' && (import.meta.env.DEV || import.meta.env.MODE === 'test')
   const unavailable = internalMock ? '' : discovery.error || (!discovery.data ? 'Loading provider models…' :
@@ -86,8 +99,8 @@ export function PlaygroundPage() {
             {LLM_PROVIDERS.map((provider) => <option key={provider} value={provider}>{provider}</option>)}
             {internalMock && <option value="mock">Mock (local testing)</option>}
           </select></label>
-          <label className="field"><span>Model</span><select value={config.model} disabled={pending || saving || internalMock} onChange={(event) => changeConfig({ model: event.target.value })}>
-            {!modelInfo && <option value={config.model}>{config.model || 'Select a model'}</option>}
+          <label className="field"><span>Model</span><select value={modelInfo ? config.model : ''} disabled={pending || saving || internalMock} onChange={(event) => changeConfig({ model: event.target.value })}>
+            {!modelInfo && <option value="" disabled>Select a supported model</option>}
             {providerInfo?.models.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
           </select></label>
           <label className="field"><span>Maximum output tokens</span><input type="number" min={1} max={modelInfo?.max_output_tokens ?? 4096} value={config.max_output_tokens ?? 500} disabled={pending || saving} onChange={(event) => changeConfig({ max_output_tokens: Number(event.target.value) })} /></label>
@@ -99,6 +112,7 @@ export function PlaygroundPage() {
           {changed && <Button onClick={saveConfiguration} disabled={saving || pending || Boolean(unavailable) || !config.model || !Number.isInteger(config.max_output_tokens) || (config.max_output_tokens ?? 0) < 1 || (config.max_output_tokens ?? 0) > (modelInfo?.max_output_tokens ?? 4096)}>{saving ? 'Saving…' : 'Save configuration'}</Button>}
           {notice && <p className="provider-note" role="status">{notice}</p>}
         </>}
+        {canLoadDemoInputs && <div className="demo-inputs"><div><b>Demo scenario</b><p>Delayed order at a regional sorting center, with an email response and support escalation.</p></div><Button secondary disabled={pending || saving} onClick={() => setInputs(Object.fromEntries(selected!.variables.map((variable) => [variable.name, DEMO_INPUTS[variable.name] ?? variable.default_value ?? ''])))}>Load demo inputs</Button></div>}
         {selected?.variables.map((variable) => <label className="field" key={variable.name}><span>{variable.name}{variable.required ? ' *' : ' (optional)'}</span><textarea disabled={pending || saving} value={inputs[variable.name] ?? ''} onChange={(event) => setInputs({ ...inputs, [variable.name]: event.target.value })} placeholder={variable.description || variable.default_value || `Enter ${variable.name}`} /></label>)}
         {demoMode && <label className="field"><span>Test scenario</span><select aria-label="Test scenario" value={scenario} onChange={(event) => setScenario(event.target.value as typeof scenario)}><option value="normal">Successful run</option><option value="failed">Provider failure</option><option value="blocked">Budget limit</option></select></label>}
         {error && !executionError && <p className="form-error" role="alert">{error}</p>}

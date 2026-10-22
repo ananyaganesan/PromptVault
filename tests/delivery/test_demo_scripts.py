@@ -80,7 +80,8 @@ def test_showcase_runner_executes_every_query_file(database_url: str) -> None:
         assert f"{filename}:" in result.stdout
 
 
-def test_serve_client_sends_runtime_token_and_prints_prompt() -> None:
+@pytest.mark.parametrize("token_key", [None, "DEMO_RUNTIME_TOKEN", "PROMPTVAULT_SERVE_TOKEN"])
+def test_serve_client_sends_runtime_token_and_prints_prompt(tmp_path: Path, token_key: str | None) -> None:
     observed: dict[str, str] = {}
 
     class Handler(BaseHTTPRequestHandler):
@@ -111,6 +112,13 @@ def test_serve_client_sends_runtime_token_and_prints_prompt() -> None:
         def log_message(self, format: str, *args: object) -> None:
             return
 
+    if token_key:
+        token_file = tmp_path / "runtime.env"
+        token_file.write_text(f"{token_key}=pv_live_example_secret\n")
+        token_args = ["--token-file", str(token_file)]
+    else:
+        token_args = ["--token", "pv_live_example_secret"]
+
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -121,8 +129,7 @@ def test_serve_client_sends_runtime_token_and_prints_prompt() -> None:
                 str(REPOSITORY_ROOT / "scripts" / "serve-client.py"),
                 "--base-url",
                 f"http://127.0.0.1:{server.server_port}",
-                "--token",
-                "pv_live_example_secret",
+                *token_args,
                 "--key",
                 "support-reply",
                 "--env",

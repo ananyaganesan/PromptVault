@@ -1,8 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '../components/layout/app-layout'
 import { AuthLayout } from '../components/layout/auth-layout'
-import { AdminDashboardPage, ProviderKeyManagementPage, UserManagementPage } from '../features/admin/console-pages'
-import { AuditLogPage, BudgetManagementPage, MaintenanceHealthPage, PricingManagementPage } from '../features/admin/governance-console'
+import { ProviderKeyManagementPage, UserManagementPage } from '../features/admin/console-pages'
+import { AuditLogPage } from '../features/admin/governance-console'
 import { DeploymentApprovalQueuePage, DeploymentApprovalReviewPage, DeploymentRollbackPage } from '../features/admin/deployment-governance'
 import { AdminOnly } from '../features/admin/admin-only'
 import { ApiTokensPage, ProfilePage } from '../features/account/account-pages'
@@ -54,16 +54,12 @@ export function App() {
       <Route path="/api-tokens" element={<ApiTokensPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route element={<AdminOnly />}>
-      <Route path="/admin" element={<AdminDashboardPage />} />
       <Route path="/admin/approvals" element={<DeploymentApprovalQueuePage />} />
       <Route path="/admin/approvals/:approvalId" element={<DeploymentApprovalReviewPage />} />
       <Route path="/admin/rollback" element={<DeploymentRollbackPage />} />
       <Route path="/admin/users" element={<UserManagementPage />} />
       <Route path="/admin/provider-keys" element={<ProviderKeyManagementPage />} />
-      <Route path="/admin/budgets" element={<BudgetManagementPage />} />
-      <Route path="/admin/model-pricing" element={<PricingManagementPage />} />
       <Route path="/admin/audit" element={<AuditLogPage />} />
-      <Route path="/admin/maintenance" element={<MaintenanceHealthPage />} />
       </Route>
     </Route></Route></Route>
     <Route path="*" element={<Navigate to="/404" replace />} />

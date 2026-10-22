@@ -1,5 +1,7 @@
 # Database
 
+For machine setup, pgAdmin, all 19 logical tables, data transfer and SMTP, see [Jobin’s local setup and database reference](../docs/jobin-local-setup.md).
+
 PostgreSQL migrations are applied in numeric order from `migrations/` by `scripts/run-migrations.py`.
 
 ## Migration rules

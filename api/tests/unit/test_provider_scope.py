@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 from api.app.errors import AppError
+from api.app.providers.catalog import MODELS
 from api.app.providers.errors import ProviderExecutionError
 from api.app.providers.factory import get_provider
 from api.app.providers.policy import EXTERNAL_PROVIDERS, require_allowed_provider
@@ -12,6 +13,12 @@ from pydantic import ValidationError
 
 def test_external_provider_scope_is_fixed() -> None:
     assert {"gemini", "openrouter", "groq"} == EXTERNAL_PROVIDERS
+
+
+def test_gemini_catalog_only_exposes_the_demo_model() -> None:
+    assert [model.id for model in MODELS if model.provider == "gemini"] == [
+        "gemini-3.5-flash-lite"
+    ]
 
 
 @pytest.mark.parametrize("provider", ["gemini", "openrouter", "groq"])

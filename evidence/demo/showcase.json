@@ -1,0 +1,236 @@
+{
+  "prepared_at": "2026-10-22T15:32:43.216443+00:00",
+  "owner": "ananyaganesan9@gmail.com",
+  "projects": [
+    {
+      "name": "Demo \u00b7 Support Desk",
+      "key": "demo-support-desk",
+      "id": "773f24d2-04da-4da5-9850-f6e146497f4f",
+      "prompts": [
+        {
+          "id": "1d40c856-6932-4364-8f5e-b704f98c29e6",
+          "key": "order-reply",
+          "name": "Order support reply",
+          "versions": [
+            "92b9c506-6aef-4e7e-bc49-669129301b01",
+            "24ebd81f-85b3-4146-bd63-5ff27b24f160",
+            "98ca1e16-9cb1-460f-83fd-389e8e952271"
+          ],
+          "variables": {
+            "customer_message": "My parcel arrived with a cracked mug. Can I get a replacement?",
+            "order_id": "PV-1042",
+            "policy": "Damaged items reported within 7 days qualify for a replacement after photo review."
+          }
+        },
+        {
+          "id": "d0aef42e-2502-41ba-aae3-e35308c528cd",
+          "key": "ticket-triage",
+          "name": "Support ticket triage",
+          "versions": [
+            "8d00c638-fb13-4b50-995c-e46c20ffb16d",
+            "cfb62fc0-5548-4bbd-a9bb-34f687aebcb0",
+            "2f0b1d2f-2f92-4d97-95f1-b0988d02c7c4"
+          ],
+          "variables": {
+            "ticket": "I was charged twice for order PV-1042 and need help before the billing cutoff.",
+            "priority_rules": "Duplicate payments are high priority; account takeover is urgent; ordinary delivery questions are normal."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Demo \u00b7 Study Coach",
+      "key": "demo-study-coach",
+      "id": "abc021e8-bbcf-4ec9-a447-6ccb5d7913dd",
+      "prompts": [
+        {
+          "id": "b99a1b9f-4844-4d12-9c93-1b99b405e5af",
+          "key": "concept-explainer",
+          "name": "Database concept explainer",
+          "versions": [
+            "47e7945e-439b-4e4d-9830-78298ecfd8a2",
+            "3045f290-3c48-4fc8-812f-181962b1d5d7",
+            "3fd30923-45e1-4cf1-945c-2d30991d9bb7"
+          ],
+          "variables": {
+            "topic": "third normal form and transitive dependencies",
+            "audience": "a second-year computer science student"
+          }
+        },
+        {
+          "id": "efda2a4f-1195-4869-9f46-9d1263eac136",
+          "key": "practice-quiz",
+          "name": "Revision quiz generator",
+          "versions": [
+            "b6379392-1147-4509-99ee-15607dc916e9",
+            "c072e573-27f0-41b9-be93-5075156f39d0",
+            "ccf42e05-e1b8-4f95-a496-a41c61cf430f"
+          ],
+          "variables": {
+            "topic": "SQL joins, foreign keys and transactions",
+            "question_count": "3",
+            "level": "undergraduate beginners"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Demo \u00b7 Release Notes",
+      "key": "demo-release-notes",
+      "id": "de4c04ea-fb68-470e-9472-91ccb3863e3c",
+      "prompts": [
+        {
+          "id": "ee8f67fa-7029-41f4-bdd6-e7fe53ce2d0f",
+          "key": "release-summary",
+          "name": "Customer-facing release summary",
+          "versions": [
+            "9eb90bad-57c1-4574-b657-9bedb9f17a1e",
+            "72997fac-3d84-4cce-9610-9ce40e1b6073",
+            "95a563f5-f638-4512-a03a-ea0708e833d5"
+          ],
+          "variables": {
+            "changes": "Added verified-email registration; fixed duplicate prompt version numbers; added project invitations. Real provider access depends on account free-tier quota.",
+            "audience": "PromptVault demo users"
+          }
+        },
+        {
+          "id": "fdd35631-80e3-47a4-9889-b261124f555a",
+          "key": "incident-update",
+          "name": "Service incident update",
+          "versions": [
+            "f6be5bee-f477-403b-bad7-a4069ec006f0",
+            "5710028e-ac96-4503-99fb-9e825263682c",
+            "3f8ed209-6cd5-427d-b662-3503649f8a38"
+          ],
+          "variables": {
+            "incident": "Some verification emails are delayed after SMTP authentication failed.",
+            "status": "A replacement App Password has been configured and SMTP authentication now passes; end-to-end inbox delivery still needs confirmation."
+          }
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "id": "eef4e0ab-dfed-43b3-a3ef-3c0c03f05b94",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "779374f6-1403-4781-bb2d-1d65c5c7e641",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "f2ff31d7-52bf-4e1b-8bac-5abd623d0aca",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "4c96fb3c-176a-4196-8efa-ba99a235181c",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "0ffdefb9-3929-4a93-8551-cd54687325a4",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "b6c89cdc-07f4-4e74-a86d-0645e2ca7a9d",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "ccedcade-8c35-48d4-a17b-4221ef6f5884",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "a6806179-ccf6-4011-96ef-dc20cc01df77",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "8fdee4bf-a790-4146-b3cb-86f06484c46d",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "f84ab09b-392a-4c87-a59f-1f5fe06b9f51",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "2305edc9-44a4-489c-af5b-f726b404c6d9",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "36f812a7-47ca-43f0-ac37-1d3aedabfa00",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "19f332d0-be5f-485d-b94e-baf5e0a71958",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "38061ea5-d641-40f6-b390-0bf4b82d7045",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "67bd38e8-3c89-4183-8349-d1da500fdfd5",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "75a037ba-6c81-40fc-a610-24554eeaef06",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "ca98c1fd-a0c1-46b8-a9bc-221a314f2a84",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "92bf1c74-9c54-416e-a3f7-521c5f46cd74",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    },
+    {
+      "id": "2a975ba0-bb45-475a-82e7-f59dd0badb1a",
+      "status": "failed",
+      "provider": "mock",
+      "error_code": "provider_error"
+    },
+    {
+      "id": "44d207e3-171e-4978-ad7d-e11e863378a0",
+      "status": "completed",
+      "provider": "mock",
+      "error_code": null
+    }
+  ],
+  "live_prompt_id": "7b354591-9200-4dfc-b237-c31fb0775621"
+}

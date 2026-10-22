@@ -18,6 +18,9 @@ function version(number: number): BackendVersion {
 function diff(number: number): BackendVersionDiff {
   return { from_version_id: `v${number - 1}`, to_version_id: `v${number}`, template_body: { before: `API base ${number}`, after: `API candidate ${number}`, changed: true }, variables: { added: [], removed: [] }, model_config: { before: version(number).model_config, after: version(number).model_config, changed_fields: [] } }
 }
+function pairDiff(from: number, to: number): BackendVersionDiff {
+  return { from_version_id: `v${from}`, to_version_id: `v${to}`, template_body: { before: `API v${from}`, after: `API v${to}`, changed: from !== to }, variables: { added: [], removed: [] }, model_config: { before: version(from).model_config, after: version(to).model_config, changed_fields: [] } }
+}
 beforeEach(() => {
   promptStore.splice(0, promptStore.length, { id: 'prompt', project_id: 'project', key: 'prompt', name: 'Prompt', description: null, latest_version_number: 3, active_environment: 'production', created_at: '2026-10-10T00:00:00Z', updated_at: '2026-10-10T00:00:00Z' })
   versionStore.prompt = [3, 2, 1].map((number) => ({ ...version(number), template: `Template ${number}`, created_by: 'owner', created_by_name: 'Owner', variables: [] }))
@@ -50,6 +53,26 @@ it('ignores a comparison response arriving after its selection is abandoned', as
   await act(async () => old.resolve(diff(2)))
   expect(screen.queryByDisplayValue('API candidate 2')).not.toBeInTheDocument()
   expect(screen.getByDisplayValue('API candidate 3')).toBeInTheDocument()
+})
+
+it('compares any two selected versions instead of only a direct parent', async () => {
+  const request = vi.spyOn(versionsApi, 'diff')
+    .mockResolvedValueOnce(pairDiff(1, 3))
+    .mockResolvedValueOnce(pairDiff(2, 3))
+    .mockResolvedValueOnce(pairDiff(2, 1))
+  render(<MemoryRouter initialEntries={['/versions/v3/compare?against=v1']}><Routes><Route path="/versions/:versionId/compare" element={<CompareVersionPage />} /></Routes></MemoryRouter>)
+
+  expect(await screen.findByDisplayValue('API v1')).toBeInTheDocument()
+  expect(screen.getByDisplayValue('API v3')).toBeInTheDocument()
+  expect(request).toHaveBeenLastCalledWith('v3', 'v1', expect.any(AbortSignal))
+
+  await userEvent.setup().selectOptions(screen.getByLabelText('Base version'), 'v2')
+  expect(await screen.findByDisplayValue('API v2')).toBeInTheDocument()
+  expect(request).toHaveBeenLastCalledWith('v3', 'v2', expect.any(AbortSignal))
+
+  await userEvent.setup().selectOptions(screen.getByLabelText('Compare version'), 'v1')
+  expect(await screen.findByDisplayValue('API v1')).toBeInTheDocument()
+  expect(request).toHaveBeenLastCalledWith('v1', 'v2', expect.any(AbortSignal))
 })
 
 it('clears loaded lineage while fetching a newly selected version', async () => {

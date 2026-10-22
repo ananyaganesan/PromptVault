@@ -121,6 +121,16 @@ def test_admin_users_dashboard_and_organization_runs(
     assert promoted.status_code == 200
     assert promoted.json()["role"] == "admin"
     assert admin_client.get("/api/v1/auth/me", headers=user_headers).status_code == 401
+    peer_demotion = admin_client.patch(
+        f"/api/v1/admin/users/{user['id']}",
+        headers=admin_headers,
+        json={"role": "user"},
+    )
+    assert peer_demotion.status_code == 403
+    assert peer_demotion.json()["code"] == "forbidden"
+    assert peer_demotion.json()["message"] == (
+        "A Super Admin cannot change another Super Admin to User"
+    )
     user_headers = login_user(admin_client, user["email"])
     self_deactivated = admin_client.patch(
         f"/api/v1/admin/users/{user['id']}",

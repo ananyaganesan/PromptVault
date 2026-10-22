@@ -10,7 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,7 +21,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--base-url",
         default=os.getenv("PROMPTVAULT_API_URL", "http://localhost:8000"),
     )
-    parser.add_argument("--token", default=os.getenv("PROMPTVAULT_SERVE_TOKEN"))
+    parser.add_argument("--token", help="Runtime token (prefer --token-file to keep it out of shell history)")
+    parser.add_argument(
+        "--token-file", type=Path,
+        help="Private dotenv file containing PROMPTVAULT_SERVE_TOKEN or DEMO_RUNTIME_TOKEN",
+    )
     parser.add_argument("--key", required=True, help="Prompt key")
     parser.add_argument(
         "--env",
@@ -37,9 +41,25 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     load_dotenv(REPOSITORY_ROOT / ".env")
     args = build_parser().parse_args()
+    if args.token_file:
+        if not args.token_file.is_file():
+            print("Serve request failed: token file does not exist.", file=sys.stderr)
+            return 2
+        try:
+            values = dotenv_values(args.token_file)
+        except OSError:
+            print("Serve request failed: token file could not be read.", file=sys.stderr)
+            return 2
+        file_token = values.get("PROMPTVAULT_SERVE_TOKEN") or values.get("DEMO_RUNTIME_TOKEN")
+        if not args.token and not file_token:
+            print("Serve request failed: token file contains no runtime token.", file=sys.stderr)
+            return 2
+        args.token = args.token or file_token
+    else:
+        args.token = args.token or os.getenv("PROMPTVAULT_SERVE_TOKEN")
     if not args.token:
         print(
-            "Serve request failed: provide --token or PROMPTVAULT_SERVE_TOKEN",
+            "Serve request failed: provide --token, --token-file or PROMPTVAULT_SERVE_TOKEN",
             file=sys.stderr,
         )
         return 2

@@ -145,4 +145,4 @@ Provider execution uses no database connection: short transactions load the immu
 
 ## Ownership and integration
 
-Ananya owns `web/`. Jobin owns `api/`, `db/`, root `tests/`, `scripts/`, and backend-related documentation. `api-contracts.md`, `route-map.md`, and `authorization-matrix.md` are shared interfaces: changes require a short entry in `contract-questions.md` before either side depends on a different shape.
+Ananya owns `web/`. Jobin owns `api/`, `db/`, root `tests/`, `scripts/`, and backend-related documentation. `api-contracts.md`, `route-map.md`, and `authorization-matrix.md` are shared interfaces: update the contract documentation and relevant regression tests together before either side depends on a different shape.

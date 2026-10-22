@@ -1,12 +1,13 @@
 # PromptVault live demo runbook
 
+For the prepared projects on Ananya’s local database, use [the detailed demo walkthrough](demo-walkthrough.md). The generic outline below can be adapted to those records.
+
 ## Setup
 
-From the repository root:
+Complete [Jobin’s local setup](jobin-local-setup.md), including SMTP, first. From the repository root:
 
 ```bash
-cp .env.example .env
-docker compose up -d --build --wait
+.venv/bin/python scripts/start-local.py
 ```
 
 Open `http://localhost:5173`. Swagger UI is available at `http://localhost:8000/docs`.
@@ -43,17 +44,11 @@ These are local-development fixtures. Use separate browser tabs when showing bot
 
 ## Recovery and fallback
 
-Reset to deterministic development data, then refresh the API connection pool:
+Preserve the database during normal demonstrations. Stop the launcher with Ctrl-C and restart it with `.venv/bin/python scripts/start-local.py`; PostgreSQL and saved records remain intact. Do not reset or reseed an existing database to recover a demo.
 
-```bash
-docker compose run --rm migrate python scripts/reset-development.py --confirm-reset \
-  && docker compose restart api \
-  && docker compose up -d --wait
-```
+If the browser keeps an old identity, sign out or clear the tab’s session storage. Check `http://localhost:8000/ready` and the launcher terminal when the API is unavailable. The internal deterministic mock provider supports an offline walkthrough after dependencies are installed.
 
-If the browser keeps an old identity, sign out or clear the tab's session storage. If a service is unhealthy, inspect `docker compose ps` and `docker compose logs api`. The deterministic mock provider does not require an external LLM key, so the core walkthrough remains reproducible offline after images and dependencies are present.
-
-Password-recovery email requires SMTP settings in `.env`; the core walkthrough does not depend on email delivery. Do not enter production secrets into the demo stack.
+Use the local SMTP inbox for seeded example addresses. New registration, password reset and invitations require working SMTP; see the setup guide for the complete email journey.
 
 ## Verification
 

@@ -34,7 +34,7 @@ usage. The provider API key itself does not prove billing-tier eligibility.
 Supported routes were rechecked against official documentation:
 
 - Gemini's [API pricing](https://ai.google.dev/gemini-api/docs/pricing) lists
-  standard Gemini 2.5 Flash-Lite input/output as free on the Free Tier.
+  standard Gemini 3.5 Flash-Lite input/output as free on the Free Tier.
 - OpenRouter's [LFM2.5 free model](https://openrouter.ai/liquid/lfm-2.5-2.6b:free)
   lists zero-priced prompt/completion tokens. The adapter additionally requires
   `:free`, sends a zero-price ceiling and disables fallback.

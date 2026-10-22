@@ -4,16 +4,15 @@ This React/Vite client authenticates through FastAPI and loads workspace data fr
 
 ## Development
 
-Start the API and database from the repository root, then run the frontend:
+Follow [Jobin’s local setup guide](../docs/jobin-local-setup.md) once, then start both frontend and backend from the repository root:
 
 ```bash
-docker compose up -d db migrate api --wait
-npm ci --prefix web
-cp web/.env.example web/.env.local
-npm run dev --prefix web
+.venv/bin/python scripts/start-local.py
 ```
 
-`VITE_API_BASE_URL` defaults to `http://localhost:8000`; the client appends `/api/v1`. Keep `VITE_USE_DEMO_DATA=false` to use persisted workspace data. Login always calls `/api/v1/auth/login`, and saved tokens are checked with `/api/v1/auth/me` before a user is restored. The packaged full stack is available with `docker compose up -d --build --wait` and serves the web application at `http://localhost:5173`. Docker excludes local Vite override files and uses its `VITE_API_URL` build argument for the packaged API address.
+This reuses the persistent PostgreSQL database on `localhost:5432`, starts the API at `http://localhost:8000` and the frontend at `http://localhost:5173`, and refuses busy ports. Do not start a second database container on port 5432.
+
+`VITE_API_BASE_URL` is `http://localhost:8000`; the client appends `/api/v1`. Keep `VITE_USE_DEMO_DATA=false` for persisted workspace data. Login calls `/api/v1/auth/login`, and saved tokens are checked with `/api/v1/auth/me` before a user is restored. New registrations require email verification; SMTP and local inbox setup are covered in the guide.
 
 Development accounts:
 
@@ -22,7 +21,7 @@ Development accounts:
 | User | `user@promptvault.dev` | `UserDemo2026!` |
 | Super Admin | `admin@promptvault.dev` | `AdminDemo2026!` |
 
-These accounts are local fixtures. JWTs are stored in tab-scoped `sessionStorage`, while authorization is enforced by FastAPI.
+These accounts are local fixtures available after seeding a new database. JWTs are stored in tab-scoped `sessionStorage`, while authorization is enforced by FastAPI.
 
 ## Routes
 

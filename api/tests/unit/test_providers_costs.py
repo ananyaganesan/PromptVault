@@ -11,7 +11,11 @@ from api.app.providers.base import (
     execute_with_timeout,
     validate_provider_result,
 )
-from api.app.providers.errors import ProviderExecutionError, ProviderTimeoutError
+from api.app.providers.errors import (
+    ProviderExecutionError,
+    ProviderModelError,
+    ProviderTimeoutError,
+)
 from api.app.providers.factory import get_provider
 from api.app.providers.gemini import GeminiProvider
 from api.app.providers.mock import MockProvider
@@ -190,8 +194,17 @@ async def test_gemini_provider_sends_secret_header_and_reads_usage() -> None:
 async def test_gemini_provider_normalizes_http_and_invalid_responses() -> None:
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:
+            # Consume the request before closing error responses so the socket
+            # cannot reset before HTTPX receives the intended status code.
+            self.rfile.read(int(self.headers.get("Content-Length", "0")))
             if self.path.startswith("/error/"):
                 self.send_response(429)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            if self.path.startswith("/missing/"):
+                self.send_response(404)
+                self.send_header("Content-Length", "0")
                 self.end_headers()
                 return
             body = b'{"candidates": [], "usageMetadata": {}}'
@@ -211,6 +224,10 @@ async def test_gemini_provider_normalizes_http_and_invalid_responses() -> None:
         with pytest.raises(ProviderExecutionError):
             await GeminiProvider(
                 "secret", base_url=f"http://127.0.0.1:{server.server_port}/error"
+            ).execute(request)
+        with pytest.raises(ProviderModelError):
+            await GeminiProvider(
+                "secret", base_url=f"http://127.0.0.1:{server.server_port}/missing"
             ).execute(request)
         with pytest.raises(ProviderExecutionError):
             await GeminiProvider(

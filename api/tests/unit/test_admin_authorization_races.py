@@ -7,7 +7,7 @@ from api.app.errors import AppError
 from api.app.repositories.users import UserRecord
 from api.app.schemas.admin import AdminUserUpdate
 from api.app.services.admin import AdminGovernanceService
-from psycopg.errors import InsufficientPrivilege
+from psycopg.errors import CheckViolation, InsufficientPrivilege
 
 
 def admin_actor() -> UserRecord:
@@ -37,6 +37,27 @@ async def test_user_transition_maps_concurrent_authorization_change() -> None:
 
     assert captured.value.status_code == 403
     assert captured.value.code == "forbidden"
+
+
+@pytest.mark.asyncio
+async def test_user_transition_rejects_peer_admin_demotion() -> None:
+    repository = MagicMock()
+    repository.set_audit_context = AsyncMock()
+    repository.update_user = AsyncMock(
+        side_effect=CheckViolation("admin_peer_demotion")
+    )
+    service = AdminGovernanceService(repository, "request-id", "encryption-key")
+
+    with pytest.raises(AppError) as captured:
+        await service.update_user(
+            uuid4(), AdminUserUpdate(role="user"), admin_actor()
+        )
+
+    assert captured.value.status_code == 403
+    assert captured.value.code == "forbidden"
+    assert captured.value.message == (
+        "A Super Admin cannot change another Super Admin to User"
+    )
 
 
 @pytest.mark.asyncio

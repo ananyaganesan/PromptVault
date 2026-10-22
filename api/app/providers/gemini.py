@@ -11,6 +11,7 @@ from api.app.providers.base import ProviderRequest, ProviderResult
 from api.app.providers.errors import (
     ProviderCredentialError,
     ProviderExecutionError,
+    ProviderModelError,
     ProviderQuotaError,
     ProviderTimeoutError,
 )
@@ -45,6 +46,8 @@ class GeminiProvider:
                     raise ProviderQuotaError("provider quota reached")
                 if response.status_code in {401, 403}:
                     raise ProviderCredentialError("provider credentials were rejected")
+                if response.status_code == 404:
+                    raise ProviderModelError("provider model is unavailable")
                 response.raise_for_status()
         except httpx.TimeoutException as exc:
             raise ProviderTimeoutError("provider request timed out") from exc

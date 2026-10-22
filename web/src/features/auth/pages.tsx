@@ -109,7 +109,9 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       <h1>Check your email</h1>
       <p>{pending.message}</p>
       <p>{pending.email}</p>
-      <ResendVerification email={pending.email} initialCooldown={60} />
+      <div className="check-email-resend">
+        <ResendVerification email={pending.email} initialCooldown={60} />
+      </div>
       <p className="switch"><Link to="/login">Back to sign in</Link></p>
     </section></main>
   }

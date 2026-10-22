@@ -54,6 +54,7 @@ describe('personal Recent Activity', () => {
     expect(screen.getAllByText(/· v1/).map((item) => item.textContent)).toEqual(ids.slice(0, 4).map((id) => `${id} · v1`))
     expect(screen.getByText('Your four most recent runs.')).toBeInTheDocument()
     expect(screen.getByText('YOUR RUNS')).toBeInTheDocument()
+    expect(screen.queryByText('MONTHLY SPEND')).not.toBeInTheDocument()
     expect(screen.queryByText('fifth · v1')).not.toBeInTheDocument()
   })
 

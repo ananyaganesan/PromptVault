@@ -294,6 +294,7 @@ function ProjectDetailContent({ project }: { project: Project }) {
   return (
     <>
       <PageHeader
+        className="project-page-header"
         title={project.name}
         eyebrow={`PROJECTS / ${project.key.toUpperCase()}`}
         description={
@@ -400,10 +401,10 @@ function ProjectDetailContent({ project }: { project: Project }) {
           {canManage && <>
             <p className="member-invitation-note">Invited users must have a PromptVault account and accept the email invitation before getting access.</p>
             {invitationError && <p role="alert">{invitationError}</p>}
-            <h3>Pending invitations</h3>
+            <h3 className="member-subheading">Pending invitations</h3>
             {invitations.length === 0 && <p className="member-empty-invitations">No pending invitations.</p>}
-            {invitations.map((invitation) => <div className="member-row" key={invitation.id}>
-              <div><strong>{invitation.email}</strong><p>{new Date(invitation.expires_at).getTime() <= Date.now() ? "Expired" : "Awaiting acceptance"} · Expires {displayDate(invitation.expires_at)}</p></div>
+            {invitations.map((invitation) => <div className="member-row member-invitation-row" key={invitation.id}>
+              <div><strong className="member-invitation-email">{invitation.email}</strong><p className="member-invitation-status">{new Date(invitation.expires_at).getTime() <= Date.now() ? "Expired" : "Awaiting acceptance"} · Expires {displayDate(invitation.expires_at)}</p></div>
               <Button type="button" disabled={cancelling !== null} onClick={() => cancelInvitation(invitation.id)}>{cancelling === invitation.id ? "Cancelling…" : "Cancel invitation"}</Button>
             </div>)}
           </>}
@@ -414,10 +415,10 @@ function ProjectDetailContent({ project }: { project: Project }) {
                   {member.display_name.slice(0, 1).toUpperCase()}
                 </div>
                 <div>
-                  <b>{member.display_name}</b>
-                  <small>{member.email}</small>
+                  <b className="member-name">{member.display_name}</b>
+                  <small className="member-email">{member.email}</small>
                 </div>
-                <Status tone={member.role === "owner" ? "success" : "neutral"}>
+                <Status className="member-role" tone={member.role === "owner" ? "success" : "neutral"}>
                   {member.role}
                 </Status>
                 {canManage && member.role !== "owner" && (

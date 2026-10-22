@@ -18,10 +18,11 @@ describe('admin governance prototype', () => {
     const secondAdmin = { ...sampleUserProfiles[0], role: 'super_admin' as const }
     await adminService.updateUser(secondAdmin.id, { role: 'super_admin' }, admin)
     try {
+      await expect(adminService.updateUser(secondAdmin.id, { role: 'user' }, admin)).rejects.toThrow('cannot change another Super Admin')
       expect((await adminService.updateUser(admin.id, { role: 'user' }, admin)).role).toBe('user')
     } finally {
       await adminService.updateUser(admin.id, { role: 'super_admin' }, secondAdmin)
-      await adminService.updateUser(secondAdmin.id, { role: 'user' }, admin)
+      await adminService.updateUser(secondAdmin.id, { role: 'user' }, secondAdmin)
     }
   })
 

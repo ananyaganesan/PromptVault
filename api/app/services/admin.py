@@ -117,6 +117,12 @@ class AdminGovernanceService:
                 403, "forbidden", "Super Admin authorization changed during the request"
             ) from exc
         except CheckViolation as exc:
+            if "admin_peer_demotion" in str(exc):
+                raise AppError(
+                    403,
+                    "forbidden",
+                    "A Super Admin cannot change another Super Admin to User",
+                ) from exc
             if "last_admin" in str(exc) or "last active admin" in str(exc):
                 raise AppError(
                     409, "last_admin", "The last active Super Admin cannot be changed"

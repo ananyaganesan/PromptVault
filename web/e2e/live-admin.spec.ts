@@ -30,11 +30,10 @@ async function setUserBudget(page: Page, amount: string) {
   await expect(userRow.getByRole('cell').nth(2)).toHaveText(`$${Number(amount).toFixed(6)}`)
 }
 
-test('admin governance uses live users, encrypted keys, budgets, audit, pricing, runs, and maintenance APIs', async ({ page, request }) => {
+test('admin governance uses live users, encrypted keys, budgets, audit, runs, and maintenance APIs', async ({ page, request }) => {
   const suffix = Date.now().toString(36)
   const keyLabel = `Live key ${suffix}`
   const secret = `super-secret-${suffix}`
-  const model = `priced-model-${suffix}`
   await signIn(page, 'admin')
   await page.goto('/admin')
 
@@ -80,16 +79,6 @@ test('admin governance uses live users, encrypted keys, budgets, audit, pricing,
   const blockedRuns = page.locator('.stat').filter({ hasText: 'BLOCKED RUNS' })
   await expect(blockedRuns.locator('strong')).toHaveText(String(initialBlockedRunCount + 1))
 
-  await page.goto('/admin/model-pricing')
-  await page.getByRole('button', { name: 'Add price' }).click()
-  const priceDialog = page.getByRole('dialog', { name: 'Add model price' })
-  await priceDialog.getByLabel('Provider').selectOption('gemini')
-  await priceDialog.getByLabel('Model').fill(model)
-  await priceDialog.getByLabel('Input price per million tokens').fill('0')
-  await priceDialog.getByLabel('Output price per million tokens').fill('0')
-  await priceDialog.getByRole('button', { name: 'Add price' }).click()
-  await expect(page.getByRole('row').filter({ hasText: model }).first()).toContainText('0.000000')
-
   await page.goto('/admin/runs')
   await expect(page.getByRole('heading', { name: 'Organization runs' })).toBeVisible()
   await expect(page.getByRole('cell', { name: 'blocked', exact: true }).first()).toBeVisible()
@@ -97,11 +86,6 @@ test('admin governance uses live users, encrypted keys, budgets, audit, pricing,
   await page.goto('/admin/audit')
   await expect(page.getByRole('heading', { name: 'Audit log' })).toBeVisible()
   await expect(page.locator('tbody tr').first()).toBeVisible()
-
-  await page.goto('/admin/maintenance')
-  await expect(page.getByText('healthy', { exact: true }).first()).toBeVisible()
-  await page.getByRole('button', { name: 'Refresh materialized views' }).click()
-  await expect(page.getByText('Analytics views refreshed.')).toBeVisible()
 
   await page.goto('/admin/provider-keys')
   const currentKeyRow = page.getByRole('row').filter({ hasText: keyLabel })

@@ -90,7 +90,7 @@ Use separate Playwright `--output` directories when browser runs overlap.
 See [A5 local acceptance](a5-local-acceptance.md) for the loopback SMTP capture
 setup and repeatable desktop/mobile registration, login, reset and logout journey.
 The harness requires a disposable `_test` database and sends no external email.
-Email verification is excluded from the project scope.
+Email verification is required for new accounts; the local auth harness also captures verification mail. See [Jobin’s local setup](jobin-local-setup.md).
 
 ## Academic database acceptance
 

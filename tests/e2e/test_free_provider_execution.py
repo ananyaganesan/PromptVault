@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from tests.support import admin_headers, create_project, register
 
 MODELS = {
-    "gemini": "gemini-2.5-flash-lite",
+    "gemini": "gemini-3.5-flash-lite",
     "openrouter": "liquid/lfm-2.5-2.6b:free",
     "groq": "qwen/qwen3.8-27b",
 }
@@ -155,6 +155,40 @@ def test_quota_and_bad_credentials_are_safe_and_recorded(
         len(rows) == 1
         and rows[0]["status"] == "failed"
         and rows[0]["error_code"] == code
+    )
+
+
+@pytest.mark.database
+def test_retired_gemini_model_returns_actionable_error_and_is_recorded(
+    api_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, version = configure(api_client, "gemini")
+    client = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kwargs: client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(404, text="model is no longer available"),
+            )
+        ),
+    )
+
+    response = api_client.post(
+        "/api/v1/runs",
+        headers=headers,
+        json={"version_id": version["id"], "variables": {"name": "User"}},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "model_not_available"
+    assert "model is no longer available" not in response.text
+    rows = api_client.get("/api/v1/runs", headers=headers).json()["items"]
+    assert (
+        len(rows) == 1
+        and rows[0]["status"] == "failed"
+        and rows[0]["error_code"] == "model_not_available"
     )
 
 

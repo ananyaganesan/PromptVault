@@ -1,6 +1,6 @@
 import { useLiveRefresh, refreshLiveData } from '../../lib/live-refresh';
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/page-header";
 import { Button, Status } from "../../components/ui/prototype";
 import { EmptyState } from "../../components/ui/empty-state";
@@ -122,10 +122,16 @@ export function CompareVersionPage() {
 }
 function CompareVersionContent({ result: { prompt, version, versions } }: { result: VersionResult }) {
   const refresh = useLiveRefresh();
-  const compare =
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const defaultCompare =
     versions.find((item) => item.id === version.parent_version_id) ??
-    versions[1] ??
+    versions.find((item) => item.id !== version.id) ??
     version;
+  const requestedCompareId = searchParams.get("against");
+  const compare =
+    versions.find((item) => item.id === requestedCompareId && item.id !== version.id) ??
+    defaultCompare;
   const requestKey = JSON.stringify([refresh, compare.id, version.id]);
   const [snapshot, setSnapshot] = useState<{ key: string; diff?: BackendVersionDiff; error?: string } | null>(null);
   const diff = snapshot?.key === requestKey ? snapshot.diff : undefined;
@@ -147,6 +153,47 @@ function CompareVersionContent({ result: { prompt, version, versions } }: { resu
         eyebrow={`VERSIONS / ${prompt.key.toUpperCase()}`}
         description="Review changes between immutable prompt snapshots."
       />
+      <section className="panel version-compare-controls" aria-label="Choose versions to compare">
+        <label className="field">
+          <span>Base version</span>
+          <select
+            aria-label="Base version"
+            value={compare.id}
+            onChange={(event) => {
+              const next = new URLSearchParams(searchParams);
+              next.set("against", event.target.value);
+              setSearchParams(next, { replace: true });
+            }}
+            disabled={versions.length < 2}
+          >
+            {versions.map((item) => (
+              <option key={item.id} value={item.id} disabled={item.id === version.id}>
+                v{item.version_number} · {item.commit_message}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="version-compare-arrow" aria-hidden="true">→</span>
+        <label className="field">
+          <span>Compare version</span>
+          <select
+            aria-label="Compare version"
+            value={version.id}
+            onChange={(event) => {
+              const next = new URLSearchParams(searchParams);
+              next.set("against", compare.id);
+              navigate(`/versions/${event.target.value}/compare?${next.toString()}`);
+            }}
+            disabled={versions.length < 2}
+          >
+            {versions.map((item) => (
+              <option key={item.id} value={item.id} disabled={item.id === compare.id}>
+                v{item.version_number} · {item.commit_message}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
       <div className="diff-summary">
         <Status>v{compare.version_number} base</Status>
         <span>→</span>
@@ -157,11 +204,11 @@ function CompareVersionContent({ result: { prompt, version, versions } }: { resu
         </span>
       </div>
       {error && <p className="form-error" role="alert">{error} <Button secondary onClick={refreshLiveData}>Try again</Button></p>}
-      <div className="detail-layout">
+      <div className="detail-layout version-snapshot-layout">
         <section className="panel editor">
           <div className="editor-top">
             <code>v{compare.version_number}</code>
-            <Status>Previous</Status>
+            <Status>Base</Status>
           </div>
           <label className="field">
             <span>Template snapshot</span>

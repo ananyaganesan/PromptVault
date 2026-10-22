@@ -65,6 +65,19 @@ it.each(['member', 'owner', 'admin'])('shows member management only for owner/ad
   }
 })
 
+it('assigns global typography roles to every member identity element', async () => {
+  setup('project')
+  await userEvent.setup().click(screen.getByRole('button', { name: /Members/ }))
+
+  expect(screen.getByText('Invited users must have a PromptVault account and accept the email invitation before getting access.')).toHaveClass('member-invitation-note')
+  expect(screen.getByRole('heading', { name: 'Pending invitations' })).toHaveClass('member-subheading')
+  expect(screen.getByText('No pending invitations.')).toHaveClass('member-empty-invitations')
+  expect(screen.getByText('Owner')).toHaveClass('member-name')
+  expect(screen.getByText('owner@example.com')).toHaveClass('member-email')
+  expect(screen.getByText('owner', { selector: '.status' })).toHaveClass('member-role')
+  expect(screen.getByText('O', { selector: '.member-avatar' })).toBeInTheDocument()
+})
+
 it('refreshes a clean prompt editor to the latest snapshot', () => {
   const rerender = setup('prompt')
   versionStore.prompt = [version(2), version(1)]

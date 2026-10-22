@@ -111,7 +111,7 @@ def test_gemini_run_uses_active_encrypted_key_and_persists_usage(
         def log_message(self, format: str, *args: object) -> None:
             return
 
-    model = "gemini-2.5-flash-lite"
+    model = "gemini-3.5-flash-lite"
     with psycopg.connect(seeded_database_url) as connection:
         admin_id = connection.execute(
             "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"
@@ -189,7 +189,7 @@ def test_paid_gemini_configuration_is_rejected_before_provider_call(
         def log_message(self, format: str, *args: object) -> None:
             return
 
-    model = "gemini-2.5-flash"
+    model = "gemini-3.5-flash-lite"
     with psycopg.connect(seeded_database_url) as connection:
         admin_id = connection.execute(
             "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"
@@ -272,7 +272,7 @@ def test_duplicate_idempotency_key_returns_one_persisted_gemini_run(
         def log_message(self, format: str, *args: object) -> None:
             return
 
-    model = "gemini-2.5-flash-lite"
+    model = "gemini-3.5-flash-lite"
     with psycopg.connect(seeded_database_url) as connection:
         admin_id = connection.execute(
             "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"
@@ -376,7 +376,7 @@ def test_uncertain_provider_failure_keeps_reservation_and_cannot_be_replayed(
         def log_message(self, format: str, *args: object) -> None:
             return
 
-    model = "gemini-2.5-flash-lite"
+    model = "gemini-3.5-flash-lite"
     with psycopg.connect(seeded_database_url) as connection:
         admin_id = connection.execute(
             "SELECT id FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1"

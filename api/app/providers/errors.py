@@ -15,3 +15,7 @@ class ProviderQuotaError(ProviderExecutionError):
 
 class ProviderCredentialError(ProviderExecutionError):
     """Provider rejected the configured credentials."""
+
+
+class ProviderModelError(ProviderExecutionError):
+    """Provider no longer serves the requested model."""

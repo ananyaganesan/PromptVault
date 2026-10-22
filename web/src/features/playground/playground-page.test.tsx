@@ -17,6 +17,13 @@ beforeEach(() => { catalog.items[0].models[0].unavailable_reason = null; vi.rest
 function setup() { return render(<AuthProvider><MemoryRouter><PlaygroundPage /></MemoryRouter></AuthProvider>) }
 
 describe('Playground run states', () => {
+  it('loads editable sample values for a demo run', async () => {
+    const user = userEvent.setup(); setup()
+    await user.click(screen.getByRole('button', { name: 'Load demo inputs' }))
+    expect(screen.getByRole('textbox', { name: /customer_message/ })).toHaveValue('My order is delayed and tracking has not changed since yesterday. Can you tell me what happens next?')
+    expect(screen.getByRole('textbox', { name: /order_context/ })).toHaveValue('Order PV-2026-1042 is in transit at the Bengaluru regional sorting center. Estimated delivery is October 17, 2026.')
+  })
+
   it('requires the version input before execution', async () => {
     const user = userEvent.setup(); setup()
     await user.click(screen.getByRole('button', { name: 'Run prompt' }))

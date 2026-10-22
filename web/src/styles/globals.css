@@ -68,33 +68,16 @@
 .provider-note{font-size:12px;line-height:1.5;color:#6f707a;margin:12px 0}
 .profile-notice{font-size:12px;line-height:1.5;color:#45454c}
 
-/* Project library and membership text follow the app's Inter body/caption scale. */
+/* Project library typography follows the app's body/caption scale. */
 .project-prompt-library .prompt-row code {
   font-family: inherit;
   font-size: 11px;
 }
-.members-panel {
-  font-size: 11px;
-  line-height: 1.5;
-}
-.members-panel > h3 {
+.members-panel .member-subheading {
   margin: 20px 0 10px;
-  font-size: 14px;
-  letter-spacing: -.02em;
-}
-.members-panel .member-add input,
-.members-panel .member-row {
-  font-size: 11px;
-}
-.members-panel .member-row b,
-.members-panel .member-row strong {
-  font-weight: 500;
 }
 .members-panel .member-row small,
 .members-panel .member-row p {
-  font-size: 10px;
-  color: #626269;
-  line-height: 1.5;
   margin: 4px 0 0;
 }
 
@@ -141,7 +124,7 @@ body {
 }
 .panel h2,
 .project-card h2,
-.members-panel > h3 {
+.members-panel .member-subheading {
   font-size: var(--pv-type-section-title);
   font-weight: var(--pv-weight-semibold);
   line-height: 1.35;
@@ -347,17 +330,31 @@ pre {
   margin-top: 18px;
 }
 .playground-actions .text-button { white-space: nowrap; }
+.demo-inputs { display:flex;align-items:center;justify-content:space-between;gap:18px;margin:18px 0;padding:14px;border:1px solid #e3e1dd;background:#fbfaf8; }
+.demo-inputs b { display:block;font-size:10px; }
+.demo-inputs p { margin:5px 0 0;color:#777;font-size:9px;line-height:1.5; }
+.demo-inputs .button { flex-shrink:0; }
+.check-email-resend .button {
+  display: block;
+  margin-inline: auto;
+}
 
-/* Membership copy follows the same heading/body/secondary hierarchy as the
-   reference without affecting invitation behavior. */
+/* Members reuse the global heading, primary-body, secondary-body, and label
+   roles. Layout remains in the legacy rules above. */
+.members-panel {
+  font-family: var(--pv-font-sans);
+  color: var(--pv-text);
+}
 .members-panel .member-invitation-note {
   margin: 18px 0 0;
-  color: var(--pv-text);
+  color: var(--pv-muted);
   font-size: var(--pv-type-body);
   font-weight: var(--pv-weight-regular);
-  line-height: var(--pv-leading-copy);
+  letter-spacing: normal;
+  line-height: var(--pv-leading-body);
 }
-.members-panel > h3 {
+.members-panel .member-subheading {
+  color: var(--pv-text);
   font-size: var(--pv-type-section-title);
   font-weight: var(--pv-weight-semibold);
   letter-spacing: var(--pv-tracking-heading);
@@ -368,10 +365,228 @@ pre {
   color: var(--pv-muted);
   font-size: var(--pv-type-body);
   font-weight: var(--pv-weight-regular);
+  letter-spacing: normal;
   line-height: var(--pv-leading-body);
+}
+.members-panel .member-name,
+.members-panel .member-invitation-email {
+  display: block;
+  color: var(--pv-text);
+  font-size: var(--pv-type-body);
+  font-weight: var(--pv-weight-regular);
+  letter-spacing: normal;
+  line-height: var(--pv-leading-body);
+}
+.members-panel .member-email,
+.members-panel .member-invitation-status {
+  display: block;
+  color: var(--pv-muted);
+  font-size: var(--pv-type-body);
+  font-weight: var(--pv-weight-regular);
+  letter-spacing: normal;
+  line-height: var(--pv-leading-body);
+}
+.members-panel .member-avatar {
+  color: var(--pv-text);
+  font-size: var(--pv-type-caption);
+  font-weight: var(--pv-weight-semibold);
+  letter-spacing: normal;
+  line-height: 1;
+}
+.members-panel .member-role {
+  font-size: var(--pv-type-table-heading);
+  font-weight: var(--pv-weight-semibold);
+  letter-spacing: normal;
+  line-height: 1;
+}
+
+/* Primary actions gain depth on hover without changing their geometry. */
+.button:not(.secondary) {
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.button:not(.secondary):not(:disabled):hover {
+  background-color: var(--pv-text);
+  background-image: linear-gradient(135deg, color-mix(in srgb, var(--pv-text) 78%, var(--pv-surface)) 0%, var(--pv-text) 72%);
+  border-color: var(--pv-text);
+}
+
+.version-compare-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: end;
+  margin-bottom: 18px;
+}
+.version-compare-controls .field {
+  position: relative;
+  margin: 0;
+}
+.version-compare-controls .field::after {
+  position: absolute;
+  right: 14px;
+  bottom: 16px;
+  width: 0;
+  height: 0;
+  border-top: 6px solid var(--pv-muted);
+  border-right: 5px solid transparent;
+  border-left: 5px solid transparent;
+  content: "";
+  pointer-events: none;
+}
+.version-compare-controls select {
+  width: 100%;
+  padding-right: 38px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: none;
+}
+.version-compare-arrow {
+  display: grid;
+  place-items: center;
+  min-height: 39px;
+  color: var(--pv-muted);
+  font-size: var(--pv-type-section-title);
+}
+.version-snapshot-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Project descriptions can be long. Keep the action beside the title and let
+   the description use the complete header width below it. */
+.page-header-copy {
+  min-width: 0;
+}
+
+/* Keep prompt metadata centered and contained, including long environment lists. */
+.prompt-row {
+  grid-template-columns: minmax(0, 1fr) 55px minmax(0, 150px) 20px;
+}
+.prompt-row > * {
+  min-width: 0;
+}
+.prompt-row > div {
+  overflow-wrap: anywhere;
+}
+.prompt-row .version-code,
+.prompt-row .row-arrow {
+  text-align: center;
+}
+.status {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.prompt-row > .status {
+  justify-self: center;
+  line-height: 1.5;
+}
+#main-content {
+  position: relative;
+}
+.project-back-button {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: -2px;
+  left: -32px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--pv-radius);
+  background: transparent;
+  color: var(--pv-muted);
+}
+.project-back-button:hover {
+  background: #eeede9;
+  color: var(--pv-text);
+}
+@media (max-width: 800px) {
+  .project-back-button {
+    position: static;
+    margin: 0 0 8px -4px;
+  }
+  .prompt-row {
+    grid-template-columns: minmax(0, 1fr) 40px minmax(0, 120px) 18px;
+    gap: 8px;
+  }
+}
+@media (max-width: 500px) {
+  .prompt-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 100px) 18px;
+  }
+  .prompt-row > div {
+    grid-column: 1 / 3;
+    grid-row: 1;
+  }
+  .prompt-row .row-arrow {
+    grid-column: 3;
+    grid-row: 1 / 3;
+  }
+  .prompt-row .version-code {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: center;
+  }
+  .prompt-row > .status {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+.page-header-action {
+  flex: 0 0 auto;
+}
+.project-page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.project-page-header .page-header-copy {
+  display: contents;
+}
+.project-page-header .eyebrow {
+  grid-column: 1;
+  grid-row: 1;
+}
+.project-page-header h1 {
+  grid-column: 1;
+  grid-row: 2;
+}
+.project-page-header .page-header-action {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: end;
+  margin-left: 24px;
+}
+.project-page-header p {
+  grid-column: 1 / -1;
+  grid-row: 3;
 }
 
 @media (max-width: 800px) {
   .page-header h1 { font-size: var(--pv-type-page-title-mobile); }
   .playground-actions { flex-wrap: wrap; }
+  .version-compare-controls {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .version-compare-arrow {
+    min-height: auto;
+    transform: rotate(90deg);
+  }
+  .version-snapshot-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 500px) {
+  .project-page-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .project-page-header .page-header-action {
+    grid-column: 1;
+    grid-row: 4;
+    justify-self: start;
+    margin: 14px 0 0;
+  }
 }

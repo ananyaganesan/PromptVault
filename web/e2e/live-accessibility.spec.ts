@@ -41,6 +41,20 @@ async function verifyRoutes(page: Page, routes: string[]) {
   expect(issues).toEqual([])
 }
 
+async function typography(page: Page, selector: string) {
+  return page.locator(selector).first().evaluate((element) => {
+    const style = getComputedStyle(element)
+    return {
+      color: style.color,
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      letterSpacing: style.letterSpacing,
+      lineHeight: style.lineHeight,
+    }
+  })
+}
+
 test('user routes are responsive and have no serious automated accessibility violations', async ({ page }) => {
   await page.goto('/login')
   const login = await new AxeBuilder({ page }).analyze()
@@ -51,5 +65,40 @@ test('user routes are responsive and have no serious automated accessibility vio
 
 test('admin routes are responsive and have no serious automated accessibility violations', async ({ page }) => {
   await signIn(page, 'admin')
-  await verifyRoutes(page, ['/admin', '/admin/approvals', '/admin/rollback', '/admin/users', '/admin/provider-keys', '/admin/runs', '/admin/audit', '/admin/maintenance'])
+  await verifyRoutes(page, ['/admin/approvals', '/admin/rollback', '/admin/users', '/admin/provider-keys', '/admin/runs', '/admin/audit'])
+})
+
+test('project members use the global typography hierarchy', async ({ page }) => {
+  await signIn(page, 'admin')
+  await page.goto('/projects')
+  await page.locator('.project-card').first().click()
+  await page.getByRole('button', { name: /Members/ }).click()
+
+  await expect(page.locator('.members-panel')).toBeVisible()
+  expect(await typography(page, '.member-subheading')).toEqual(await typography(page, '.members-panel .panel-head h2'))
+
+  const secondary = await typography(page, '.page-header p')
+  expect(await typography(page, '.member-invitation-note')).toEqual(secondary)
+  expect(await typography(page, '.member-email')).toEqual(secondary)
+  if (await page.locator('.member-empty-invitations').count()) {
+    expect(await typography(page, '.member-empty-invitations')).toEqual(secondary)
+  }
+
+  const primary = await typography(page, '.members-panel')
+  expect(await typography(page, '.member-name')).toEqual(primary)
+
+  const tokens = await page.locator(':root').evaluate((root) => {
+    const style = getComputedStyle(root)
+    return {
+      caption: style.getPropertyValue('--pv-type-caption').trim(),
+      label: style.getPropertyValue('--pv-type-table-heading').trim(),
+      semibold: style.getPropertyValue('--pv-weight-semibold').trim(),
+    }
+  })
+  const avatar = await typography(page, '.member-avatar')
+  expect(avatar.fontSize).toBe(tokens.caption)
+  expect(avatar.fontWeight).toBe(tokens.semibold)
+  const role = await typography(page, '.member-role')
+  expect(role.fontSize).toBe(tokens.label)
+  expect(role.fontWeight).toBe(tokens.semibold)
 })

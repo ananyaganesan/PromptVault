@@ -535,8 +535,6 @@ export function AuditLogPage() {
           <option value="deployment.">Deployments</option>
           <option value="user.">Users</option>
           <option value="provider_key.">Provider keys</option>
-          <option value="budget.">Budgets</option>
-          <option value="model_price.">Pricing</option>
           <option value="token.">Tokens</option>
           <option value="maintenance.">Maintenance</option>
         </select>

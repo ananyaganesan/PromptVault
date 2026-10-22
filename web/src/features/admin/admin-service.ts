@@ -194,6 +194,7 @@ export const adminService = {
     const current = users.find((user) => user.id === userId)
     if (!current) throw new Error('User not found.')
     const updated = { ...current, ...request }
+    if (current.role === 'super_admin' && updated.role === 'user' && current.id !== admin.id) throw new Error('A Super Admin cannot change another Super Admin to User.')
     if (current.role === 'super_admin' && current.is_active && (updated.role !== 'super_admin' || !updated.is_active) && !users.some((item) => item.id !== userId && item.role === 'super_admin' && item.is_active)) throw new Error('The last active Super Admin cannot be changed.')
     users = users.map((user) => user.id === userId ? updated : user)
     record('user.updated', 'user', userId, admin)
