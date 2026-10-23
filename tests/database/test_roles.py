@@ -106,7 +106,7 @@ def test_application_role_uses_function_boundaries_for_versions_and_deployments(
         """
         SELECT (create_prompt_version(
             %s, %s, 'Role boundary {{name}}', '["name"]',
-            '{"provider":"mock","model":"deterministic-v1",'
+            '{"provider":"gemini","model":"gemini-3.5-flash-lite",'
             '"temperature":0,"max_output_tokens":50}',
             'Role boundary version', %s
         )).*

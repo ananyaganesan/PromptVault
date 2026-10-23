@@ -21,14 +21,7 @@ def create_domain(connection: psycopg.Connection) -> tuple[UUID, UUID, UUID, UUI
         (prompt_id, project_id),
     )
     connection.execute(
-        """
-        INSERT INTO prompt_versions (
-            id, prompt_id, version_number, template_body, variables,
-            model_config, commit_message, created_by
-        ) VALUES (%s, %s, 1, 'Prompt', '[]',
-                  '{"provider":"mock","model":"deterministic-v1",'
-                  '"temperature":0,"max_output_tokens":10}', 'Initial', %s)
-        """,
+        '\n        INSERT INTO prompt_versions (id, prompt_id, version_number, template_body, provider, model, temperature, max_output_tokens, commit_message, created_by) VALUES (%s, %s, 1, \'Prompt\', (\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                  \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'provider\', (\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                  \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'model\', ((\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                  \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'temperature\')::numeric, ((\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                  \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'max_output_tokens\')::integer, \'Initial\', %s)\n        ',
         (version_id, prompt_id, user_id),
     )
     return user_id, project_id, prompt_id, version_id
@@ -45,7 +38,7 @@ def record(
         SELECT recorded.*
         FROM record_run(
             p_user_id => %s, p_project_id => %s, p_prompt_id => %s, p_version_id => %s,
-            p_status => 'completed', p_provider => 'mock', p_model => 'deterministic-v1',
+            p_status => 'completed', p_provider => 'gemini', p_model => 'gemini-3.5-flash-lite',
             p_input_variables => '{}'::jsonb, p_output_text => 'completed',
             p_prompt_tokens => 1, p_completion_tokens => 1, p_latency_ms => 1,
             p_cost => %s, p_error_code => NULL, p_request_id => 'budget-test',
@@ -75,8 +68,8 @@ def test_over_limit_run_is_recorded_as_blocked_atomically(
             p_prompt_id => %s,
             p_version_id => %s,
             p_status => 'completed',
-            p_provider => 'mock',
-            p_model => 'deterministic-v1',
+            p_provider => 'gemini',
+            p_model => 'gemini-3.5-flash-lite',
             p_input_variables => '{}'::jsonb,
             p_output_text => 'would have completed',
             p_prompt_tokens => 10,
@@ -138,7 +131,9 @@ def test_budget_spend_resets_at_timezone_month_boundary(
         "INSERT INTO budgets (user_id, monthly_limit, timezone) VALUES (%s, 1, 'UTC')",
         (user_id,),
     )
-    current_month = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    current_month = datetime.now(UTC).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
     if current_month.month == 12:
         next_month = current_month.replace(year=current_month.year + 1, month=1)
     else:

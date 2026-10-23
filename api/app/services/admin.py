@@ -69,11 +69,9 @@ class AdminGovernanceService:
         repository: AdminRepository,
         request_id: str,
         provider_encryption_key: str,
-        allow_mock: bool = False,
     ) -> None:
         self.repository = repository
         self.request_id = request_id
-        self.allow_mock = allow_mock
         self.provider_encryption_key = provider_encryption_key
 
     async def list_users(
@@ -193,9 +191,7 @@ class AdminGovernanceService:
         )
         return Page(items=items, page=page, page_size=page_size, total=total)
 
-    async def create_budget(
-        self, payload: BudgetCreate, actor: UserRecord
-    ) -> BudgetResponse:
+    async def create_budget(self, payload: BudgetCreate, actor: UserRecord) -> BudgetResponse:
         await self.repository.set_audit_context(actor.id, self.request_id)
         try:
             return await self.repository.create_budget(
@@ -273,7 +269,7 @@ class AdminGovernanceService:
     async def create_pricing(
         self, payload: ModelPricingCreate, actor: UserRecord
     ) -> ModelPricingResponse:
-        require_allowed_provider(payload.provider, allow_mock=self.allow_mock)
+        require_allowed_provider(payload.provider)
         await self.repository.set_audit_context(actor.id, self.request_id)
         try:
             return await self.repository.create_pricing(
@@ -293,8 +289,7 @@ class AdminGovernanceService:
         return MaintenanceStatusResponse(
             database="ok",
             materialized_views=[
-                MaterializedViewStatus.model_validate(row)
-                for row in status["materialized_views"]
+                MaterializedViewStatus.model_validate(row) for row in status["materialized_views"]
             ],
             run_partitions=[
                 RunPartitionStatus.model_validate(row) for row in status["run_partitions"]
@@ -307,9 +302,7 @@ class AdminGovernanceService:
                 ),
                 MaintenanceJobStatus(
                     name="create_next_partition",
-                    status=(
-                        "completed" if status["last_partition_creation_at"] else "never_run"
-                    ),
+                    status=("completed" if status["last_partition_creation_at"] else "never_run"),
                     last_completed_at=status["last_partition_creation_at"],
                 ),
             ],
@@ -333,9 +326,7 @@ class AdminGovernanceService:
 
     async def create_next_partition(self, actor: UserRecord) -> PartitionCreateResponse:
         try:
-            name, existed = await self.repository.create_next_partition(
-                actor.id, self.request_id
-            )
+            name, existed = await self.repository.create_next_partition(actor.id, self.request_id)
         except InsufficientPrivilege as exc:
             raise AppError(
                 403, "forbidden", "Super Admin authorization changed during the request"

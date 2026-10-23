@@ -47,17 +47,7 @@ def create_pending_deployment(url: str) -> UUID:
             (prompt_id, project_id),
         )
         connection.execute(
-            """
-            INSERT INTO prompt_versions (
-                id, prompt_id, version_number, template_body, variables,
-                model_config, commit_message, created_by
-            ) VALUES (
-                %s, %s, 1, 'Approval race', '[]',
-                '{"provider":"mock","model":"deterministic-v1",'
-                '"temperature":0,"max_output_tokens":10}',
-                'Initial version', %s
-            )
-            """,
+            '\n            INSERT INTO prompt_versions (id, prompt_id, version_number, template_body, provider, model, temperature, max_output_tokens, commit_message, created_by) VALUES (%s, %s, 1, \'Approval race\', (\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'provider\', (\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'model\', ((\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'temperature\')::numeric, ((\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'max_output_tokens\')::integer, \'Initial version\', %s)\n            ',
             (version_id, prompt_id, user_id),
         )
         row = connection.execute(
@@ -103,7 +93,9 @@ def main() -> int:
     conflicts = results.count("conflict")
     print(f"Successful decisions: {successes}")
     print(f"Conflicting decisions: {conflicts}")
-    print("Winning status: " + next(result for result in results if result != "conflict"))
+    print(
+        "Winning status: " + next(result for result in results if result != "conflict")
+    )
     return 0 if successes == 1 and conflicts == 1 else 1
 
 

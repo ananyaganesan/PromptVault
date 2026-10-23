@@ -20,7 +20,6 @@ def get_prompt_versioning_service(
         VersionRepository(connection),
         ProjectRepository(connection),
         get_request_id(request),
-        allow_mock=request.app.state.settings.environment in {"development", "test"},
     )
 
 

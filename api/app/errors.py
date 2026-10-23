@@ -100,9 +100,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     )
 
 
-async def validation_error_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     field_errors: dict[str, list[str]] = {}
     for error in exc.errors():
         field = ".".join(str(part) for part in error["loc"])

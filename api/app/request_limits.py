@@ -14,9 +14,7 @@ class RequestBodyLimitMiddleware:
         self.app = app
         self.max_bytes = max_bytes
 
-    def _error(
-        self, scope: Scope, *, status_code: int, code: str, message: str
-    ) -> JSONResponse:
+    def _error(self, scope: Scope, *, status_code: int, code: str, message: str) -> JSONResponse:
         request_id = get_request_id(Request(scope))
         return JSONResponse(
             status_code=status_code,

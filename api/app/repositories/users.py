@@ -7,8 +7,23 @@ from math import ceil
 from typing import Any, cast
 from uuid import UUID
 
+from api.app.db.models import (
+    ApiToken,
+    AuthSession,
+    DeploymentContext,
+    EmailVerificationToken,
+    PasswordHistory,
+    PasswordResetToken,
+    Project,
+    ProjectMember,
+    RunContext,
+    User,
+    VersionContext,
+    fields,
+)
+from api.app.db.orm import ORMConnection, execute_orm, orm_all, orm_one
 from api.app.schemas.users import UserRole
-from psycopg import AsyncConnection
+from sqlalchemy import delete, exists, func, insert, or_, select, update
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,7 +52,7 @@ def _user_from_row(row: Mapping[str, Any]) -> UserRecord:
 
 
 class UserRepository:
-    def __init__(self, connection: AsyncConnection[dict[str, Any]]) -> None:
+    def __init__(self, connection: ORMConnection) -> None:
         self.connection = connection
 
     async def create_user(
@@ -47,45 +62,25 @@ class UserRepository:
         display_name: str,
         password_hash: str,
     ) -> UserRecord:
-        cursor = await self.connection.execute(
-            """
-            INSERT INTO users (email, display_name, password_hash, role)
-            VALUES (%s, %s, %s, 'user')
-            RETURNING id, email, display_name, password_hash, role, is_active,
-                      email_verified_at, created_at
-            """,
-            (email, display_name, password_hash),
+        row = await orm_one(
+            self.connection,
+            insert(User)
+            .values(
+                email=email, display_name=display_name, password_hash=password_hash, role="user"
+            )
+            .returning(*fields(User)),
         )
-        row = await cursor.fetchone()
         if row is None:
             raise RuntimeError("user insert returned no row")
         return _user_from_row(row)
 
     async def get_by_email(self, email: str) -> UserRecord | None:
-        cursor = await self.connection.execute(
-            """
-            SELECT id, email, display_name, password_hash, role, is_active,
-                   email_verified_at, created_at
-            FROM users
-            WHERE email = %s
-            """,
-            (email,),
-        )
-        row = await cursor.fetchone()
-        return _user_from_row(row) if row is not None else None
+        row = await orm_one(self.connection, select(*fields(User)).where(User.email == email))
+        return _user_from_row(row) if row else None
 
     async def get_by_id(self, user_id: UUID) -> UserRecord | None:
-        cursor = await self.connection.execute(
-            """
-            SELECT id, email, display_name, password_hash, role, is_active,
-                   email_verified_at, created_at
-            FROM users
-            WHERE id = %s
-            """,
-            (user_id,),
-        )
-        row = await cursor.fetchone()
-        return _user_from_row(row) if row is not None else None
+        row = await orm_one(self.connection, select(*fields(User)).where(User.id == user_id))
+        return _user_from_row(row) if row else None
 
     async def update_display_name(
         self,
@@ -111,79 +106,122 @@ class UserRepository:
         issued_at: datetime,
         expires_at: datetime,
     ) -> None:
-        await self.connection.execute(
-            """
-            INSERT INTO auth_sessions (id, user_id, issued_at, expires_at)
-            VALUES (%s, %s, %s, %s)
-            """,
-            (session_id, user_id, issued_at, expires_at),
+        await execute_orm(
+            self.connection,
+            insert(AuthSession).values(
+                id=session_id, user_id=user_id, issued_at=issued_at, expires_at=expires_at
+            ),
         )
 
     async def is_session_active(self, session_id: UUID, user_id: UUID) -> bool:
-        cursor = await self.connection.execute(
-            """
-            SELECT EXISTS (
-                SELECT 1
-                FROM auth_sessions
-                WHERE id = %s AND user_id = %s
-                  AND revoked_at IS NULL
-                  AND expires_at > clock_timestamp()
-            ) AS active
-            """,
-            (session_id, user_id),
+        row = await orm_one(
+            self.connection,
+            select(
+                exists()
+                .where(
+                    AuthSession.id == session_id,
+                    AuthSession.user_id == user_id,
+                    AuthSession.revoked_at.is_(None),
+                    AuthSession.expires_at > func.clock_timestamp(),
+                )
+                .label("active")
+            ),
         )
-        row = await cursor.fetchone()
         return bool(row and row["active"])
 
     async def revoke_session(self, session_id: UUID, user_id: UUID) -> None:
-        await self.connection.execute(
-            """
-            UPDATE auth_sessions
-            SET revoked_at = CURRENT_TIMESTAMP, revocation_reason = 'logout'
-            WHERE id = %s AND user_id = %s AND revoked_at IS NULL
-            """,
-            (session_id, user_id),
+        await execute_orm(
+            self.connection,
+            update(AuthSession)
+            .where(
+                AuthSession.id == session_id,
+                AuthSession.user_id == user_id,
+                AuthSession.revoked_at.is_(None),
+            )
+            .values(revoked_at=func.current_timestamp(), revocation_reason="logout"),
         )
 
     async def export_account(self, user_id: UUID) -> dict[str, list[dict[str, Any]]]:
         queries = {
-            "owned_projects": """
-                SELECT id, name, key, description, created_at, updated_at
-                FROM projects WHERE owner_id = %s ORDER BY created_at, id
-            """,
-            "memberships": """
-                SELECT project_id, created_at FROM project_members
-                WHERE user_id = %s ORDER BY created_at, project_id
-            """,
-            "prompt_versions": """
-                SELECT id, prompt_id, version_number, parent_version_id, template_body,
-                       variables, model_config, commit_message, created_at
-                FROM prompt_versions WHERE created_by = %s ORDER BY created_at, id
-            """,
-            "runs": """
-                SELECT id, project_id, prompt_id, version_id, status, provider, model,
-                       input_variables, output_text, prompt_tokens, completion_tokens,
-                       latency_ms, cost, error_code, created_at
-                FROM runs WHERE user_id = %s ORDER BY created_at, id
-            """,
-            "deployments": """
-                SELECT id, prompt_id, version_id, environment, status, request_note,
-                       review_note, rollback_reason, rollback_of_id, requested_at,
-                       reviewed_at, activated_at
-                FROM deployments WHERE requested_by = %s OR reviewed_by = %s
-                ORDER BY requested_at, id
-            """,
-            "api_tokens": """
-                SELECT id, project_id, name, token_prefix, created_at, expires_at, revoked_at
-                FROM api_tokens WHERE created_by = %s ORDER BY created_at, id
-            """,
+            "owned_projects": select(
+                Project.id,
+                Project.name,
+                Project.key,
+                Project.description,
+                Project.created_at,
+                Project.updated_at,
+            )
+            .where(Project.owner_id == user_id)
+            .order_by(Project.created_at, Project.id),
+            "memberships": select(ProjectMember.project_id, ProjectMember.created_at)
+            .where(ProjectMember.user_id == user_id)
+            .order_by(ProjectMember.created_at, ProjectMember.project_id),
+            "prompt_versions": select(
+                VersionContext.id,
+                VersionContext.prompt_id,
+                VersionContext.version_number,
+                VersionContext.parent_version_id,
+                VersionContext.template_body,
+                VersionContext.variables,
+                VersionContext.model_config,
+                VersionContext.commit_message,
+                VersionContext.created_at,
+            )
+            .where(VersionContext.created_by == user_id)
+            .order_by(VersionContext.created_at, VersionContext.id),
+            "runs": select(
+                RunContext.id,
+                RunContext.project_id,
+                RunContext.prompt_id,
+                RunContext.version_id,
+                RunContext.status,
+                RunContext.provider,
+                RunContext.model,
+                RunContext.input_variables,
+                RunContext.output_text,
+                RunContext.prompt_tokens,
+                RunContext.completion_tokens,
+                RunContext.latency_ms,
+                RunContext.cost,
+                RunContext.error_code,
+                RunContext.created_at,
+            )
+            .where(RunContext.user_id == user_id)
+            .order_by(RunContext.created_at, RunContext.id),
+            "deployments": select(
+                DeploymentContext.id,
+                DeploymentContext.prompt_id,
+                DeploymentContext.version_id,
+                DeploymentContext.environment,
+                DeploymentContext.status,
+                DeploymentContext.request_note,
+                DeploymentContext.review_note,
+                DeploymentContext.rollback_reason,
+                DeploymentContext.rollback_of_id,
+                DeploymentContext.requested_at,
+                DeploymentContext.reviewed_at,
+                DeploymentContext.activated_at,
+            )
+            .where(
+                or_(
+                    DeploymentContext.requested_by == user_id,
+                    DeploymentContext.reviewed_by == user_id,
+                )
+            )
+            .order_by(DeploymentContext.requested_at, DeploymentContext.id),
+            "api_tokens": select(
+                ApiToken.id,
+                ApiToken.project_id,
+                ApiToken.name,
+                ApiToken.token_prefix,
+                ApiToken.created_at,
+                ApiToken.expires_at,
+                ApiToken.revoked_at,
+            )
+            .where(ApiToken.created_by == user_id)
+            .order_by(ApiToken.created_at, ApiToken.id),
         }
-        exported: dict[str, list[dict[str, Any]]] = {}
-        for name, query in queries.items():
-            parameters = (user_id, user_id) if name == "deployments" else (user_id,)
-            cursor = await self.connection.execute(query, parameters)
-            exported[name] = [dict(row) for row in await cursor.fetchall()]
-        return exported
+        return {name: await orm_all(self.connection, query) for name, query in queries.items()}
 
     async def close_account(self, *, user_id: UUID, password_hash: str, request_id: str) -> bool:
         cursor = await self.connection.execute(
@@ -200,16 +238,17 @@ class UserRepository:
         token_hash: str,
         expires_at: datetime,
     ) -> None:
-        await self.connection.execute(
-            "DELETE FROM password_reset_tokens WHERE user_id = %s AND used_at IS NULL",
-            (user_id,),
+        await execute_orm(
+            self.connection,
+            delete(PasswordResetToken).where(
+                PasswordResetToken.user_id == user_id, PasswordResetToken.used_at.is_(None)
+            ),
         )
-        await self.connection.execute(
-            """
-            INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
-            VALUES (%s, %s, %s)
-            """,
-            (user_id, token_hash, expires_at),
+        await execute_orm(
+            self.connection,
+            insert(PasswordResetToken).values(
+                user_id=user_id, token_hash=token_hash, expires_at=expires_at
+            ),
         )
 
     async def create_email_verification_token(
@@ -219,12 +258,11 @@ class UserRepository:
         token_hash: str,
         expires_at: datetime,
     ) -> None:
-        await self.connection.execute(
-            """
-            INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
-            VALUES (%s, %s, %s)
-            """,
-            (user_id, token_hash, expires_at),
+        await execute_orm(
+            self.connection,
+            insert(EmailVerificationToken).values(
+                user_id=user_id, token_hash=token_hash, expires_at=expires_at
+            ),
         )
 
     async def confirm_email_verification(self, token_hash: str) -> bool:
@@ -243,71 +281,60 @@ class UserRepository:
         expires_at: datetime,
         cooldown_seconds: int,
     ) -> int | None:
-        locked = await self.connection.execute(
-            "SELECT id FROM users WHERE id = %s FOR UPDATE",
-            (user_id,),
+        locked = await orm_one(
+            self.connection, select(User.id).where(User.id == user_id).with_for_update()
         )
-        if await locked.fetchone() is None:
+        if locked is None:
             raise RuntimeError("verification user disappeared during replacement")
-
-        latest = await self.connection.execute(
-            """
-            SELECT created_at
-            FROM email_verification_tokens
-            WHERE user_id = %s
-            ORDER BY created_at DESC, id DESC
-            LIMIT 1
-            """,
-            (user_id,),
+        latest_row = await orm_one(
+            self.connection,
+            select(EmailVerificationToken.created_at)
+            .where(EmailVerificationToken.user_id == user_id)
+            .order_by(EmailVerificationToken.created_at.desc(), EmailVerificationToken.id.desc())
+            .limit(1),
         )
-        latest_row = await latest.fetchone()
-        if latest_row is not None:
-            created_at = cast(datetime, latest_row["created_at"])
+        if latest_row:
             remaining = (
-                created_at + timedelta(seconds=cooldown_seconds) - datetime.now(UTC)
+                cast(datetime, latest_row["created_at"])
+                + timedelta(seconds=cooldown_seconds)
+                - datetime.now(UTC)
             ).total_seconds()
             if remaining > 0:
                 return max(1, ceil(remaining))
-
-        await self.connection.execute(
-            """
-            UPDATE email_verification_tokens
-            SET used_at = clock_timestamp()
-            WHERE user_id = %s AND used_at IS NULL
-            """,
-            (user_id,),
+        await execute_orm(
+            self.connection,
+            update(EmailVerificationToken)
+            .where(
+                EmailVerificationToken.user_id == user_id, EmailVerificationToken.used_at.is_(None)
+            )
+            .values(used_at=func.clock_timestamp()),
         )
-        await self.connection.execute(
-            """
-            INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
-            VALUES (%s, %s, %s)
-            """,
-            (user_id, token_hash, expires_at),
+        await self.create_email_verification_token(
+            user_id=user_id, token_hash=token_hash, expires_at=expires_at
         )
         return None
 
     async def lock_password_reset_user(self, token_hash: str) -> UserRecord | None:
-        cursor = await self.connection.execute(
-            """
-            SELECT u.id, u.email, u.display_name, u.password_hash, u.role,
-                   u.is_active, u.email_verified_at, u.created_at
-            FROM users u
-            JOIN password_reset_tokens t ON t.user_id = u.id
-            WHERE t.token_hash = %s AND t.used_at IS NULL
-              AND t.expires_at > clock_timestamp() AND u.is_active
-            FOR UPDATE OF u
-            """,
-            (token_hash,),
+        row = await orm_one(
+            self.connection,
+            select(*fields(User))
+            .join(PasswordResetToken, PasswordResetToken.user_id == User.id)
+            .where(
+                PasswordResetToken.token_hash == token_hash,
+                PasswordResetToken.used_at.is_(None),
+                PasswordResetToken.expires_at > func.clock_timestamp(),
+                User.is_active,
+            )
+            .with_for_update(of=User),
         )
-        row = await cursor.fetchone()
-        return _user_from_row(row) if row is not None else None
+        return _user_from_row(row) if row else None
 
     async def password_history(self, user_id: UUID) -> list[str]:
-        cursor = await self.connection.execute(
-            "SELECT password_hash FROM password_history WHERE user_id = %s",
-            (user_id,),
+        rows = await orm_all(
+            self.connection,
+            select(PasswordHistory.password_hash).where(PasswordHistory.user_id == user_id),
         )
-        return [str(row["password_hash"]) for row in await cursor.fetchall()]
+        return [str(row["password_hash"]) for row in rows]
 
     async def consume_password_reset_token(self, *, token_hash: str, password_hash: str) -> bool:
         cursor = await self.connection.execute(
@@ -318,29 +345,23 @@ class UserRepository:
         return bool(row and row["consumed"])
 
     async def is_project_member(self, user_id: UUID, project_id: UUID) -> bool:
-        cursor = await self.connection.execute(
-            """
-            SELECT EXISTS (
-                SELECT 1
-                FROM project_members
-                WHERE project_id = %s AND user_id = %s
-            ) AS allowed
-            """,
-            (project_id, user_id),
+        row = await orm_one(
+            self.connection,
+            select(
+                exists()
+                .where(ProjectMember.user_id == user_id, ProjectMember.project_id == project_id)
+                .label("allowed")
+            ),
         )
-        row = await cursor.fetchone()
         return bool(row and row["allowed"])
 
     async def is_project_owner(self, user_id: UUID, project_id: UUID) -> bool:
-        cursor = await self.connection.execute(
-            """
-            SELECT EXISTS (
-                SELECT 1
-                FROM projects
-                WHERE id = %s AND owner_id = %s
-            ) AS allowed
-            """,
-            (project_id, user_id),
+        row = await orm_one(
+            self.connection,
+            select(
+                exists()
+                .where(Project.owner_id == user_id, Project.id == project_id)
+                .label("allowed")
+            ),
         )
-        row = await cursor.fetchone()
         return bool(row and row["allowed"])

@@ -40,9 +40,7 @@ async def list_api_tokens(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
 ) -> Page[ApiTokenResponse]:
-    return await service.list(
-        current_user, project_id=project_id, page=page, page_size=page_size
-    )
+    return await service.list(current_user, project_id=project_id, page=page, page_size=page_size)
 
 
 @router.post(

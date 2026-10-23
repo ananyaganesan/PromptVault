@@ -37,12 +37,8 @@ class DeploymentService:
         self.runs = runs
         self.request_id = request_id
 
-    async def create(
-        self, payload: DeploymentCreate, actor: UserRecord
-    ) -> DeploymentResponse:
-        if not await self.deployments.lock_version_access(
-            payload.version_id, actor.id, actor.role
-        ):
+    async def create(self, payload: DeploymentCreate, actor: UserRecord) -> DeploymentResponse:
+        if not await self.deployments.lock_version_access(payload.version_id, actor.id, actor.role):
             raise AppError(404, "not_found", "Prompt version was not found")
         await self.deployments.set_audit_context(actor.id, self.request_id)
         try:
@@ -78,25 +74,15 @@ class DeploymentService:
         )
         return Page(items=items, page=page, page_size=page_size, total=total)
 
-    async def detail(
-        self, deployment_id: UUID, actor: UserRecord
-    ) -> DeploymentDetailResponse:
-        deployment = await self.deployments.get_scoped(
-            deployment_id, actor.id, actor.role
-        )
+    async def detail(self, deployment_id: UUID, actor: UserRecord) -> DeploymentDetailResponse:
+        deployment = await self.deployments.get_scoped(deployment_id, actor.id, actor.role)
         if deployment is None:
             raise AppError(404, "not_found", "Deployment was not found")
-        timeline = await self.deployments.timeline(
-            deployment.prompt_id, deployment.environment
-        )
+        timeline = await self.deployments.timeline(deployment.prompt_id, deployment.environment)
         return DeploymentDetailResponse(**deployment.model_dump(), timeline=timeline)
 
-    async def cancel(
-        self, deployment_id: UUID, actor: UserRecord
-    ) -> DeploymentResponse:
-        deployment = await self.deployments.get_scoped(
-            deployment_id, actor.id, actor.role
-        )
+    async def cancel(self, deployment_id: UUID, actor: UserRecord) -> DeploymentResponse:
+        deployment = await self.deployments.get_scoped(deployment_id, actor.id, actor.role)
         if deployment is None:
             raise AppError(404, "not_found", "Deployment was not found")
         if actor.role != "admin" and deployment.requested_by.id != actor.id:

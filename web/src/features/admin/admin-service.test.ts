@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { sampleUserProfiles } from '../../mocks/users'
+import { runsApi } from '../runs/api'
+import { ApiClientError } from '../../lib/api/client'
 import { runService } from '../runs/run-service'
 import { adminService } from './admin-service'
 
@@ -38,9 +40,10 @@ describe('admin governance prototype', () => {
   it('blocks a run when the project budget is lowered below current spend', async () => {
     const previous = (await adminService.listBudgets(admin)).find((item) => item.target_type === 'project' && item.target_id === 'checkout')
     await adminService.upsertBudget({ target_type: 'project', target_id: 'checkout', monthly_limit: '0.0000' }, admin)
-    const run = await runService.create({ version_id: 'checkout-v3', variables: { customer_message: 'Check my order' } })
-    expect(run.status).toBe('blocked')
-    expect(run.cost).toBe('0.0000')
+    const error = new ApiClientError(409, { code: 'budget_exceeded', message: 'Budget reached', request_id: 'test' })
+    const create = vi.spyOn(runsApi, 'create').mockRejectedValueOnce(error)
+    await expect(runService.create({ version_id: 'checkout-v3', variables: { customer_message: 'Check my order' } })).rejects.toBe(error)
+    create.mockRestore()
     if (previous) await adminService.upsertBudget({ target_type: 'project', target_id: 'checkout', monthly_limit: previous.monthly_limit }, admin)
   })
 

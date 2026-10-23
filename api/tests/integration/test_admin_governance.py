@@ -11,7 +11,7 @@ from api.app.config import Settings
 from api.app.main import create_app
 from api.app.security import decrypt_provider_secret
 from fastapi.testclient import TestClient
-from tests.auth_support import create_verified_test_user
+from tests.auth_support import create_verified_test_user, seed_owned_project
 
 SEEDED_ADMIN_ID = UUID("22222222-2222-4222-8222-222222222222")
 
@@ -28,6 +28,8 @@ def admin_client(
         }
     )
     with TestClient(create_app(settings)) as client:
+        from tests.provider_support import seed_gemini_test_credential
+        seed_gemini_test_credential(client.app.state.settings)
         yield client
 
 
@@ -56,13 +58,10 @@ def login_user(client: TestClient, email: object) -> dict[str, str]:
 def create_project_and_run(
     client: TestClient, headers: dict[str, str]
 ) -> tuple[dict[str, object], dict[str, object]]:
-    project_response = client.post(
-        "/api/v1/projects",
-        headers=headers,
-        json={"name": "Governance Workspace", "key": f"govern-{uuid4().hex}"},
+    project_response = seed_owned_project(
+        client, headers, {"name": "Governance Workspace", "key": f"govern-{uuid4().hex}"}
     )
-    assert project_response.status_code == 201
-    project = project_response.json()
+    project = project_response
     prompt_response = client.post(
         f"/api/v1/projects/{project['id']}/prompts",
         headers=headers,
@@ -71,8 +70,8 @@ def create_project_and_run(
             "name": "Governance Prompt",
             "template_body": "Hello {{name}}.",
             "model_config": {
-                "provider": "mock",
-                "model": "deterministic-v1",
+                "provider": "gemini",
+                "model": "gemini-3.5-flash-lite",
                 "temperature": 0,
                 "max_output_tokens": 100,
             },
@@ -203,7 +202,7 @@ def test_admin_users_dashboard_and_organization_runs(
     assert metrics["project_count"] >= 1
     assert metrics["run_count"] >= 1
     assert Decimal(metrics["total_spend"]) >= Decimal(run["cost"])
-    assert any(item["model"] == "deterministic-v1" for item in metrics["spend_by_model"])
+    assert any(item["model"] == "gemini-3.5-flash-lite" for item in metrics["spend_by_model"])
     with psycopg.connect(seeded_database_url) as connection:
         expected = connection.execute(
             """
@@ -212,7 +211,7 @@ def test_admin_users_dashboard_and_organization_runs(
                    count(*) FILTER (WHERE status = 'failed') AS failed,
                    count(*) FILTER (WHERE status = 'blocked') AS blocked,
                    COALESCE(sum(cost) FILTER (WHERE status = 'completed'), 0) AS spend
-            FROM runs
+            FROM run_context
             WHERE created_at >= date_trunc('month', CURRENT_TIMESTAMP)
               AND created_at < date_trunc('month', CURRENT_TIMESTAMP) + INTERVAL '1 month'
             """

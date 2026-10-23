@@ -4,10 +4,12 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from tests.auth_support import create_verified_test_user
+from tests.auth_support import create_verified_test_user, seed_owned_project
 
 
-def register(client: TestClient, label: str) -> tuple[dict[str, object], dict[str, str]]:
+def register(
+    client: TestClient, label: str
+) -> tuple[dict[str, object], dict[str, str]]:
     return create_verified_test_user(client, label)
 
 
@@ -23,13 +25,12 @@ def admin_headers(client: TestClient) -> dict[str, str]:
 def create_project(
     client: TestClient, headers: dict[str, str], *, label: str = "Story"
 ) -> dict[str, object]:
-    response = client.post(
-        "/api/v1/projects",
-        headers=headers,
-        json={"name": f"{label} Project", "key": f"{label.lower()}-{uuid4().hex}"},
+    response = seed_owned_project(
+        client,
+        headers,
+        {"name": f"{label} Project", "key": f"{label.lower()}-{uuid4().hex}"},
     )
-    assert response.status_code == 201, response.text
-    return response.json()
+    return response
 
 
 def create_prompt(
@@ -47,8 +48,8 @@ def create_prompt(
             "name": "Support Reply",
             "template_body": "Hello {{name}}, order {{order_id}} is ready.",
             "model_config": {
-                "provider": "mock",
-                "model": "deterministic-v1",
+                "provider": "gemini",
+                "model": "gemini-3.5-flash-lite",
                 "temperature": 0,
                 "max_output_tokens": 200,
             },
@@ -73,8 +74,8 @@ def add_version(
             "parent_version_id": parent_id,
             "template_body": f"Version {number}: {{{{name}}}} / {{{{order_id}}}}.",
             "model_config": {
-                "provider": "mock",
-                "model": "deterministic-v1",
+                "provider": "gemini",
+                "model": "gemini-3.5-flash-lite",
                 "temperature": 0,
                 "max_output_tokens": 200,
             },

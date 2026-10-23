@@ -16,7 +16,9 @@ def walk_plan(node: dict[str, Any]) -> Iterator[dict[str, Any]]:
 
 
 @pytest.mark.database
-def test_scoped_run_history_uses_an_index_and_prunes_partitions(database_url: str) -> None:
+def test_scoped_run_history_uses_an_index_and_prunes_partitions(
+    database_url: str,
+) -> None:
     summary = seed_representative_dataset(database_url, run_count=2_000)
     repeated = seed_representative_dataset(database_url, run_count=2_000)
     assert summary["run_count"] == repeated["run_count"] == 2_000
@@ -25,7 +27,7 @@ def test_scoped_run_history_uses_an_index_and_prunes_partitions(database_url: st
             """
             EXPLAIN (FORMAT JSON)
             SELECT id, status, cost, created_at
-            FROM runs
+            FROM run_context
             WHERE project_id = %s
               AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)
               AND created_at < date_trunc('month', CURRENT_TIMESTAMP) + INTERVAL '1 month'
@@ -37,8 +39,13 @@ def test_scoped_run_history_uses_an_index_and_prunes_partitions(database_url: st
 
     nodes = list(walk_plan(plan_document[0]["Plan"]))
     assert any("Index" in str(node.get("Node Type")) for node in nodes)
-    relations = {str(node["Relation Name"]) for node in nodes if "Relation Name" in node}
-    assert relations == {summary["partition"]}
+    relations = {
+        str(node["Relation Name"]) for node in nodes if "Relation Name" in node
+    }
+    assert {name for name in relations if name.startswith("runs_")} == {
+        summary["partition"]
+    }
+    assert relations <= {summary["partition"], "prompts", "prompt_versions"}
     assert not any(
         node.get("Node Type") == "Seq Scan"
         and node.get("Relation Name") == summary["partition"]
@@ -48,13 +55,15 @@ def test_scoped_run_history_uses_an_index_and_prunes_partitions(database_url: st
 
 @pytest.mark.database
 @pytest.mark.parametrize("scope", ["user_id", "prompt_id", "version_id"])
-def test_run_scope_queries_have_index_backed_plans(database_url: str, scope: str) -> None:
+def test_run_scope_queries_have_index_backed_plans(
+    database_url: str, scope: str
+) -> None:
     summary = seed_representative_dataset(database_url, run_count=2_000)
     with psycopg.connect(database_url) as connection:
         plan_document = connection.execute(
             f"""
             EXPLAIN (FORMAT JSON)
-            SELECT id, created_at FROM runs
+            SELECT id, created_at FROM run_context
             WHERE {scope} = %s
               AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)
               AND created_at < date_trunc('month', CURRENT_TIMESTAMP) + INTERVAL '1 month'

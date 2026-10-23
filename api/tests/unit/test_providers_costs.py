@@ -18,71 +18,12 @@ from api.app.providers.errors import (
 )
 from api.app.providers.factory import get_provider
 from api.app.providers.gemini import GeminiProvider
-from api.app.providers.mock import MockProvider
 from api.app.services.cost_calculation import calculate_cost
 from api.app.services.playground import (
     InvalidVariablesError,
     PromptRenderLimitError,
     render_template,
 )
-
-
-@pytest.mark.asyncio
-async def test_mock_provider_returns_stable_output_usage_and_latency() -> None:
-    result = await MockProvider().execute(
-        ProviderRequest(
-            prompt="Hello Jobin.",
-            model="deterministic-v1",
-            temperature=0,
-            max_output_tokens=100,
-        )
-    )
-
-    assert result.output_text == "Mock response: Hello Jobin."
-    assert result.prompt_tokens == 3
-    assert result.completion_tokens == 6
-    assert result.latency_ms == 25
-
-
-@pytest.mark.asyncio
-async def test_mock_provider_can_pause_deterministically_for_race_tests() -> None:
-    task = asyncio.create_task(
-        MockProvider().execute(
-            ProviderRequest(
-                prompt="Hello",
-                model="deterministic-delay",
-                temperature=0,
-                max_output_tokens=100,
-            )
-        )
-    )
-    await asyncio.sleep(0.01)
-    assert task.done() is False
-    result = await task
-    assert result.output_text == "Mock response: Hello"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("model", "error_type"),
-    [
-        ("deterministic-error", ProviderExecutionError),
-        ("deterministic-timeout", ProviderTimeoutError),
-    ],
-)
-async def test_mock_provider_has_deterministic_failure_modes(
-    model: str,
-    error_type: type[Exception],
-) -> None:
-    with pytest.raises(error_type):
-        await MockProvider().execute(
-            ProviderRequest(
-                prompt="Hello",
-                model=model,
-                temperature=0,
-                max_output_tokens=100,
-            )
-        )
 
 
 @pytest.mark.asyncio
@@ -119,7 +60,6 @@ def test_provider_results_must_be_bounded_and_nonnegative(result: ProviderResult
 
 
 def test_provider_factory_rejects_unconfigured_provider() -> None:
-    assert isinstance(get_provider("mock", allow_mock=True), MockProvider)
     with pytest.raises(ProviderExecutionError):
         get_provider("gemini")
     with pytest.raises(ProviderExecutionError):

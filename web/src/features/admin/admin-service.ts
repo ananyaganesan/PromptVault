@@ -30,7 +30,7 @@ let providerKeys: ProviderKeyMetadata[] = [{ id: 'provider-key-demo', provider: 
 let modelPrices: ModelPrice[] = [
   { id: 'price-input', provider: 'gemini', model: 'gemini-2.0-flash', token_type: 'input', price_per_million_tokens: '0.100000', effective_from: '2025-08-01T00:00:00Z', effective_to: null },
   { id: 'price-output', provider: 'gemini', model: 'gemini-2.0-flash', token_type: 'output', price_per_million_tokens: '0.400000', effective_from: '2025-08-01T00:00:00Z', effective_to: null },
-  { id: 'price-mock', provider: 'mock', model: 'gpt-4o-mini', token_type: 'combined', price_per_million_tokens: '10.000000', effective_from: '2025-08-01T00:00:00Z', effective_to: null },
+  { id: 'price-mock', provider: 'gemini', model: 'gemini-3.5-flash-lite', token_type: 'combined', price_per_million_tokens: '10.000000', effective_from: '2025-08-01T00:00:00Z', effective_to: null },
 ]
 let refreshedAt: string | null = null
 

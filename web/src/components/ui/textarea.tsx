@@ -1,2 +1,0 @@
-import type { TextareaHTMLAttributes } from 'react'
-export function Textarea({ label, error, id, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string; error?: string }) { const inputId = id || (label ? label.toLowerCase().replace(/[^a-z0-9]+/g, '-') : undefined); return <label className="field" htmlFor={inputId}>{label && <span>{label}</span>}<textarea id={inputId} aria-invalid={Boolean(error)} {...props}/>{error && <small role="alert" className="field-error">{error}</small>}</label> }

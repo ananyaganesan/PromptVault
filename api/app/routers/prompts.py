@@ -18,6 +18,8 @@ from api.app.schemas.prompts import (
 from fastapi import APIRouter, Depends, Query, status
 
 router = APIRouter(prefix="/api/v1", tags=["prompts"])
+
+
 @router.get(
     "/projects/{project_id}/prompts",
     response_model=Page[PromptSummaryResponse],

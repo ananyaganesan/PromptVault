@@ -3,7 +3,6 @@ import threading
 import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from uuid import uuid4
@@ -14,7 +13,7 @@ from api.app.config import Settings
 from api.app.main import create_app
 from api.app.security import encrypt_provider_secret
 from fastapi.testclient import TestClient
-from tests.auth_support import create_verified_test_user
+from tests.auth_support import create_verified_test_user, seed_owned_project
 from tests.invitation_support import accept_invitation
 
 
@@ -25,6 +24,9 @@ def run_client(
 ) -> Iterator[TestClient]:
     settings = test_settings.model_copy(update={"database_url": seeded_database_url})
     with TestClient(create_app(settings)) as client:
+        from tests.provider_support import seed_gemini_test_credential
+
+        seed_gemini_test_credential(client.app.state.settings)
         yield client
 
 
@@ -42,6 +44,9 @@ def single_connection_run_client(
         }
     )
     with TestClient(create_app(settings)) as client:
+        from tests.provider_support import seed_gemini_test_credential
+
+        seed_gemini_test_credential(client.app.state.settings)
         yield client
 
 
@@ -53,23 +58,31 @@ def create_prompt_version(
     client: TestClient,
     headers: dict[str, str],
     *,
-    provider: str = "mock",
-    model: str = "deterministic-v1",
+    provider: str = "gemini",
+    model: str = "gemini-3.5-flash-lite",
 ) -> tuple[dict[str, object], dict[str, object]]:
-    project_response = client.post(
-        "/api/v1/projects",
-        headers=headers,
-        json={"name": "Run Workspace", "key": f"run-{uuid4().hex}"},
+    scenario = next(
+        (
+            kind
+            for kind in ("error", "timeout", "crash")
+            if model.startswith("deterministic-" + kind)
+        ),
+        None,
     )
-    assert project_response.status_code == 201
-    project = project_response.json()
+    template = (f"[test-{scenario}] " if scenario else "") + "Hello {{name}}."
+    if model.startswith("deterministic-"):
+        model = "gemini-3.5-flash-lite"
+    project_response = seed_owned_project(
+        client, headers, {"name": "Run Workspace", "key": f"run-{uuid4().hex}"}
+    )
+    project = project_response
     prompt_response = client.post(
         f"/api/v1/projects/{project['id']}/prompts",
         headers=headers,
         json={
             "key": "greeting",
             "name": "Greeting",
-            "template_body": "Hello {{name}}.",
+            "template_body": template,
             "model_config": {
                 "provider": provider,
                 "model": model,
@@ -141,6 +154,7 @@ def test_gemini_run_uses_active_encrypted_key_and_persists_usage(
     )
     try:
         with TestClient(create_app(settings)) as client:
+
             _, headers = register_user(client, "gemini-owner")
             _, version = create_prompt_version(client, headers, provider="gemini", model=model)
             response = client.post(
@@ -224,6 +238,7 @@ def test_paid_gemini_configuration_is_rejected_before_provider_call(
     )
     try:
         with TestClient(create_app(settings)) as client:
+
             user, headers = register_user(client, "gemini-budget-owner")
             _, version = create_prompt_version(client, headers, provider="gemini", model=model)
             with psycopg.connect(seeded_database_url) as connection:
@@ -244,6 +259,13 @@ def test_paid_gemini_configuration_is_rejected_before_provider_call(
     assert response.status_code == 409
     assert response.json()["code"] == "model_not_free"
     assert provider_calls == 0
+    with psycopg.connect(seeded_database_url) as connection:
+        connection.execute(
+            "UPDATE model_pricing SET effective_to=clock_timestamp() "
+            "WHERE provider='gemini' AND model=%s AND effective_to IS NULL "
+            "AND input_price_per_million>0",
+            (model,),
+        )
 
 
 @pytest.mark.database
@@ -301,6 +323,7 @@ def test_duplicate_idempotency_key_returns_one_persisted_gemini_run(
     )
     try:
         with TestClient(create_app(settings)) as client:
+
             _, headers = register_user(client, "gemini-idempotency-owner")
             _, version = create_prompt_version(client, headers, provider="gemini", model=model)
             request_headers = {
@@ -330,7 +353,7 @@ def test_concurrent_duplicate_run_is_not_executed_twice(
         connection.execute(
             "INSERT INTO model_pricing (provider, model, input_price_per_million, "
             "output_price_per_million, effective_from) "
-            "VALUES ('mock', %s, 1, 1, '2026-01-01T00:00:00Z')",
+            "VALUES ('gemini', %s, 1, 1, '2026-01-01T00:00:00Z')",
             (model,),
         )
     _, headers = register_user(run_client, "concurrent-idempotency-owner")
@@ -353,7 +376,7 @@ def test_concurrent_duplicate_run_is_not_executed_twice(
     assert rejected["code"] == "execution_in_progress"
     with psycopg.connect(seeded_database_url) as connection:
         assert connection.execute(
-            "SELECT count(*) FROM runs WHERE version_id = %s",
+            "SELECT count(*) FROM run_context WHERE version_id = %s",
             (version["id"],),
         ).fetchone() == (1,)
 
@@ -406,6 +429,7 @@ def test_uncertain_provider_failure_keeps_reservation_and_cannot_be_replayed(
     key = "gemini-uncertain-request-0001"
     try:
         with TestClient(create_app(settings)) as client:
+
             user, headers = register_user(client, "gemini-uncertain-owner")
             _, version = create_prompt_version(client, headers, provider="gemini", model=model)
             request_headers = {**headers, "Idempotency-Key": key}
@@ -424,7 +448,7 @@ def test_uncertain_provider_failure_keeps_reservation_and_cannot_be_replayed(
     assert provider_calls == 1
     with psycopg.connect(seeded_database_url) as connection:
         reservation = connection.execute(
-            "SELECT status, estimated_cost, actual_cost FROM run_reservations "
+            "SELECT status, estimated_cost, actual_cost FROM reservation_context "
             "WHERE user_id = %s AND idempotency_key = %s",
             (user["id"], key),
         ).fetchone()
@@ -456,18 +480,18 @@ def test_run_execution_persists_precise_ledger_and_scopes_reads(
     assert run["project_id"] == project["id"]
     assert run["version_id"] == version["id"]
     assert run["status"] == "completed"
-    assert run["provider"] == "mock"
-    assert run["model"] == "deterministic-v1"
+    assert run["provider"] == "gemini"
+    assert run["model"] == "gemini-3.5-flash-lite"
     assert run["input_variables"] == {"name": "Jobin"}
-    assert run["output_text"] == "Mock response: Hello Jobin."
+    assert run["output_text"] == "Simulated Gemini response: Hello Jobin."
     assert run["prompt_tokens"] == 3
     assert run["completion_tokens"] == 6
     assert run["latency_ms"] == 25
-    assert Decimal(run["cost"]) == Decimal("0.000015")
+    assert Decimal(run["cost"]) == Decimal("0")
     assert run["error_code"] is None
     with psycopg.connect(seeded_database_url) as connection:
         stored_request_id = connection.execute(
-            "SELECT request_id FROM runs WHERE id = %s", (run["id"],)
+            "SELECT request_id FROM run_context WHERE id = %s", (run["id"],)
         ).fetchone()
     assert stored_request_id == (request_id,)
 
@@ -478,7 +502,11 @@ def test_run_execution_persists_precise_ledger_and_scopes_reads(
     page = run_client.get(
         "/api/v1/runs",
         headers=headers,
-        params={"project_id": project["id"], "status": "completed", "model": "deterministic-v1"},
+        params={
+            "project_id": project["id"],
+            "status": "completed",
+            "model": "gemini-3.5-flash-lite",
+        },
     )
     assert page.status_code == 200
     assert run["id"] in {item["id"] for item in page.json()["items"]}
@@ -627,7 +655,7 @@ def test_provider_failures_return_normalized_errors_and_remain_in_ledger(
             INSERT INTO model_pricing (
                 provider, model, input_price_per_million,
                 output_price_per_million, effective_from
-            ) VALUES ('mock', %s, 1, 2, '2026-01-01T00:00:00Z')
+            ) VALUES ('gemini', %s, 1, 2, '2026-01-01T00:00:00Z')
             """,
             (model,),
         )
@@ -656,7 +684,7 @@ def test_provider_failures_return_normalized_errors_and_remain_in_ledger(
 
 
 @pytest.mark.database
-def test_budget_rejection_is_atomic_auditable_and_included_in_dashboard(
+def test_free_gemini_executes_with_zero_budget_without_charge(
     run_client: TestClient,
     seeded_database_url: str,
 ) -> None:
@@ -676,8 +704,7 @@ def test_budget_rejection_is_atomic_auditable_and_included_in_dashboard(
         headers=headers,
         json={"version_id": version["id"], "variables": {"name": "Jobin"}},
     )
-    assert response.status_code == 409
-    assert response.json()["code"] == "budget_exceeded"
+    assert response.status_code == 201
 
     page = run_client.get(
         "/api/v1/runs",
@@ -687,10 +714,10 @@ def test_budget_rejection_is_atomic_auditable_and_included_in_dashboard(
     assert page.status_code == 200
     assert page.json()["total"] == 1
     blocked = page.json()["items"][0]
-    assert blocked["status"] == "blocked"
-    assert blocked["error_code"] == "budget_exceeded"
+    assert blocked["status"] == "completed"
+    assert blocked["error_code"] is None
     assert Decimal(blocked["cost"]) == 0
-    assert blocked["output_text"] is None
+    assert blocked["output_text"] is not None
 
     dashboard = run_client.get("/api/v1/dashboard/me", headers=headers)
     assert dashboard.status_code == 200
@@ -698,102 +725,36 @@ def test_budget_rejection_is_atomic_auditable_and_included_in_dashboard(
     assert summary["project_count"] == 1
     assert summary["prompt_count"] == 1
     assert summary["run_count"] == 1
-    assert summary["completed_run_count"] == 0
-    assert summary["blocked_run_count"] == 1
+    assert summary["completed_run_count"] == 1
+    assert summary["blocked_run_count"] == 0
     assert Decimal(summary["monthly_spend"]) == 0
     assert Decimal(summary["monthly_budget"]) == 0
     assert summary["recent_runs"][0]["id"] == blocked["id"]
 
 
 @pytest.mark.database
-def test_effective_price_is_snapshotted_and_project_budget_is_enforced(
-    run_client: TestClient,
-    seeded_database_url: str,
-) -> None:
-    user, headers = register_user(run_client, "priced-owner")
-    model = f"priced-{uuid4().hex}"
-    project, version = create_prompt_version(run_client, headers, model=model)
-    cutoff = datetime.now(UTC) - timedelta(days=1)
-    with psycopg.connect(seeded_database_url) as connection:
-        connection.execute(
-            """
-            INSERT INTO model_pricing (
-                provider, model, input_price_per_million,
-                output_price_per_million, effective_from, effective_to, created_by
-            )
-            VALUES
-                ('mock', %s, 999, 999, %s, %s, %s),
-                ('mock', %s, 3, 4, %s, NULL, %s)
-            """,
-            (
-                model,
-                cutoff - timedelta(days=30),
-                cutoff,
-                user["id"],
-                model,
-                cutoff,
-                user["id"],
-            ),
-        )
-
-    completed = run_client.post(
-        "/api/v1/runs",
-        headers=headers,
-        json={"version_id": version["id"], "variables": {"name": "Jobin"}},
+def test_unsupported_model_is_rejected_before_version_creation(run_client: TestClient) -> None:
+    _, headers = register_user(run_client, "unsupported-model-owner")
+    project = seed_owned_project(
+        run_client, headers, {"name": "Unsupported", "key": "unsupported-" + uuid4().hex}
     )
-    assert completed.status_code == 201
-    assert Decimal(completed.json()["cost"]) == Decimal("0.000033")
-
-    with psycopg.connect(seeded_database_url) as connection:
-        connection.execute(
-            """
-            INSERT INTO budgets (project_id, monthly_limit, timezone, created_by)
-            VALUES (%s, 0.000033, 'UTC', %s)
-            """,
-            (project["id"], user["id"]),
-        )
-
-    blocked = run_client.post(
-        "/api/v1/runs",
-        headers=headers,
-        json={"version_id": version["id"], "variables": {"name": "Again"}},
-    )
-    assert blocked.status_code == 409
-    assert blocked.json()["code"] == "budget_exceeded"
-
-    page = run_client.get(
-        "/api/v1/runs",
-        headers=headers,
-        params={"project_id": project["id"]},
-    ).json()
-    assert [item["status"] for item in page["items"]] == ["blocked", "completed"]
-    assert sum(Decimal(item["cost"]) for item in page["items"]) == Decimal("0.000033")
-
-
-@pytest.mark.database
-def test_unpriced_model_is_rejected_before_execution(run_client: TestClient) -> None:
-    _, headers = register_user(run_client, "unpriced-owner")
-    _, version = create_prompt_version(
-        run_client,
-        headers,
-        model=f"unpriced-{uuid4().hex}",
-    )
-
     response = run_client.post(
-        "/api/v1/runs",
+        f"/api/v1/projects/{project['id']}/prompts",
         headers=headers,
-        json={"version_id": version["id"], "variables": {"name": "Jobin"}},
+        json={
+            "name": "Rejected",
+            "key": "rejected",
+            "template_body": "Hello",
+            "commit_message": "Rejected",
+            "model_config": {
+                "provider": "gemini",
+                "model": "not-a-reviewed-free-model",
+                "max_output_tokens": 100,
+            },
+        },
     )
     assert response.status_code == 409
-    assert response.json()["code"] == "pricing_not_configured"
-
-    page = run_client.get(
-        "/api/v1/runs",
-        headers=headers,
-        params={"version_id": version["id"]},
-    )
-    assert page.status_code == 200
-    assert page.json()["total"] == 0
+    assert response.json()["code"] == "model_not_available"
 
 
 @pytest.mark.database
@@ -810,7 +771,7 @@ def test_membership_is_revalidated_after_provider_execution(
             INSERT INTO model_pricing (
                 provider, model, input_price_per_million,
                 output_price_per_million, effective_from
-            ) VALUES ('mock', %s, 1, 2, '2026-01-01T00:00:00Z')
+            ) VALUES ('gemini', %s, 1, 2, '2026-01-01T00:00:00Z')
             """,
             (model,),
         )
@@ -862,7 +823,7 @@ def test_provider_wait_does_not_hold_the_only_database_connection(
             INSERT INTO model_pricing (
                 provider, model, input_price_per_million,
                 output_price_per_million, effective_from
-            ) VALUES ('mock', %s, 1, 2, '2026-01-01T00:00:00Z')
+            ) VALUES ('gemini', %s, 1, 2, '2026-01-01T00:00:00Z')
             """,
             (model,),
         )

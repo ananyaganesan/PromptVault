@@ -17,10 +17,12 @@ def migration_sql(version: int) -> str:
 def test_complete_migration_chain_is_discoverable() -> None:
     migrations = discover_migrations(MIGRATIONS_DIRECTORY)
 
-    assert [migration.version for migration in migrations] == list(range(1, 25))
+    assert [migration.version for migration in migrations] == list(range(1, 32))
 
 
-@pytest.mark.parametrize("path", sorted(MIGRATIONS_DIRECTORY.glob("*.sql")), ids=lambda p: p.name)
+@pytest.mark.parametrize(
+    "path", sorted(MIGRATIONS_DIRECTORY.glob("*.sql")), ids=lambda p: p.name
+)
 def test_migration_has_valid_postgresql_syntax(path: Path) -> None:
     parse_sql(path.read_text(encoding="utf-8"))
 
@@ -128,7 +130,10 @@ def test_execution_reservations_protect_paid_calls_before_provider_use() -> None
     assert "reserve_run_execution" in reservations
     assert "finalize_run_execution" in reservations
     assert "idempotency_key" in reservations
-    assert "status in ('reserved', 'completed', 'failed', 'uncertain', 'blocked')" in reservations
+    assert (
+        "status in ('reserved', 'completed', 'failed', 'uncertain', 'blocked')"
+        in reservations
+    )
 
 
 def test_auth_sessions_support_revocation_and_password_reset_invalidation() -> None:
@@ -159,7 +164,7 @@ def test_account_closure_is_atomic_and_revokes_credentials() -> None:
 
 
 def test_email_verification_is_hashed_expiring_and_atomic() -> None:
-    verification = migration_sql(24)
+    verification = migration_sql(25)
 
     assert "add column email_verified_at timestamptz" in verification
     assert "update users" in verification
@@ -184,9 +189,9 @@ def test_seed_files_define_deterministic_demo_identities() -> None:
         "004_recent_runs.sql",
     ]
 
-    development = (seeds_directory / "001_development.sql").read_text(
-        encoding="utf-8"
-    ).lower()
+    development = (
+        (seeds_directory / "001_development.sql").read_text(encoding="utf-8").lower()
+    )
     demo = (seeds_directory / "002_demo.sql").read_text(encoding="utf-8").lower()
 
     assert "user@promptvault.dev" in development

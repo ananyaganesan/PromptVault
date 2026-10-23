@@ -4,10 +4,12 @@ from collections.abc import Mapping
 from typing import Any, cast
 from uuid import UUID
 
+from api.app.db.models import DeploymentContext, ProjectMember, Prompt, fields
+from api.app.db.orm import ORMConnection, orm_all, orm_one
 from api.app.repositories.pagination import read_page
 from api.app.schemas.prompts import PromptSummaryResponse
 from api.app.security import UserRole
-from psycopg import AsyncConnection
+from sqlalchemy import exists, insert, literal, or_, select, update
 
 
 def _summary_from_row(row: Mapping[str, Any]) -> PromptSummaryResponse:
@@ -24,7 +26,7 @@ def _summary_from_row(row: Mapping[str, Any]) -> PromptSummaryResponse:
 
 
 class PromptRepository:
-    def __init__(self, connection: AsyncConnection[dict[str, Any]]) -> None:
+    def __init__(self, connection: ORMConnection) -> None:
         self.connection = connection
 
     async def create(
@@ -35,85 +37,52 @@ class PromptRepository:
         name: str,
         description: str | None,
     ) -> UUID:
-        cursor = await self.connection.execute(
-            """
-            INSERT INTO prompts (project_id, key, name, description)
-            VALUES (%s, %s, %s, %s)
-            RETURNING id
-            """,
-            (project_id, key, name, description),
+        row = await orm_one(
+            self.connection,
+            insert(Prompt)
+            .values(project_id=project_id, key=key, name=name, description=description)
+            .returning(Prompt.id),
         )
-        row = await cursor.fetchone()
         if row is None:
             raise RuntimeError("prompt insert returned no row")
         return cast(UUID, row["id"])
 
     async def get_metadata(self, prompt_id: UUID) -> Mapping[str, Any] | None:
-        cursor = await self.connection.execute(
-            """
-            SELECT id, project_id, key, name, description, created_at, updated_at
-            FROM prompts
-            WHERE id = %s
-            """,
-            (prompt_id,),
-        )
-        return await cursor.fetchone()
+        return await orm_one(self.connection, select(*fields(Prompt)).where(Prompt.id == prompt_id))
 
     async def get_metadata_scoped(
         self, prompt_id: UUID, user_id: UUID, role: UserRole
     ) -> Mapping[str, Any] | None:
-        cursor = await self.connection.execute(
-            """
-            SELECT p.id, p.project_id, p.key, p.name, p.description,
-                   p.created_at, p.updated_at
-            FROM prompts p
-            WHERE p.id = %s
-              AND (
-                  %s = 'admin'
-                  OR EXISTS (
-                      SELECT 1
-                      FROM project_members pm
-                      WHERE pm.project_id = p.project_id AND pm.user_id = %s
-                  )
-              )
-            """,
-            (prompt_id, role, user_id),
+        member = exists().where(
+            ProjectMember.project_id == Prompt.project_id, ProjectMember.user_id == user_id
         )
-        return await cursor.fetchone()
+        return await orm_one(
+            self.connection,
+            select(*fields(Prompt)).where(
+                Prompt.id == prompt_id, or_(literal(role == "admin"), member)
+            ),
+        )
 
-    async def lock_member_access(
-        self, prompt_id: UUID, user_id: UUID, role: UserRole
-    ) -> bool:
+    async def lock_member_access(self, prompt_id: UUID, user_id: UUID, role: UserRole) -> bool:
+        statement = select(Prompt.id).where(Prompt.id == prompt_id)
         if role == "admin":
-            cursor = await self.connection.execute(
-                "SELECT id FROM prompts WHERE id = %s FOR KEY SHARE",
-                (prompt_id,),
-            )
+            statement = statement.with_for_update(read=True, key_share=True, of=Prompt)
         else:
-            cursor = await self.connection.execute(
-                """
-                SELECT p.id
-                FROM prompts p
-                JOIN project_members pm
-                  ON pm.project_id = p.project_id AND pm.user_id = %s
-                WHERE p.id = %s
-                FOR KEY SHARE OF p, pm
-                """,
-                (user_id, prompt_id),
+            statement = (
+                statement.join(ProjectMember, ProjectMember.project_id == Prompt.project_id)
+                .where(ProjectMember.user_id == user_id)
+                .with_for_update(read=True, key_share=True, of=(Prompt, ProjectMember))
             )
-        return await cursor.fetchone() is not None
+        return await orm_one(self.connection, statement) is not None
 
     async def get_active_versions(self, prompt_id: UUID) -> dict[str, UUID]:
-        cursor = await self.connection.execute(
-            """
-            SELECT environment::text AS environment, version_id
-            FROM deployments
-            WHERE prompt_id = %s AND status = 'active'
-            ORDER BY environment
-            """,
-            (prompt_id,),
+        rows = await orm_all(
+            self.connection,
+            select(DeploymentContext.environment, DeploymentContext.version_id)
+            .where(DeploymentContext.prompt_id == prompt_id, DeploymentContext.status == "active")
+            .order_by(DeploymentContext.environment),
         )
-        return {row["environment"]: row["version_id"] for row in await cursor.fetchall()}
+        return {row["environment"]: row["version_id"] for row in rows}
 
     async def list_for_project(
         self,
@@ -156,7 +125,7 @@ class PromptRepository:
             parameters=parameters,
             page=page,
             page_size=page_size,
-            order_by=f'{sort_column.removeprefix("p.")} {order}, id {order}',
+            order_by=f"{sort_column.removeprefix('p.')} {order}, id {order}",
         )
         return [_summary_from_row(row) for row in rows], total
 
@@ -169,17 +138,13 @@ class PromptRepository:
         description_set: bool,
         description: str | None,
     ) -> bool:
-        assignments: list[str] = []
-        parameters: list[Any] = []
+        values = {}
         if name_set:
-            assignments.append("name = %s")
-            parameters.append(name)
+            values["name"] = name
         if description_set:
-            assignments.append("description = %s")
-            parameters.append(description)
-        parameters.append(prompt_id)
-        cursor = await self.connection.execute(
-            f"UPDATE prompts SET {', '.join(assignments)} WHERE id = %s",
-            tuple(parameters),
+            values["description"] = description
+        row = await orm_one(
+            self.connection,
+            update(Prompt).where(Prompt.id == prompt_id).values(**values).returning(Prompt.id),
         )
-        return cursor.rowcount == 1
+        return row is not None

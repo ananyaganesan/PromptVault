@@ -7,8 +7,9 @@ from api.app.config import Settings
 from api.app.main import create_app
 from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
-from tests.auth_support import create_verified_test_user
+from tests.auth_support import create_verified_test_user, seed_owned_project
 from tests.invitation_support import accept_invitation
+from tests.support import admin_headers
 
 
 @pytest.fixture(scope="module")
@@ -19,6 +20,8 @@ def domain_client(
     settings = test_settings.model_copy(update={"database_url": seeded_database_url})
     app = create_app(settings)
     with TestClient(app) as client:
+        from tests.provider_support import seed_gemini_test_credential
+        seed_gemini_test_credential(client.app.state.settings)
         yield client
 
 
@@ -28,13 +31,10 @@ def register_user(client: TestClient, label: str) -> tuple[dict[str, object], di
 
 def create_project(client: TestClient, headers: dict[str, str]) -> dict[str, object]:
     key = f"project-{uuid4().hex}"
-    response = client.post(
-        "/api/v1/projects",
-        headers=headers,
-        json={"name": "Support Workspace", "key": key, "description": "Initial"},
+    response = seed_owned_project(
+        client, headers, {"name": "Support Workspace", "key": key, "description": "Initial"}
     )
-    assert response.status_code == 201
-    return response.json()
+    return response
 
 
 @pytest.mark.database
@@ -153,8 +153,8 @@ def test_prompt_versions_are_immutable_snapshots_with_diff_and_lineage(
                 "Reply to {{customer_message}} for {{order_id}} and {{customer_message}}."
             ),
             "model_config": {
-                "provider": "mock",
-                "model": "deterministic-v1",
+                "provider": "gemini",
+                "model": "gemini-3.5-flash-lite",
                 "temperature": 0,
                 "max_output_tokens": 500,
             },
@@ -176,8 +176,8 @@ def test_prompt_versions_are_immutable_snapshots_with_diff_and_lineage(
             "parent_version_id": version_one["id"],
             "template_body": "Order {{order_id}} question: {{customer_message}} ({{locale}})",
             "model_config": {
-                "provider": "mock",
-                "model": "deterministic-v2",
+                "provider": "gemini",
+                "model": "gemini-3.5-flash-lite",
                 "temperature": 0.2,
                 "max_output_tokens": 700,
             },
@@ -214,7 +214,6 @@ def test_prompt_versions_are_immutable_snapshots_with_diff_and_lineage(
     assert diff.json()["variables"] == {"added": ["locale"], "removed": []}
     assert diff.json()["model_config"]["changed_fields"] == [
         "max_output_tokens",
-        "model",
         "temperature",
     ]
 
@@ -242,8 +241,8 @@ def test_prompt_versions_are_immutable_snapshots_with_diff_and_lineage(
             "parent_version_id": str(uuid4()),
             "template_body": "Still {{valid}}",
             "model_config": {
-                "provider": "mock",
-                "model": "deterministic-v1",
+                "provider": "gemini",
+                "model": "gemini-3.5-flash-lite",
                 "temperature": 0,
                 "max_output_tokens": 100,
             },
@@ -283,7 +282,7 @@ def test_duplicate_project_and_prompt_keys_return_stable_conflicts(
 
     duplicate_project = domain_client.post(
         "/api/v1/projects",
-        headers=headers,
+        headers=admin_headers(domain_client),
         json={"name": "Duplicate", "key": project["key"]},
     )
     assert duplicate_project.status_code == 409
@@ -294,8 +293,8 @@ def test_duplicate_project_and_prompt_keys_return_stable_conflicts(
         "name": "First prompt",
         "template_body": "Hello {{name}}",
         "model_config": {
-            "provider": "mock",
-            "model": "deterministic-v1",
+            "provider": "gemini",
+            "model": "gemini-3.5-flash-lite",
             "temperature": 0,
             "max_output_tokens": 100,
         },
@@ -362,8 +361,8 @@ def test_project_member_can_create_and_update_prompt_but_anonymous_user_cannot(
             "name": "Member Prompt",
             "template_body": "Hello {{name}}",
             "model_config": {
-                "provider": "mock",
-                "model": "deterministic-v1",
+                "provider": "gemini",
+                "model": "gemini-3.5-flash-lite",
                 "temperature": 0,
                 "max_output_tokens": 100,
             },
@@ -397,8 +396,8 @@ def test_project_member_can_create_and_update_prompt_but_anonymous_user_cannot(
             "parent_version_id": created.json()["latest_version"]["id"],
             "template_body": "Denied {{name}}",
             "model_config": {
-                "provider": "mock",
-                "model": "deterministic-v1",
+                "provider": "gemini",
+                "model": "gemini-3.5-flash-lite",
                 "temperature": 0,
                 "max_output_tokens": 100,
             },
@@ -420,8 +419,8 @@ def test_invalid_template_rolls_back_prompt_and_cross_prompt_diff_is_rejected(
     _, headers = register_user(domain_client, "rollback-owner")
     project = create_project(domain_client, headers)
     model_config = {
-        "provider": "mock",
-        "model": "deterministic-v1",
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
         "temperature": 0,
         "max_output_tokens": 100,
     }
@@ -478,10 +477,19 @@ def test_project_writes_record_actor_and_request_id(
     domain_client: TestClient,
     seeded_database_url: str,
 ) -> None:
-    actor, headers = register_user(domain_client, "audit-owner")
+    from tests.support import admin_headers
+
+    headers = admin_headers(domain_client)
+    actor = domain_client.get("/api/v1/auth/me", headers=headers).json()
     headers["X-Request-ID"] = "project-audit-test"
 
-    project = create_project(domain_client, headers)
+    response = domain_client.post(
+        "/api/v1/projects",
+        headers=headers,
+        json={"name": "Audited admin project", "key": "audit-" + uuid4().hex},
+    )
+    assert response.status_code == 201
+    project = response.json()
 
     with psycopg.connect(seeded_database_url, row_factory=dict_row) as connection:
         event = connection.execute(
@@ -531,8 +539,8 @@ def test_admin_can_use_project_prompt_and_version_routes(
             "name": "Admin Visible",
             "template_body": "Hello {{name}}",
             "model_config": {
-                "provider": "mock",
-                "model": "deterministic-v1",
+                "provider": "gemini",
+                "model": "gemini-3.5-flash-lite",
                 "temperature": 0,
                 "max_output_tokens": 100,
             },
@@ -581,8 +589,8 @@ def test_lineage_detects_a_corrupt_cycle_without_looping(
             "name": "Cycle Test",
             "template_body": "First",
             "model_config": {
-                "provider": "mock",
-                "model": "deterministic-v1",
+                "provider": "gemini",
+                "model": "gemini-3.5-flash-lite",
                 "temperature": 0,
                 "max_output_tokens": 100,
             },
@@ -604,7 +612,7 @@ def test_lineage_detects_a_corrupt_cycle_without_looping(
         try:
             connection.execute("SET session_replication_role = replica")
             connection.execute(
-                "UPDATE prompt_versions SET parent_version_id = %s WHERE id = %s",
+                "INSERT INTO prompt_version_parents(parent_version_id,version_id) VALUES (%s,%s)",
                 (second["id"], first["id"]),
             )
         finally:
@@ -642,8 +650,8 @@ def test_lineage_detects_a_corrupt_cycle_without_looping(
                 "name": "Anonymous",
                 "template_body": "Hello",
                 "model_config": {
-                    "provider": "mock",
-                    "model": "deterministic-v1",
+                    "provider": "gemini",
+                    "model": "gemini-3.5-flash-lite",
                     "temperature": 0,
                     "max_output_tokens": 100,
                 },
@@ -659,8 +667,8 @@ def test_lineage_detects_a_corrupt_cycle_without_looping(
                 "parent_version_id": str(uuid4()),
                 "template_body": "Hello",
                 "model_config": {
-                    "provider": "mock",
-                    "model": "deterministic-v1",
+                    "provider": "gemini",
+                    "model": "gemini-3.5-flash-lite",
                     "temperature": 0,
                     "max_output_tokens": 100,
                 },

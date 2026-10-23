@@ -29,9 +29,7 @@ class RollbackService:
         except NoDataFound as exc:
             message = str(exc)
             if "version_not_found" in message:
-                raise AppError(
-                    404, "not_found", "Prompt or target version was not found"
-                ) from exc
+                raise AppError(404, "not_found", "Prompt or target version was not found") from exc
             if "no_active_deployment" in message:
                 raise AppError(
                     409, "no_active_deployment", "Prompt has no active production deployment"

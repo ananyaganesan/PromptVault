@@ -1,14 +1,12 @@
 """Database pool construction and FastAPI access."""
 
-from collections.abc import Callable
-from contextlib import AbstractAsyncContextManager
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any, Protocol, cast
 
 from api.app.config import Settings
+from api.app.db.orm import ORMConnection
 from fastapi import Request
-from psycopg import AsyncConnection
-from psycopg.rows import dict_row
-from psycopg_pool import AsyncConnectionPool
 
 
 class PoolProtocol(Protocol):
@@ -22,21 +20,51 @@ class PoolProtocol(Protocol):
 PoolFactory = Callable[[Settings], PoolProtocol]
 
 
-async def _configure_restricted_role(connection: AsyncConnection[Any]) -> None:
-    await connection.execute("SET ROLE promptvault_app")
-    await connection.commit()
+class ORMPool:
+    """SQLAlchemy owns pooled connections; each checkout gets its own ORM session."""
+
+    def __init__(self, settings: Settings) -> None:
+        from sqlalchemy.engine import make_url
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        self.settings = settings
+        url = make_url(settings.database_url).set(drivername="postgresql+psycopg")
+        self.engine = create_async_engine(
+            url,
+            pool_size=settings.db_pool_max_size,
+            max_overflow=0,
+            pool_timeout=settings.db_pool_timeout_seconds,
+            pool_pre_ping=True,
+            connect_args={"options": "-c timezone=UTC"},
+        )
+
+    async def open(self, *, wait: bool = True) -> None:
+        if wait:
+            async with self.connection() as connection:
+                await connection.execute("SELECT 1")
+
+    async def close(self) -> None:
+        await self.engine.dispose()
+
+    @asynccontextmanager
+    async def connection(self) -> AsyncIterator[ORMConnection]:
+        async with self.engine.connect() as connection:
+            if self.settings.database_role:
+                await connection.exec_driver_sql("SET ROLE promptvault_app")
+                await connection.commit()
+            wrapper = ORMConnection(connection)
+            try:
+                yield wrapper
+                await wrapper.commit()
+            except BaseException:
+                await wrapper.rollback()
+                raise
+            finally:
+                await wrapper.session.close()
 
 
-def create_pool(settings: Settings) -> AsyncConnectionPool:
-    return AsyncConnectionPool(
-        conninfo=settings.database_url,
-        min_size=settings.db_pool_min_size,
-        max_size=settings.db_pool_max_size,
-        timeout=settings.db_pool_timeout_seconds,
-        open=False,
-        kwargs={"autocommit": False, "row_factory": dict_row},
-        configure=_configure_restricted_role if settings.database_role else None,
-    )
+def create_pool(settings: Settings) -> ORMPool:
+    return ORMPool(settings)
 
 
 def get_pool(request: Request) -> PoolProtocol:

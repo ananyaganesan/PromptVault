@@ -22,14 +22,14 @@ describe('ProviderKeyManagementPage', () => {
     vi.spyOn(adminService, 'listProviderKeys').mockResolvedValue([])
   })
 
-  it('offers credentials only for the fixed three-provider scope', async () => {
+  it('offers credentials only for the Gemini-only scope', async () => {
     const user = userEvent.setup()
     render(<MemoryRouter><ProviderKeyManagementPage /></MemoryRouter>)
 
     await user.click(screen.getByRole('button', { name: 'Add provider key' }))
 
     const options = screen.getByLabelText('Provider').querySelectorAll('option')
-    expect(Array.from(options, (option) => option.value)).toEqual(['gemini', 'openrouter', 'groq'])
+    expect(Array.from(options, (option) => option.value)).toEqual(['gemini'])
   })
 })
 

@@ -6,6 +6,7 @@ from psycopg.rows import dict_row
 
 from api.app.repositories.projects import ProjectRepository
 from api.app.repositories.prompts import PromptRepository
+from tests.orm_support import orm_connection
 
 OWNER_ID = "11111111-1111-4111-8111-111111111111"
 
@@ -53,9 +54,8 @@ async def test_membership_removal_waits_for_inflight_scoped_work(
     scope: str,
 ) -> None:
     member_id, project_id, prompt_id = create_member_prompt(database_url)
-    access_connection = await psycopg.AsyncConnection.connect(
-        database_url, row_factory=dict_row
-    )
+    access_context = orm_connection(database_url)
+    access_connection = await access_context.__aenter__()
     remover_connection = await psycopg.AsyncConnection.connect(
         database_url, row_factory=dict_row
     )
@@ -86,5 +86,5 @@ async def test_membership_removal_waits_for_inflight_scoped_work(
             )
             assert removed.rowcount == 1
     finally:
-        await access_connection.close()
+        await access_context.__aexit__(None, None, None)
         await remover_connection.close()

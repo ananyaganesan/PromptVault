@@ -1,20 +1,15 @@
 # Fixed LLM provider scope
 
-The user has fixed this project's external LLM providers to **Gemini, OpenRouter,
-and Groq** for the entire project and demonstration. Do not add DeepSeek, OpenAI,
-Anthropic, or any other external provider, including fallback execution paths.
-Do not broaden this allowlist through configuration, discovery or future work.
+The user narrowed this project to **Gemini only** on 2026-10-23, including local
+development and demonstrations. Do not add any other provider, fallback adapter,
+or selectable mock provider in any environment. Use verified free-access Gemini
+configuration only; payments and automatic fallback to paid models are outside scope.
 
-Use verified free-access API/model configurations only. Payments, purchased
-credits, subscriptions and automatic fallback to paid models are outside scope.
-
-`mock` is an internal deterministic adapter for local development and automated
-tests, not an external LLM provider. It must remain unavailable in production.
-
-Preserve provider validation in API writes and execution, the fixed UI options,
-and regression tests proving excluded providers and production mock are rejected.
-OpenRouter and Groq adapters are implemented and verified with simulated provider
-HTTP. Do not claim real account execution has passed until it is tested with free-tier keys. Provider/model discovery must stay within the fixed external scope.
+Preserve immutable historical provider metadata, but reject removed providers in
+all new writes, executions and activations. Existing historical versions can be
+read and explicitly saved as new Gemini versions. Automated tests may simulate
+Gemini HTTP or inject test doubles under tests/; those are not application adapters
+and must not be selectable or enabled by runtime configuration.
 
 # Local project scope
 

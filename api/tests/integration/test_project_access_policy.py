@@ -18,6 +18,8 @@ def project_policy_client(
 ) -> Iterator[TestClient]:
     settings = test_settings.model_copy(update={"database_url": seeded_database_url})
     with TestClient(create_app(settings)) as client:
+        from tests.provider_support import seed_gemini_test_credential
+        seed_gemini_test_credential(client.app.state.settings)
         yield client
 
 

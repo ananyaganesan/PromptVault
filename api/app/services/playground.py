@@ -6,9 +6,10 @@ import re
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, cast
+from typing import cast
 from uuid import UUID, uuid4
 
+from api.app.db.orm import ORMConnection
 from api.app.db.pool import PoolProtocol
 from api.app.errors import AppError
 from api.app.providers.base import ProviderRequest, execute_with_timeout
@@ -31,7 +32,6 @@ from api.app.schemas.runs import RunCreate, RunResponse, RunStatus
 from api.app.security import decrypt_provider_secret
 from api.app.services.budget_enforcement import BudgetEnforcementService
 from api.app.services.cost_calculation import calculate_cost
-from psycopg import AsyncConnection
 from psycopg import errors as database_errors
 
 _VARIABLE_PATTERN = re.compile(r"{{\s*([A-Za-z_][A-Za-z0-9_]*)\s*}}")
@@ -86,11 +86,9 @@ class RunExecutionService:
         provider_encryption_key: str,
         gemini_api_base_url: str,
         max_concurrent_runs_per_user: int,
-        allow_mock: bool = False,
     ) -> None:
         self.pool = pool
         self.request_id = request_id
-        self.allow_mock = allow_mock
         self.provider_timeout_seconds = provider_timeout_seconds
         self.provider_encryption_key = provider_encryption_key
         self.gemini_api_base_url = gemini_api_base_url
@@ -132,12 +130,9 @@ class RunExecutionService:
             ) from exc
 
         config = target.model_configuration
-        if config.provider != "mock":
-            model = require_free_model(config)
-            if len(prompt) > model.max_input_characters:
-                raise AppError(
-                    422, "validation_error", "Rendered prompt exceeds this model's limit"
-                )
+        model = require_free_model(config)
+        if len(prompt) > model.max_input_characters:
+            raise AppError(422, "validation_error", "Rendered prompt exceeds this model's limit")
         claim_token = uuid4()
         fingerprint = hashlib.sha256(
             json.dumps(
@@ -212,7 +207,6 @@ class RunExecutionService:
                     config.provider,
                     credential=credential,
                     gemini_base_url=self.gemini_api_base_url,
-                    allow_mock=self.allow_mock,
                 ),
                 ProviderRequest(
                     prompt=prompt,
@@ -228,8 +222,8 @@ class RunExecutionService:
             )
             await self._finalize(
                 reservation.id,
-                status="uncertain" if config.provider != "mock" else "failed",
-                actual_cost=None if config.provider != "mock" else Decimal("0"),
+                status="uncertain",
+                actual_cost=None,
                 run=recorded,
                 error_code="provider_timeout",
             )
@@ -250,8 +244,7 @@ class RunExecutionService:
                 status_code = 503
                 code = "provider_configuration_error"
                 message = (
-                    "Provider credentials were rejected. "
-                    "Ask an administrator to update the key."
+                    "Provider credentials were rejected. Ask an administrator to update the key."
                 )
             recorded = await self._record_failure(
                 actor, target, payload.variables, code, executed_at
@@ -270,8 +263,8 @@ class RunExecutionService:
             )
             await self._finalize(
                 reservation.id,
-                status="uncertain" if config.provider != "mock" else "failed",
-                actual_cost=None if config.provider != "mock" else Decimal("0"),
+                status="uncertain",
+                actual_cost=None,
                 run=recorded,
                 error_code="provider_error",
             )
@@ -282,8 +275,8 @@ class RunExecutionService:
             )
             await self._finalize(
                 reservation.id,
-                status="uncertain" if config.provider != "mock" else "failed",
-                actual_cost=None if config.provider != "mock" else Decimal("0"),
+                status="uncertain",
+                actual_cost=None,
                 run=recorded,
                 error_code="provider_error",
             )
@@ -354,7 +347,7 @@ class RunExecutionService:
         created_at: datetime,
     ) -> ExecutionReservation:
         async with self.pool.connection() as raw_connection:
-            connection = cast(AsyncConnection[dict[str, Any]], raw_connection)
+            connection = cast(ORMConnection, raw_connection)
             async with connection.transaction():
                 runs = RunRepository(connection)
                 if not await runs.lock_execution_access(
@@ -382,7 +375,7 @@ class RunExecutionService:
         error_code: str | None,
     ) -> None:
         async with self.pool.connection() as raw_connection:
-            connection = cast(AsyncConnection[dict[str, Any]], raw_connection)
+            connection = cast(ORMConnection, raw_connection)
             async with connection.transaction():
                 await RunRepository(connection).finalize_execution(
                     reservation_id,
@@ -394,7 +387,7 @@ class RunExecutionService:
 
     async def _get_reserved_run(self, run_id: UUID, user_id: UUID) -> RunResponse:
         async with self.pool.connection() as raw_connection:
-            connection = cast(AsyncConnection[dict[str, Any]], raw_connection)
+            connection = cast(ORMConnection, raw_connection)
             run = await RunRepository(connection).get(run_id, user_id, "admin")
             if run is None:
                 raise RuntimeError("reserved run was not found")
@@ -407,7 +400,7 @@ class RunExecutionService:
         executed_at: datetime,
     ) -> tuple[RunTarget, EffectivePrice, str | None]:
         async with self.pool.connection() as raw_connection:
-            connection = cast(AsyncConnection[dict[str, Any]], raw_connection)
+            connection = cast(ORMConnection, raw_connection)
             async with connection.transaction():
                 target = await RunRepository(connection).get_target_scoped(
                     version_id, actor.id, actor.role
@@ -415,21 +408,18 @@ class RunExecutionService:
                 if target is None:
                     raise AppError(404, "not_found", "Prompt version was not found")
                 config = target.model_configuration
-                require_allowed_provider(config.provider, allow_mock=self.allow_mock)
+                require_allowed_provider(config.provider)
                 price = await PricingRepository(connection).get_effective(
                     config.provider,
                     config.model,
                     executed_at,
                 )
-                if config.provider != "mock":
-                    require_free_model(config)
-                    if price is not None and (
-                        price.input_price_per_million != 0 or price.output_price_per_million != 0
-                    ):
-                        raise AppError(
-                            409, "model_not_free", "Paid model configuration is not allowed"
-                        )
-                    price = EffectivePrice(Decimal("0"), Decimal("0"))
+                require_free_model(config)
+                if price is not None and (
+                    price.input_price_per_million != 0 or price.output_price_per_million != 0
+                ):
+                    raise AppError(409, "model_not_free", "Paid model configuration is not allowed")
+                price = EffectivePrice(Decimal("0"), Decimal("0"))
                 if price is None:
                     raise AppError(
                         409,
@@ -437,26 +427,23 @@ class RunExecutionService:
                         "Model pricing is not configured",
                     )
                 credential = None
-                if config.provider != "mock":
-                    encrypted = await ProviderKeyRepository(connection).newest_active_secret(
-                        config.provider
+                encrypted = await ProviderKeyRepository(connection).newest_active_secret(
+                    config.provider
+                )
+                if encrypted is None:
+                    raise AppError(
+                        409,
+                        "provider_not_configured",
+                        "Model provider is not configured",
                     )
-                    if encrypted is None:
-                        raise AppError(
-                            409,
-                            "provider_not_configured",
-                            "Model provider is not configured",
-                        )
-                    try:
-                        credential = decrypt_provider_secret(
-                            encrypted, self.provider_encryption_key
-                        )
-                    except ValueError as exc:
-                        raise AppError(
-                            503,
-                            "provider_configuration_error",
-                            "Model provider is unavailable",
-                        ) from exc
+                try:
+                    credential = decrypt_provider_secret(encrypted, self.provider_encryption_key)
+                except ValueError as exc:
+                    raise AppError(
+                        503,
+                        "provider_configuration_error",
+                        "Model provider is unavailable",
+                    ) from exc
                 return target, price, credential
 
     async def _record(
@@ -475,7 +462,7 @@ class RunExecutionService:
         executed_at: datetime,
     ) -> RunResponse:
         async with self.pool.connection() as raw_connection:
-            connection = cast(AsyncConnection[dict[str, Any]], raw_connection)
+            connection = cast(ORMConnection, raw_connection)
             async with connection.transaction():
                 runs = RunRepository(connection)
                 if not await runs.lock_execution_access(target.version_id, actor.id):

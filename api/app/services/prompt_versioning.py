@@ -57,13 +57,11 @@ class PromptVersioningService:
         versions: VersionRepository,
         projects: ProjectRepository,
         request_id: str,
-        allow_mock: bool = False,
     ) -> None:
         self.prompts = prompts
         self.versions = versions
         self.projects = projects
         self.request_id = request_id
-        self.allow_mock = allow_mock
 
     async def _require_prompt_metadata(
         self, prompt_id: UUID, actor: UserRecord
@@ -87,9 +85,8 @@ class PromptVersioningService:
     async def create_prompt(
         self, project_id: UUID, payload: PromptCreate, actor: UserRecord
     ) -> PromptResponse:
-        require_allowed_provider(payload.model_configuration.provider, allow_mock=self.allow_mock)
-        if payload.model_configuration.provider != "mock":
-            require_free_model(payload.model_configuration)
+        require_allowed_provider(payload.model_configuration.provider)
+        require_free_model(payload.model_configuration)
         if not await self.projects.lock_member_access(project_id, actor.id, actor.role):
             raise AppError(404, "not_found", "Project was not found")
         await self.projects.set_audit_context(actor.id, self.request_id)
@@ -168,9 +165,8 @@ class PromptVersioningService:
         payload: PromptVersionCreate,
         actor: UserRecord,
     ) -> PromptVersionResponse:
-        require_allowed_provider(payload.model_configuration.provider, allow_mock=self.allow_mock)
-        if payload.model_configuration.provider != "mock":
-            require_free_model(payload.model_configuration)
+        require_allowed_provider(payload.model_configuration.provider)
+        require_free_model(payload.model_configuration)
         if not await self.prompts.lock_member_access(prompt_id, actor.id, actor.role):
             raise AppError(404, "not_found", "Prompt was not found")
         await self.projects.set_audit_context(actor.id, self.request_id)

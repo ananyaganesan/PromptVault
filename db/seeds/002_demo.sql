@@ -34,10 +34,8 @@ INSERT INTO prompt_versions (
     id,
     prompt_id,
     version_number,
-    parent_version_id,
     template_body,
-    variables,
-    model_config,
+    provider,model,temperature,max_output_tokens,
     commit_message,
     created_by
 )
@@ -45,10 +43,8 @@ VALUES (
     '55555555-5555-4555-8555-555555555555',
     '44444444-4444-4444-8444-444444444444',
     1,
-    NULL,
     'Reply helpfully to {{customer_message}} about order {{order_id}}.',
-    '["customer_message", "order_id"]'::jsonb,
-    '{"provider":"mock","model":"deterministic-v1","temperature":0,"max_output_tokens":500}'::jsonb,
+    'gemini','gemini-3.5-flash-lite',0,500,
     'Initial demo version',
     '11111111-1111-4111-8111-111111111111'
 )
@@ -65,3 +61,8 @@ VALUES (
 ON CONFLICT (user_id) WHERE user_id IS NOT NULL DO UPDATE
 SET monthly_limit = EXCLUDED.monthly_limit,
     timezone = EXCLUDED.timezone;
+
+INSERT INTO prompt_version_variables(version_id,ordinal,name) VALUES
+('55555555-5555-4555-8555-555555555555',1,'customer_message'),
+('55555555-5555-4555-8555-555555555555',2,'order_id')
+ON CONFLICT DO NOTHING;

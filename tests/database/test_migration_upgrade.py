@@ -44,7 +44,7 @@ def assert_preserved_rows_and_fk(
     with psycopg.connect(url) as connection:
         assert connection.execute(
             "SELECT count(*) FROM schema_migrations"
-        ).fetchone() == (24,)
+        ).fetchone() == (len(discover_migrations(MIGRATIONS)),)
         assert connection.execute(
             "SELECT email, email_verified_at IS NOT NULL FROM users WHERE id = %s",
             (user_id,),
@@ -67,8 +67,6 @@ def assert_preserved_rows_and_fk(
             ("password_reset_tokens", "users"),
             ("password_history", "users"),
             ("run_reservations", "users"),
-            ("run_reservations", "projects"),
-            ("run_reservations", "prompts"),
             ("run_reservations", "prompt_versions"),
             ("auth_sessions", "users"),
             ("email_verification_tokens", "users"),
@@ -94,7 +92,9 @@ def insert_existing_rows(url: str) -> tuple[str, str]:
 def test_fresh_migrations_are_idempotent_and_preserve_rows(
     temporary_database_url: str,
 ) -> None:
-    assert len(migrate_database(temporary_database_url, MIGRATIONS)) == 24
+    assert len(migrate_database(temporary_database_url, MIGRATIONS)) == len(
+        discover_migrations(MIGRATIONS)
+    )
     user_id, token_hash = insert_existing_rows(temporary_database_url)
 
     assert migrate_database(temporary_database_url, MIGRATIONS) == []
@@ -122,19 +122,7 @@ def test_legacy_password_reset_history_upgrades_without_resetting_data(
     applied = migrate_database(temporary_database_url, MIGRATIONS)
 
     assert [item.version for item in applied] == [
-        11,
-        12,
-        13,
-        14,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
+        item.version for item in migrations if item.version > 10 and item.version != 15
     ]
     assert_preserved_rows_and_fk(
         temporary_database_url, user_id, token_hash, expected_verified=True

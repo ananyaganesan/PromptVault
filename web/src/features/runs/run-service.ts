@@ -1,5 +1,5 @@
 import { runsApi, type BackendPromptRun } from './api'
-import { projectStore, promptStore, versionStore } from '../projects/workspace-data'
+import { projectStore, promptStore } from '../projects/workspace-data'
 import type { CreateRunRequest, PersonalDashboard, PromptRun, RunListQuery } from '../../types/runs'
 import type { Page } from '../../types/api'
 import { budgetStore } from '../admin/budget-store'
@@ -7,14 +7,14 @@ import { useDemoData } from '../../lib/runtime'
 import { ApiClientError } from '../../lib/api/client'
 import { refreshLiveData } from '../../lib/live-refresh'
 
-const useDemoRuns = useDemoData && import.meta.env.VITE_USE_MOCK_RUNS !== 'false'
+const useDemoRuns = useDemoData
 const currentMonth = new Date().toISOString().slice(0, 7)
 const daysAgo = (days: number) => new Date(Date.now() - days * 86400000).toISOString()
 const seedRuns: PromptRun[] = [
-  { id: 'demo-run-1', project_id: 'checkout', prompt_id: 'checkout-reply', prompt_key: 'checkout-reply', version_id: 'checkout-v3', version_number: 3, user_id: 'usr_demo_user', status: 'completed', output: 'I can help review your checkout question. Please share the order number so I can check the payment details.', input_variables: { customer_message: 'Can you check my payment?', order_context: 'Order #10482' }, prompt_tokens: 184, completion_tokens: 42, latency_ms: 1240, cost: '0.0080', model: 'gpt-4o-mini', created_at: daysAgo(0) },
-  { id: 'demo-run-2', project_id: 'checkout', prompt_id: 'checkout-reply', prompt_key: 'checkout-reply', version_id: 'checkout-v2', version_number: 2, user_id: 'usr_demo_user', status: 'completed', output: 'Your order is being reviewed. We will update you shortly.', input_variables: { customer_message: 'What happened to my order?' }, prompt_tokens: 126, completion_tokens: 38, latency_ms: 980, cost: '0.0060', model: 'gpt-4o-mini', created_at: daysAgo(2) },
-  { id: 'demo-run-3', project_id: 'checkout', prompt_id: 'checkout-reply', prompt_key: 'checkout-reply', version_id: 'checkout-v3', version_number: 3, user_id: 'usr_demo_user', status: 'failed', output: null, input_variables: { customer_message: 'Please check my order' }, prompt_tokens: null, completion_tokens: null, latency_ms: null, cost: '0.0000', model: 'gpt-4o-mini', created_at: daysAgo(3), error_message: 'The model provider was unavailable. Try again.' },
-  { id: 'demo-run-4', project_id: 'checkout', prompt_id: 'checkout-reply', prompt_key: 'checkout-reply', version_id: 'checkout-v3', version_number: 3, user_id: 'usr_demo_user', status: 'blocked', output: null, input_variables: { customer_message: 'Please check my order' }, prompt_tokens: null, completion_tokens: null, latency_ms: null, cost: '0.0000', model: 'gpt-4o-mini', created_at: daysAgo(4), error_message: 'The monthly budget has been reached. No provider call was made.' },
+  { id: 'demo-run-1', project_id: 'checkout', prompt_id: 'checkout-reply', prompt_key: 'checkout-reply', version_id: 'checkout-v3', version_number: 3, user_id: 'usr_demo_user', status: 'completed', output: 'I can help review your checkout question. Please share the order number so I can check the payment details.', input_variables: { customer_message: 'Can you check my payment?', order_context: 'Order #10482' }, prompt_tokens: 184, completion_tokens: 42, latency_ms: 1240, cost: '0.0080', model: 'gemini-3.5-flash-lite', created_at: daysAgo(0) },
+  { id: 'demo-run-2', project_id: 'checkout', prompt_id: 'checkout-reply', prompt_key: 'checkout-reply', version_id: 'checkout-v2', version_number: 2, user_id: 'usr_demo_user', status: 'completed', output: 'Your order is being reviewed. We will update you shortly.', input_variables: { customer_message: 'What happened to my order?' }, prompt_tokens: 126, completion_tokens: 38, latency_ms: 980, cost: '0.0060', model: 'gemini-3.5-flash-lite', created_at: daysAgo(2) },
+  { id: 'demo-run-3', project_id: 'checkout', prompt_id: 'checkout-reply', prompt_key: 'checkout-reply', version_id: 'checkout-v3', version_number: 3, user_id: 'usr_demo_user', status: 'failed', output: null, input_variables: { customer_message: 'Please check my order' }, prompt_tokens: null, completion_tokens: null, latency_ms: null, cost: '0.0000', model: 'gemini-3.5-flash-lite', created_at: daysAgo(3), error_message: 'The model provider was unavailable. Try again.' },
+  { id: 'demo-run-4', project_id: 'checkout', prompt_id: 'checkout-reply', prompt_key: 'checkout-reply', version_id: 'checkout-v3', version_number: 3, user_id: 'usr_demo_user', status: 'blocked', output: null, input_variables: { customer_message: 'Please check my order' }, prompt_tokens: null, completion_tokens: null, latency_ms: null, cost: '0.0000', model: 'gemini-3.5-flash-lite', created_at: daysAgo(4), error_message: 'The monthly budget has been reached. No provider call was made.' },
 ]
 
 let demoRuns = useDemoRuns ? seedRuns : []
@@ -29,7 +29,6 @@ export const runStore = {
 
 function totalSpend(userId: string) { return demoRuns.filter((run) => run.user_id === userId && run.status === 'completed' && run.created_at.startsWith(currentMonth)).reduce((total, run) => total + Number(run.cost), 0) }
 function money(amount: number) { return amount.toFixed(4) }
-function spendFor(target: 'user' | 'project', id: string) { return demoRuns.filter((run) => run.status === 'completed' && run.created_at.startsWith(currentMonth) && (target === 'user' ? run.user_id : run.project_id) === id).reduce((total, run) => total + Number(run.cost), 0) }
 
 export function adaptRun(run: BackendPromptRun): PromptRun {
   return {
@@ -54,47 +53,25 @@ export function adaptRun(run: BackendPromptRun): PromptRun {
 }
 
 export const runService = {
-  async create(request: CreateRunRequest, scenario: 'normal' | 'failed' | 'blocked' = 'normal', userId = 'usr_demo_user'): Promise<PromptRun> {
-    if (!useDemoRuns) {
-      try {
-        const run = adaptRun(await runsApi.create(request))
-        demoRuns = [run, ...demoRuns]
-        notify()
-        return run
-      } catch (cause) {
-        // These application errors are emitted only after ledger recording succeeds.
-        // Other failures (including connection loss) do not confirm a recorded run.
-        if (cause instanceof ApiClientError && (
-          (cause.status === 502 && cause.code === 'provider_error') ||
-          (cause.status === 504 && cause.code === 'provider_timeout') ||
-          (cause.status === 409 && cause.code === 'budget_exceeded') ||
-          (cause.status === 429 && ['concurrency_limit', 'provider_quota_exceeded'].includes(cause.code)) ||
-          (cause.status === 503 && cause.code === 'provider_configuration_error') ||
-          ([409, 503].includes(cause.status) && cause.code === 'execution_outcome_unknown')
-        )) notify()
-        throw cause
-      }
+  async create(request: CreateRunRequest): Promise<PromptRun> {
+    try {
+      const run = adaptRun(await runsApi.create(request))
+      demoRuns = [run, ...demoRuns]
+      notify()
+      return run
+    } catch (cause) {
+      // These application errors are emitted only after ledger recording succeeds.
+      // Other failures (including connection loss) do not confirm a recorded run.
+      if (cause instanceof ApiClientError && (
+        (cause.status === 502 && cause.code === 'provider_error') ||
+        (cause.status === 504 && cause.code === 'provider_timeout') ||
+        (cause.status === 409 && cause.code === 'budget_exceeded') ||
+        (cause.status === 429 && ['concurrency_limit', 'provider_quota_exceeded'].includes(cause.code)) ||
+        (cause.status === 503 && cause.code === 'provider_configuration_error') ||
+        ([409, 503].includes(cause.status) && cause.code === 'execution_outcome_unknown')
+      )) notify()
+      throw cause
     }
-    const version = Object.values(versionStore).flat().find((item) => item.id === request.version_id)
-    if (!version) throw new Error('Select a valid prompt version.')
-    const prompt = promptStore.find((item) => item.id === version.prompt_id)
-    if (!prompt) throw new Error('Prompt not found.')
-    const missing = version.variables.find((variable) => variable.required && !request.variables[variable.name]?.trim())
-    if (missing) throw new Error(`${missing.name} is required.`)
-    const estimatedCost = Math.max(0.003, version.template.length / 30000 + Object.values(request.variables).join('').length / 50000)
-    const userLimit = budgetStore.getLimit('user', userId)
-    const projectLimit = budgetStore.getLimit('project', prompt.project_id)
-    const overBudget = (userLimit !== null && spendFor('user', userId) + estimatedCost > Number(userLimit)) || (projectLimit !== null && spendFor('project', prompt.project_id) + estimatedCost > Number(projectLimit))
-    const status = scenario === 'blocked' || overBudget ? 'blocked' : scenario === 'failed' ? 'failed' : 'completed'
-    const rendered = version.template.replace(/{{\s*([a-zA-Z_][\w-]*)\s*}}/g, (_, name: string) => request.variables[name] || version.variables.find((variable) => variable.name === name)?.default_value || '')
-    const run: PromptRun = {
-      id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, project_id: prompt.project_id, prompt_id: prompt.id, prompt_key: prompt.key, version_id: version.id, version_number: version.version_number, user_id: userId, status,
-      output: status === 'completed' ? `I can help with that. Based on the details you provided, here is a clear response:\n\n${rendered.slice(0, 500)}` : null,
-      input_variables: { ...request.variables }, prompt_tokens: status === 'completed' ? Math.max(1, Math.ceil(rendered.length / 4)) : null, completion_tokens: status === 'completed' ? 42 : null, latency_ms: status === 'completed' ? 940 : null,
-      cost: status === 'completed' ? money(estimatedCost) : '0.0000', model: version.model_config.model, created_at: new Date().toISOString(),
-      error_message: status === 'blocked' ? 'The monthly budget has been reached. No provider call was made.' : status === 'failed' ? 'The model provider was unavailable. Try again.' : null,
-    }
-    demoRuns = [run, ...demoRuns]; notify(); return run
   },
   async list(query: RunListQuery = {}): Promise<Page<PromptRun>> {
     if (!useDemoRuns) {

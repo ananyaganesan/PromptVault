@@ -65,7 +65,7 @@ test('admin governance uses live users, encrypted keys, budgets, audit, runs, an
   const createdProject = await request.post(`${api}/projects`, { headers, data: { name: `Budget fixture ${suffix}`, key: `budget-fixture-${suffix}` } })
   expect(createdProject.status()).toBe(201)
   const project = await createdProject.json()
-  const createdPrompt = await request.post(`${api}/projects/${project.id}/prompts`, { headers, data: { name: 'Budget fixture', key: 'budget-fixture', template_body: 'Budget check {{message}}', model_config: { provider: 'mock', model: 'deterministic-v1', temperature: 0, max_output_tokens: 100 }, commit_message: 'Internal test fixture' } })
+  const createdPrompt = await request.post(`${api}/projects/${project.id}/prompts`, { headers, data: { name: 'Budget fixture', key: 'budget-fixture', template_body: 'Budget check {{message}}', model_config: { provider: 'gemini', model: 'gemini-3.5-flash-lite', temperature: 0, max_output_tokens: 100 }, commit_message: 'Internal test fixture' } })
   expect(createdPrompt.status()).toBe(201)
   await page.goto(`/playground?version=${(await createdPrompt.json()).latest_version.id}`)
   await expect(page.getByRole('button', { name: 'Run prompt' })).toBeVisible()

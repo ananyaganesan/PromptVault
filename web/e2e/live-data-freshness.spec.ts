@@ -6,7 +6,7 @@ import { createVerifiedTestAccount } from './support/auth'
 test.skip(process.env.E2E_LIVE !== '1' || !process.env.E2E_DATABASE_URL, 'Requires a live isolated stack and E2E_DATABASE_URL.')
 test.setTimeout(120_000)
 const api = process.env.E2E_API_BASE_URL ?? 'http://localhost:8000/api/v1'
-const model = { provider: 'mock', model: 'deterministic-v1', temperature: 0, max_output_tokens: 100 }
+const model = { provider: 'gemini', model: 'gemini-3.5-flash-lite', temperature: 0, max_output_tokens: 100 }
 const suffix = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 
 test.beforeAll(() => {
@@ -172,7 +172,7 @@ test('records beyond 100 reconcile across projects, versions, runs, approvals an
   }
   await reconcilePages(request, headers, '/projects', 'SELECT project_id AS id FROM project_members WHERE user_id=%s', [actor.id])
   await reconcilePages(request, headers, `/prompts/${prompt.id}/versions`, 'SELECT id FROM prompt_versions WHERE prompt_id=%s', [prompt.id])
-  await reconcilePages(request, headers, '/runs?status=completed&model=deterministic-v1', "SELECT r.id FROM runs r WHERE r.status='completed' AND r.model='deterministic-v1' AND EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id=r.project_id AND pm.user_id=%s)", [actor.id])
+  await reconcilePages(request, headers, '/runs?status=completed&model=gemini-3.5-flash-lite', "SELECT r.id FROM runs r WHERE r.status='completed' AND r.model='gemini-3.5-flash-lite' AND EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id=r.project_id AND pm.user_id=%s)", [actor.id])
   await reconcilePages(request, headers, '/deployments?status=active&environment=dev', "SELECT d.id FROM deployments d JOIN prompts p ON p.id=d.prompt_id WHERE d.status='active' AND d.environment='dev' AND EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id=p.project_id AND pm.user_id=%s)", [actor.id])
   await page.goto('/projects')
   await refresh(page)

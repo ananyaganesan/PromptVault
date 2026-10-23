@@ -1542,12 +1542,7 @@
             "type": "string"
           },
           "provider": {
-            "enum": [
-              "gemini",
-              "openrouter",
-              "groq",
-              "mock"
-            ],
+            "const": "gemini",
             "title": "Provider",
             "type": "string"
           },
@@ -1570,10 +1565,10 @@
       "ModelConfigurationDiff": {
         "properties": {
           "after": {
-            "$ref": "#/components/schemas/ModelConfiguration"
+            "$ref": "#/components/schemas/SavedModelConfiguration"
           },
           "before": {
-            "$ref": "#/components/schemas/ModelConfiguration"
+            "$ref": "#/components/schemas/SavedModelConfiguration"
           },
           "changed_fields": {
             "items": {
@@ -1644,12 +1639,7 @@
             "title": "Output Price Per Million"
           },
           "provider": {
-            "enum": [
-              "gemini",
-              "openrouter",
-              "groq",
-              "mock"
-            ],
+            "const": "gemini",
             "title": "Provider",
             "type": "string"
           }
@@ -1723,12 +1713,7 @@
             "type": "string"
           },
           "provider": {
-            "enum": [
-              "gemini",
-              "openrouter",
-              "groq",
-              "mock"
-            ],
+            "const": "gemini",
             "title": "Provider",
             "type": "string"
           }
@@ -2919,7 +2904,7 @@
             "type": "string"
           },
           "model_config": {
-            "$ref": "#/components/schemas/ModelConfiguration"
+            "$ref": "#/components/schemas/SavedModelConfiguration"
           },
           "parent_version_id": {
             "anyOf": [
@@ -3010,11 +2995,7 @@
             "type": "string"
           },
           "provider": {
-            "enum": [
-              "gemini",
-              "openrouter",
-              "groq"
-            ],
+            "const": "gemini",
             "title": "Provider",
             "type": "string"
           },
@@ -3145,11 +3126,7 @@
             "type": "array"
           },
           "provider": {
-            "enum": [
-              "gemini",
-              "openrouter",
-              "groq"
-            ],
+            "const": "gemini",
             "title": "Provider",
             "type": "string"
           },
@@ -3407,6 +3384,41 @@
         "title": "RunResponse",
         "type": "object"
       },
+      "SavedModelConfiguration": {
+        "additionalProperties": false,
+        "properties": {
+          "max_output_tokens": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Max Output Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "temperature": {
+            "default": 0,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Temperature",
+            "type": "number"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "max_output_tokens"
+        ],
+        "title": "SavedModelConfiguration",
+        "type": "object"
+      },
       "ServePromptResponse": {
         "properties": {
           "activated_at": {
@@ -3424,7 +3436,7 @@
             "type": "string"
           },
           "model_config": {
-            "$ref": "#/components/schemas/ModelConfiguration"
+            "$ref": "#/components/schemas/SavedModelConfiguration"
           },
           "project_id": {
             "format": "uuid",
@@ -7960,6 +7972,85 @@
       }
     },
     "/api/v1/projects/{project_id}": {
+      "delete": {
+        "operationId": "delete_project_api_v1_projects__project_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Project",
+        "tags": [
+          "projects"
+        ]
+      },
       "get": {
         "operationId": "get_project_api_v1_projects__project_id__get",
         "parameters": [

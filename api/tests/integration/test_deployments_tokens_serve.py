@@ -9,7 +9,7 @@ import pytest
 from api.app.config import Settings
 from api.app.main import create_app
 from fastapi.testclient import TestClient
-from tests.auth_support import create_verified_test_user
+from tests.auth_support import create_verified_test_user, seed_owned_project
 from tests.invitation_support import accept_invitation
 
 
@@ -20,6 +20,8 @@ def deployment_client(
 ) -> Iterator[TestClient]:
     settings = test_settings.model_copy(update={"database_url": seeded_database_url})
     with TestClient(create_app(settings)) as client:
+        from tests.provider_support import seed_gemini_test_credential
+        seed_gemini_test_credential(client.app.state.settings)
         yield client
 
 
@@ -39,13 +41,10 @@ def login_admin(client: TestClient) -> dict[str, str]:
 def create_prompt(
     client: TestClient, headers: dict[str, str]
 ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
-    project_response = client.post(
-        "/api/v1/projects",
-        headers=headers,
-        json={"name": "Deploy Workspace", "key": f"deploy-{uuid4().hex}"},
+    project_response = seed_owned_project(
+        client, headers, {"name": "Deploy Workspace", "key": f"deploy-{uuid4().hex}"}
     )
-    assert project_response.status_code == 201
-    project = project_response.json()
+    project = project_response
     prompt_response = client.post(
         f"/api/v1/projects/{project['id']}/prompts",
         headers=headers,
@@ -54,8 +53,8 @@ def create_prompt(
             "name": "Support Reply",
             "template_body": "Version one for {{name}}.",
             "model_config": {
-                "provider": "mock",
-                "model": "deterministic-v1",
+                "provider": "gemini",
+                "model": "gemini-3.5-flash-lite",
                 "temperature": 0,
                 "max_output_tokens": 100,
             },
@@ -108,9 +107,7 @@ def test_staging_is_immediate_and_production_requires_atomic_admin_review(
     assert pending["status"] == "pending"
     assert pending["project_id"] == project["id"]
 
-    hidden = deployment_client.get(
-        f"/api/v1/deployments/{pending['id']}", headers=outsider_headers
-    )
+    hidden = deployment_client.get(f"/api/v1/deployments/{pending['id']}", headers=outsider_headers)
     assert hidden.status_code == 404
 
     denied = deployment_client.post(
@@ -120,9 +117,7 @@ def test_staging_is_immediate_and_production_requires_atomic_admin_review(
     )
     assert denied.status_code == 403
 
-    queue = deployment_client.get(
-        "/api/v1/admin/deployments/pending", headers=admin_headers
-    )
+    queue = deployment_client.get("/api/v1/admin/deployments/pending", headers=admin_headers)
     assert queue.status_code == 200
     assert pending["id"] in {item["id"] for item in queue.json()["items"]}
 
@@ -290,11 +285,14 @@ def test_runtime_token_is_disclosed_once_scoped_revocable_and_serves_rollback(
         headers=owner_headers,
         json={"version_id": version_one["id"], "environment": "prod"},
     ).json()
-    assert deployment_client.post(
-        f"/api/v1/admin/deployments/{deployed['id']}/approve",
-        headers=admin_headers,
-        json={},
-    ).status_code == 200
+    assert (
+        deployment_client.post(
+            f"/api/v1/admin/deployments/{deployed['id']}/approve",
+            headers=admin_headers,
+            json={},
+        ).status_code
+        == 200
+    )
 
     created = deployment_client.post(
         "/api/v1/api-tokens",
@@ -356,9 +354,7 @@ def test_runtime_token_is_disclosed_once_scoped_revocable_and_serves_rollback(
     assert served.json()["project_id"] == project["id"]
     assert served.json()["version"]["id"] == version_one["id"]
     assert served.headers["cache-control"] == "private, max-age=30"
-    assert "Authorization" in {
-        value.strip() for value in served.headers["vary"].split(",")
-    }
+    assert "Authorization" in {value.strip() for value in served.headers["vary"].split(",")}
     assert served.headers["etag"]
     conditional = deployment_client.get(
         "/serve/v1/prompts/support-reply",
@@ -366,9 +362,7 @@ def test_runtime_token_is_disclosed_once_scoped_revocable_and_serves_rollback(
         params={"env": "prod"},
     )
     assert conditional.status_code == 304
-    assert "Authorization" in {
-        value.strip() for value in conditional.headers["vary"].split(",")
-    }
+    assert "Authorization" in {value.strip() for value in conditional.headers["vary"].split(",")}
     weak_or_multiple = deployment_client.get(
         "/serve/v1/prompts/support-reply",
         headers={
@@ -401,11 +395,14 @@ def test_runtime_token_is_disclosed_once_scoped_revocable_and_serves_rollback(
         headers=owner_headers,
         json={"version_id": version_two["id"], "environment": "prod"},
     ).json()
-    assert deployment_client.post(
-        f"/api/v1/admin/deployments/{second_request['id']}/approve",
-        headers=admin_headers,
-        json={},
-    ).status_code == 200
+    assert (
+        deployment_client.post(
+            f"/api/v1/admin/deployments/{second_request['id']}/approve",
+            headers=admin_headers,
+            json={},
+        ).status_code
+        == 200
+    )
 
     not_earlier = deployment_client.post(
         f"/api/v1/admin/prompts/{prompt['id']}/rollback",
@@ -435,9 +432,7 @@ def test_runtime_token_is_disclosed_once_scoped_revocable_and_serves_rollback(
     assert after.status_code == 200
     assert after.json()["version"]["id"] == version_one["id"]
 
-    revoked = deployment_client.delete(
-        f"/api/v1/api-tokens/{issued['id']}", headers=owner_headers
-    )
+    revoked = deployment_client.delete(f"/api/v1/api-tokens/{issued['id']}", headers=owner_headers)
     assert revoked.status_code == 204
     rejected = deployment_client.get(
         "/serve/v1/prompts/support-reply",
@@ -463,11 +458,14 @@ def test_runtime_token_cannot_cross_project_or_outlive_expiration(
         headers=owner_headers,
         json={"version_id": version["id"], "environment": "prod"},
     ).json()
-    assert deployment_client.post(
-        f"/api/v1/admin/deployments/{pending['id']}/approve",
-        headers=admin_headers,
-        json={},
-    ).status_code == 200
+    assert (
+        deployment_client.post(
+            f"/api/v1/admin/deployments/{pending['id']}/approve",
+            headers=admin_headers,
+            json={},
+        ).status_code
+        == 200
+    )
 
     no_active_rollback = deployment_client.post(
         f"/api/v1/admin/prompts/{prompt_without_active['id']}/rollback",
@@ -498,11 +496,14 @@ def test_runtime_token_cannot_cross_project_or_outlive_expiration(
         headers=owner_headers,
         json={"version_id": version_without_active["id"], "environment": "prod"},
     ).json()
-    assert deployment_client.post(
-        f"/api/v1/admin/deployments/{project_without_active_request['id']}/approve",
-        headers=admin_headers,
-        json={},
-    ).status_code == 200
+    assert (
+        deployment_client.post(
+            f"/api/v1/admin/deployments/{project_without_active_request['id']}/approve",
+            headers=admin_headers,
+            json={},
+        ).status_code
+        == 200
+    )
     other_token = deployment_client.post(
         "/api/v1/api-tokens",
         headers=owner_headers,
@@ -520,9 +521,7 @@ def test_runtime_token_cannot_cross_project_or_outlive_expiration(
     assert first_project.json()["project_id"] == project_without_active["id"]
     assert second_project.json()["project_id"] == project_with_active["id"]
     for response in (first_project, second_project):
-        assert "Authorization" in {
-            value.strip() for value in response.headers["vary"].split(",")
-        }
+        assert "Authorization" in {value.strip() for value in response.headers["vary"].split(",")}
 
     with psycopg.connect(seeded_database_url) as connection:
         connection.execute(
@@ -560,15 +559,11 @@ def test_phase4_auth_validation_missing_and_failed_writes_are_safe(
         response = deployment_client.request(method, path, json={})
         assert response.status_code == 401
         assert response.json()["code"] == "unauthorized"
-    unauthenticated_serve = deployment_client.get(
-        "/serve/v1/prompts/support-reply"
-    )
+    unauthenticated_serve = deployment_client.get("/serve/v1/prompts/support-reply")
     assert unauthenticated_serve.status_code == 401
     assert unauthenticated_serve.json()["code"] == "unauthorized"
 
-    unknown = deployment_client.get(
-        f"/api/v1/deployments/{uuid4()}", headers=owner_headers
-    )
+    unknown = deployment_client.get(f"/api/v1/deployments/{uuid4()}", headers=owner_headers)
     invalid_filter = deployment_client.get(
         "/api/v1/deployments", headers=owner_headers, params={"unknown": "value"}
     )
@@ -664,12 +659,12 @@ def test_rollback_database_failure_reverts_state_and_audit_atomically(
         before = connection.execute(
             """
             SELECT
-                (SELECT id FROM deployments
+                (SELECT id FROM deployment_context
                  WHERE prompt_id = %s AND environment = 'prod' AND status = 'active'),
-                (SELECT count(*) FROM deployments WHERE prompt_id = %s),
+                (SELECT count(*) FROM deployment_context WHERE prompt_id = %s),
                 (SELECT count(*) FROM audit_events
                  WHERE entity_type = 'deployments'
-                   AND entity_id IN (SELECT id FROM deployments WHERE prompt_id = %s))
+                   AND entity_id IN (SELECT id FROM deployment_context WHERE prompt_id = %s))
             """,
             (prompt["id"], prompt["id"], prompt["id"]),
         ).fetchone()
@@ -709,12 +704,12 @@ def test_rollback_database_failure_reverts_state_and_audit_atomically(
             after = connection.execute(
                 """
                 SELECT
-                    (SELECT id FROM deployments
+                    (SELECT id FROM deployment_context
                      WHERE prompt_id = %s AND environment = 'prod' AND status = 'active'),
-                    (SELECT count(*) FROM deployments WHERE prompt_id = %s),
+                    (SELECT count(*) FROM deployment_context WHERE prompt_id = %s),
                     (SELECT count(*) FROM audit_events
                      WHERE entity_type = 'deployments'
-                       AND entity_id IN (SELECT id FROM deployments WHERE prompt_id = %s))
+                       AND entity_id IN (SELECT id FROM deployment_context WHERE prompt_id = %s))
                 """,
                 (prompt["id"], prompt["id"], prompt["id"]),
             ).fetchone()
@@ -722,7 +717,5 @@ def test_rollback_database_failure_reverts_state_and_audit_atomically(
         assert str(after[0]) == active.json()["id"]
     finally:
         with psycopg.connect(seeded_database_url) as connection:
-            connection.execute(
-                "DROP TRIGGER IF EXISTS test_fail_rollback_insert ON deployments"
-            )
+            connection.execute("DROP TRIGGER IF EXISTS test_fail_rollback_insert ON deployments")
             connection.execute("DROP FUNCTION IF EXISTS test_fail_rollback_insert()")

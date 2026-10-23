@@ -1,7 +1,8 @@
 """JWT authentication and active-user resolution."""
 
-from typing import Annotated, Any, cast
+from typing import Annotated, cast
 
+from api.app.db.orm import ORMConnection
 from api.app.db.pool import PoolProtocol, get_pool
 from api.app.db.transactions import DatabaseConnection, get_connection, get_snapshot_connection
 from api.app.errors import AppError
@@ -9,7 +10,6 @@ from api.app.repositories.users import UserRecord, UserRepository
 from api.app.security import ExpiredAccessToken, InvalidAccessToken, decode_access_token
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from psycopg import AsyncConnection
 
 bearer_scheme = HTTPBearer(auto_error=False)
 _BEARER_HEADERS = {"WWW-Authenticate": "Bearer"}
@@ -66,7 +66,7 @@ async def get_detached_current_user(
     pool: Annotated[PoolProtocol, Depends(get_pool)],
 ) -> UserRecord:
     async with pool.connection() as raw_connection:
-        connection = cast(AsyncConnection[dict[str, Any]], raw_connection)
+        connection = cast(ORMConnection, raw_connection)
         async with connection.transaction():
             return await _resolve_current_user(request, credentials, connection)
 

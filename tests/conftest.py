@@ -64,6 +64,8 @@ def api_client(isolated_database_url: str) -> Iterator[TestClient]:
         _env_file=None,
     )
     with TestClient(create_app(settings)) as client:
+        from tests.provider_support import seed_gemini_test_credential
+        seed_gemini_test_credential(client.app.state.settings)
         yield client
 
 

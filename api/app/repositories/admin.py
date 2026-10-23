@@ -6,6 +6,16 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
+from api.app.db.models import (
+    AuthSession,
+    Budget,
+    ModelPrice,
+    ProjectMember,
+    ProviderKey,
+    User,
+    fields,
+)
+from api.app.db.orm import ORMConnection, execute_orm, orm_one, orm_page
 from api.app.repositories.pagination import read_page
 from api.app.schemas.admin import (
     AdminUserResponse,
@@ -14,7 +24,7 @@ from api.app.schemas.admin import (
 )
 from api.app.schemas.budgets import BudgetResponse
 from api.app.schemas.runs import RunResponse, RunStatus
-from psycopg import AsyncConnection
+from sqlalchemy import delete, func, insert, select, update
 
 _RUN_COLUMNS = """
     r.id, r.user_id, r.project_id, r.prompt_id, p.key AS prompt_key,
@@ -46,13 +56,12 @@ def _run(row: Mapping[str, Any]) -> RunResponse:
 
 
 class AdminRepository:
-    def __init__(self, connection: AsyncConnection[dict[str, Any]]) -> None:
+    def __init__(self, connection: ORMConnection) -> None:
         self.connection = connection
 
     async def set_audit_context(self, actor_id: UUID, request_id: str) -> None:
         await self.connection.execute(
-            "SELECT set_config('app.user_id', %s, true), "
-            "set_config('app.request_id', %s, true)",
+            "SELECT set_config('app.user_id', %s, true), set_config('app.request_id', %s, true)",
             (str(actor_id), request_id),
         )
 
@@ -101,19 +110,25 @@ class AdminRepository:
         return [_admin_user(row) for row in await cursor.fetchall()], int(total_row["total"])
 
     async def get_user(self, user_id: UUID) -> AdminUserResponse | None:
-        cursor = await self.connection.execute(
-            """
-            SELECT u.id, u.email, u.display_name, u.role, u.is_active,
-                   count(pm.project_id)::integer AS project_count,
-                   u.created_at, u.updated_at
-            FROM users u
-            LEFT JOIN project_members pm ON pm.user_id = u.id
-            WHERE u.id = %s
-            GROUP BY u.id
-            """,
-            (user_id,),
+        project_count = (
+            select(func.count())
+            .where(ProjectMember.user_id == User.id)
+            .correlate(User)
+            .scalar_subquery()
         )
-        row = await cursor.fetchone()
+        row = await orm_one(
+            self.connection,
+            select(
+                User.id,
+                User.email,
+                User.display_name,
+                User.role,
+                User.is_active,
+                User.created_at,
+                User.updated_at,
+                project_count.label("project_count"),
+            ).where(User.id == user_id),
+        )
         return _admin_user(row) if row else None
 
     async def update_user(
@@ -140,14 +155,11 @@ class AdminRepository:
         if row is None:
             raise RuntimeError("user update function returned no row")
         if role_set or active_set:
-            await self.connection.execute(
-                """
-                UPDATE auth_sessions
-                SET revoked_at = CURRENT_TIMESTAMP,
-                    revocation_reason = 'account_changed'
-                WHERE user_id = %s AND revoked_at IS NULL
-                """,
-                (user_id,),
+            await execute_orm(
+                self.connection,
+                update(AuthSession)
+                .where(AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None))
+                .values(revoked_at=func.current_timestamp(), revocation_reason="account_changed"),
             )
         updated = await self.get_user(row["id"])
         if updated is None:
@@ -164,14 +176,14 @@ class AdminRepository:
                 (SELECT count(*) FROM users WHERE is_active) AS active_user_count,
                 (SELECT count(*) FROM projects) AS project_count,
                 (SELECT count(*) FROM prompts) AS prompt_count,
-                (SELECT count(*) FROM deployments WHERE status = 'pending')
+                (SELECT count(*) FROM deployment_context WHERE status = 'pending')
                     AS pending_approval_count,
                 count(*) AS run_count,
                 count(*) FILTER (WHERE status = 'completed') AS completed_run_count,
                 count(*) FILTER (WHERE status = 'failed') AS failed_run_count,
                 count(*) FILTER (WHERE status = 'blocked') AS blocked_run_count,
                 COALESCE(sum(cost) FILTER (WHERE status = 'completed'), 0) AS total_spend
-            FROM runs
+            FROM run_context
             WHERE created_at >= %s AND created_at < %s
             """,
             (month_start, month_end),
@@ -188,7 +200,7 @@ class AdminRepository:
             """
             SELECT provider, model, count(*)::integer AS run_count,
                    COALESCE(sum(cost), 0) AS cost
-            FROM runs
+            FROM run_context
             WHERE status = 'completed' AND created_at >= %s AND created_at < %s
             GROUP BY provider, model
             ORDER BY cost DESC, provider, model
@@ -205,7 +217,7 @@ class AdminRepository:
             """
             SELECT created_at::date AS date, COALESCE(sum(cost), 0) AS cost,
                    count(*)::integer AS run_count
-            FROM runs
+            FROM run_context
             WHERE status = 'completed' AND created_at >= %s AND created_at < %s
             GROUP BY created_at::date ORDER BY date
             """,
@@ -219,7 +231,7 @@ class AdminRepository:
         cursor = await self.connection.execute(
             """
             SELECT u.id AS user_id, u.display_name, COALESCE(sum(r.cost), 0) AS cost
-            FROM runs r JOIN users u ON u.id = r.user_id
+            FROM run_context r JOIN users u ON u.id = r.user_id
             WHERE r.status = 'completed' AND r.created_at >= %s AND r.created_at < %s
             GROUP BY u.id ORDER BY cost DESC, u.id LIMIT 10
             """,
@@ -257,21 +269,19 @@ class AdminRepository:
                 parameters.append(value)
         if search is not None:
             escaped_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            where.append(
-                "(p.key ILIKE %s ESCAPE E'\\\\' OR r.id::text ILIKE %s ESCAPE E'\\\\')"
-            )
+            where.append("(p.key ILIKE %s ESCAPE E'\\\\' OR r.id::text ILIKE %s ESCAPE E'\\\\')")
             pattern = f"%{escaped_search}%"
             parameters.extend((pattern, pattern))
         where_sql = " AND ".join(where)
         rows, total = await read_page(
             self.connection,
             count_query=f"""SELECT count(*) AS total
-                FROM runs r
+                FROM run_context r
                 JOIN prompts p ON p.id = r.prompt_id
                 WHERE {where_sql}""",
             items_query=f"""
             SELECT {_RUN_COLUMNS}
-            FROM runs r
+            FROM run_context r
             JOIN prompts p ON p.id = r.prompt_id
             JOIN prompt_versions pv ON pv.id = r.version_id
             WHERE {where_sql}
@@ -281,36 +291,26 @@ class AdminRepository:
             parameters=parameters,
             page=page,
             page_size=page_size,
-            order_by='created_at DESC, id DESC',
+            order_by="created_at DESC, id DESC",
         )
         return [_run(row) for row in rows], total
 
     async def list_budgets(
         self, *, user_id: UUID | None, project_id: UUID | None, page: int, page_size: int
     ) -> tuple[list[BudgetResponse], int]:
-        where = ["TRUE"]
-        parameters: list[Any] = []
+        statement = select(*fields(Budget))
         if user_id is not None:
-            where.append("user_id = %s")
-            parameters.append(user_id)
+            statement = statement.where(Budget.user_id == user_id)
         if project_id is not None:
-            where.append("project_id = %s")
-            parameters.append(project_id)
-        where_sql = " AND ".join(where)
-        count_cursor = await self.connection.execute(
-            f"SELECT count(*) AS total FROM budgets WHERE {where_sql}", tuple(parameters)
+            statement = statement.where(Budget.project_id == project_id)
+        rows, total = await orm_page(
+            self.connection,
+            statement.order_by(Budget.updated_at.desc(), Budget.id.desc()),
+            page=page,
+            page_size=page_size,
+            order=[("updated_at", True), ("id", True)],
         )
-        total = await count_cursor.fetchone()
-        cursor = await self.connection.execute(
-            f"""SELECT id, user_id, project_id, monthly_limit, timezone,
-                       created_by, created_at, updated_at
-                FROM budgets WHERE {where_sql}
-                ORDER BY updated_at DESC, id DESC LIMIT %s OFFSET %s""",
-            (*parameters, page_size, (page - 1) * page_size),
-        )
-        if total is None:
-            raise RuntimeError("budget count returned no row")
-        return [_budget(row) for row in await cursor.fetchall()], int(total["total"])
+        return [_budget(row) for row in rows], total
 
     async def create_budget(
         self,
@@ -321,15 +321,18 @@ class AdminRepository:
         timezone: str,
         actor_id: UUID,
     ) -> BudgetResponse:
-        cursor = await self.connection.execute(
-            """INSERT INTO budgets (
-                   user_id, project_id, monthly_limit, timezone, created_by
-               ) VALUES (%s, %s, %s, %s, %s)
-               RETURNING id, user_id, project_id, monthly_limit, timezone,
-                         created_by, created_at, updated_at""",
-            (user_id, project_id, monthly_limit, timezone, actor_id),
+        row = await orm_one(
+            self.connection,
+            insert(Budget)
+            .values(
+                user_id=user_id,
+                project_id=project_id,
+                monthly_limit=monthly_limit,
+                timezone=timezone,
+                created_by=actor_id,
+            )
+            .returning(*fields(Budget)),
         )
-        row = await cursor.fetchone()
         if row is None:
             raise RuntimeError("budget insert returned no row")
         return _budget(row)
@@ -343,64 +346,86 @@ class AdminRepository:
         timezone: str | None,
         timezone_set: bool,
     ) -> BudgetResponse | None:
-        cursor = await self.connection.execute(
-            """UPDATE budgets SET
-                   monthly_limit = CASE WHEN %s THEN %s ELSE monthly_limit END,
-                   timezone = CASE WHEN %s THEN %s ELSE timezone END
-               WHERE id = %s
-               RETURNING id, user_id, project_id, monthly_limit, timezone,
-                         created_by, created_at, updated_at""",
-            (limit_set, monthly_limit, timezone_set, timezone, budget_id),
+        values: dict[str, Any] = {}
+        if limit_set:
+            values["monthly_limit"] = monthly_limit
+        if timezone_set:
+            values["timezone"] = timezone
+        row = await orm_one(
+            self.connection,
+            update(Budget)
+            .where(Budget.id == budget_id)
+            .values(**values)
+            .returning(*fields(Budget)),
         )
-        row = await cursor.fetchone()
         return _budget(row) if row else None
 
     async def delete_budget(self, budget_id: UUID) -> bool:
-        cursor = await self.connection.execute(
-            "DELETE FROM budgets WHERE id = %s RETURNING id", (budget_id,)
+        return (
+            await orm_one(
+                self.connection, delete(Budget).where(Budget.id == budget_id).returning(Budget.id)
+            )
+            is not None
         )
-        return await cursor.fetchone() is not None
 
     async def list_provider_keys(
         self, *, provider: str | None, page: int, page_size: int
     ) -> tuple[list[ProviderKeyResponse], int]:
-        where = "TRUE" if provider is None else "provider = %s"
-        parameters: tuple[Any, ...] = () if provider is None else (provider,)
-        total_cursor = await self.connection.execute(
-            f"SELECT count(*) AS total FROM provider_keys WHERE {where}", parameters
+        statement = select(
+            ProviderKey.id,
+            ProviderKey.provider,
+            ProviderKey.alias,
+            ProviderKey.created_by,
+            ProviderKey.created_at,
+            ProviderKey.deactivated_at,
+        ).where(ProviderKey.provider == "gemini")
+        if provider is not None:
+            statement = statement.where(ProviderKey.provider == provider)
+        rows, total = await orm_page(
+            self.connection,
+            statement.order_by(ProviderKey.created_at.desc(), ProviderKey.id.desc()),
+            page=page,
+            page_size=page_size,
+            order=[("created_at", True), ("id", True)],
         )
-        total = await total_cursor.fetchone()
-        cursor = await self.connection.execute(
-            f"""SELECT id, provider, alias, created_by, created_at, deactivated_at
-                FROM provider_keys WHERE {where}
-                ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s""",
-            (*parameters, page_size, (page - 1) * page_size),
-        )
-        if total is None:
-            raise RuntimeError("provider key count returned no row")
-        return [_provider_key(row) for row in await cursor.fetchall()], int(total["total"])
+        return [_provider_key(row) for row in rows], total
 
     async def create_provider_key(
         self, provider: str, alias: str, encrypted_secret: bytes, actor_id: UUID
     ) -> ProviderKeyResponse:
-        cursor = await self.connection.execute(
-            """INSERT INTO provider_keys (provider, alias, encrypted_secret, created_by)
-               VALUES (%s, %s, %s, %s)
-               RETURNING id, provider, alias, created_by, created_at, deactivated_at""",
-            (provider, alias, encrypted_secret, actor_id),
+        row = await orm_one(
+            self.connection,
+            insert(ProviderKey)
+            .values(
+                provider=provider,
+                alias=alias,
+                encrypted_secret=encrypted_secret,
+                created_by=actor_id,
+            )
+            .returning(
+                ProviderKey.id,
+                ProviderKey.provider,
+                ProviderKey.alias,
+                ProviderKey.created_by,
+                ProviderKey.created_at,
+                ProviderKey.deactivated_at,
+            ),
         )
-        row = await cursor.fetchone()
         if row is None:
             raise RuntimeError("provider key insert returned no row")
         return _provider_key(row)
 
     async def deactivate_provider_key(self, key_id: UUID) -> bool:
-        cursor = await self.connection.execute(
-            """UPDATE provider_keys SET deactivated_at = CURRENT_TIMESTAMP
-               WHERE id = %s AND deactivated_at IS NULL RETURNING id""",
-            (key_id,),
+        return (
+            await orm_one(
+                self.connection,
+                update(ProviderKey)
+                .where(ProviderKey.id == key_id, ProviderKey.deactivated_at.is_(None))
+                .values(deactivated_at=func.current_timestamp())
+                .returning(ProviderKey.id),
+            )
+            is not None
         )
-        return await cursor.fetchone() is not None
 
     async def list_pricing(
         self,
@@ -410,31 +435,19 @@ class AdminRepository:
         page: int,
         page_size: int,
     ) -> tuple[list[ModelPricingResponse], int]:
-        where = ["TRUE"]
-        parameters: list[Any] = []
-        if provider:
-            where.append("provider = %s")
-            parameters.append(provider)
-        if model:
-            where.append("model = %s")
-            parameters.append(model)
-        where_sql = " AND ".join(where)
-        total_cursor = await self.connection.execute(
-            f"SELECT count(*) AS total FROM model_pricing WHERE {where_sql}",
-            tuple(parameters),
+        statement = select(*fields(ModelPrice)).where(ModelPrice.provider == "gemini")
+        if provider is not None:
+            statement = statement.where(ModelPrice.provider == provider)
+        if model is not None:
+            statement = statement.where(ModelPrice.model == model)
+        rows, total = await orm_page(
+            self.connection,
+            statement.order_by(ModelPrice.effective_from.desc(), ModelPrice.id.desc()),
+            page=page,
+            page_size=page_size,
+            order=[("effective_from", True), ("id", True)],
         )
-        total = await total_cursor.fetchone()
-        cursor = await self.connection.execute(
-            f"""SELECT id, provider, model, input_price_per_million,
-                       output_price_per_million, effective_from, effective_to,
-                       created_by, created_at
-                FROM model_pricing WHERE {where_sql}
-                ORDER BY effective_from DESC, id DESC LIMIT %s OFFSET %s""",
-            (*parameters, page_size, (page - 1) * page_size),
-        )
-        if total is None:
-            raise RuntimeError("pricing count returned no row")
-        return [_pricing(row) for row in await cursor.fetchall()], int(total["total"])
+        return [_pricing(row) for row in rows], total
 
     async def create_pricing(
         self,
@@ -447,25 +460,20 @@ class AdminRepository:
         effective_to: datetime | None,
         actor_id: UUID,
     ) -> ModelPricingResponse:
-        cursor = await self.connection.execute(
-            """INSERT INTO model_pricing (
-                   provider, model, input_price_per_million,
-                   output_price_per_million, effective_from, effective_to, created_by
-               ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-               RETURNING id, provider, model, input_price_per_million,
-                         output_price_per_million, effective_from, effective_to,
-                         created_by, created_at""",
-            (
-                provider,
-                model,
-                input_price,
-                output_price,
-                effective_from,
-                effective_to,
-                actor_id,
-            ),
+        row = await orm_one(
+            self.connection,
+            insert(ModelPrice)
+            .values(
+                provider=provider,
+                model=model,
+                input_price_per_million=input_price,
+                output_price_per_million=output_price,
+                effective_from=effective_from,
+                effective_to=effective_to,
+                created_by=actor_id,
+            )
+            .returning(*fields(ModelPrice)),
         )
-        row = await cursor.fetchone()
         if row is None:
             raise RuntimeError("pricing insert returned no row")
         return _pricing(row)
@@ -503,7 +511,7 @@ class AdminRepository:
             """SELECT
                 (SELECT count(*) FROM provider_keys WHERE deactivated_at IS NULL)
                     AS active_provider_key_count,
-                (SELECT count(*) FROM deployments WHERE status = 'pending')
+                (SELECT count(*) FROM deployment_context WHERE status = 'pending')
                     AS pending_deployment_count,
                 (SELECT max(created_at) FROM audit_events
                  WHERE action = 'refresh' AND entity_type = 'materialized_views')
@@ -531,9 +539,7 @@ class AdminRepository:
             raise RuntimeError("view refresh function returned no row")
         return cast(datetime, row["completed_at"])
 
-    async def create_next_partition(
-        self, actor_id: UUID, request_id: str
-    ) -> tuple[str, bool]:
+    async def create_next_partition(self, actor_id: UUID, request_id: str) -> tuple[str, bool]:
         cursor = await self.connection.execute(
             "SELECT * FROM admin_create_next_run_partition(%s, %s)",
             (actor_id, request_id),

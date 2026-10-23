@@ -3,9 +3,10 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
 
-from psycopg import AsyncConnection
+from api.app.db.models import ModelPrice
+from api.app.db.orm import ORMConnection, orm_one
+from sqlalchemy import or_, select
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,7 +16,7 @@ class EffectivePrice:
 
 
 class PricingRepository:
-    def __init__(self, connection: AsyncConnection[dict[str, Any]]) -> None:
+    def __init__(self, connection: ORMConnection) -> None:
         self.connection = connection
 
     async def get_effective(
@@ -24,23 +25,16 @@ class PricingRepository:
         model: str,
         at: datetime,
     ) -> EffectivePrice | None:
-        cursor = await self.connection.execute(
-            """
-            SELECT input_price_per_million, output_price_per_million
-            FROM model_pricing
-            WHERE provider = %s
-              AND model = %s
-              AND effective_from <= %s
-              AND (effective_to IS NULL OR effective_to > %s)
-            ORDER BY effective_from DESC
-            LIMIT 1
-            """,
-            (provider, model, at, at),
+        row = await orm_one(
+            self.connection,
+            select(ModelPrice.input_price_per_million, ModelPrice.output_price_per_million)
+            .where(
+                ModelPrice.provider == provider,
+                ModelPrice.model == model,
+                ModelPrice.effective_from <= at,
+                or_(ModelPrice.effective_to.is_(None), ModelPrice.effective_to > at),
+            )
+            .order_by(ModelPrice.effective_from.desc())
+            .limit(1),
         )
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        return EffectivePrice(
-            input_price_per_million=row["input_price_per_million"],
-            output_price_per_million=row["output_price_per_million"],
-        )
+        return EffectivePrice(**row) if row else None

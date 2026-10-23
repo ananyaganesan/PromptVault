@@ -35,7 +35,7 @@ USER root
 COPY api/requirements-dev.lock /tmp/requirements-dev.lock
 RUN python -m pip install --no-cache-dir -r /tmp/requirements-dev.lock
 
-COPY --chown=promptvault:promptvault pyproject.toml ./pyproject.toml
+COPY --chown=promptvault:promptvault pyproject.toml conftest.py ./
 COPY --chown=promptvault:promptvault api ./api
 COPY --chown=promptvault:promptvault db ./db
 COPY --chown=promptvault:promptvault docs ./docs

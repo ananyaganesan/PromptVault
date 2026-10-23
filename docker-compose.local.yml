@@ -12,5 +12,9 @@ services:
     command: [python, scripts/run-migrations.py]
 
   api:
+    ports: !override ["127.0.0.1:8000:8000"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-promptvault}:${POSTGRES_PASSWORD:-promptvault}@host.docker.internal:5432/${POSTGRES_DB:-promptvault}
+
+  web:
+    ports: !override ["127.0.0.1:5173:8080"]

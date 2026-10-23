@@ -99,9 +99,7 @@ class AuthService:
                 "Email verification link is invalid or expired",
             )
 
-    async def resend_email_verification(
-        self, request: EmailVerificationResendRequest
-    ) -> None:
+    async def resend_email_verification(self, request: EmailVerificationResendRequest) -> None:
         user = await self.repository.get_by_email(str(request.email))
         if user is None or not user.is_active or user.email_verified_at is not None:
             return

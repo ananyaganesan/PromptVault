@@ -1,22 +1,20 @@
 """Provider credential lookup for execution without exposing secret metadata."""
 
-from typing import Any
-
-from psycopg import AsyncConnection
+from api.app.db.models import ProviderKey
+from api.app.db.orm import ORMConnection, orm_one
+from sqlalchemy import select
 
 
 class ProviderKeyRepository:
-    def __init__(self, connection: AsyncConnection[dict[str, Any]]) -> None:
+    def __init__(self, connection: ORMConnection) -> None:
         self.connection = connection
 
     async def newest_active_secret(self, provider: str) -> bytes | None:
-        cursor = await self.connection.execute(
-            """SELECT encrypted_secret
-               FROM provider_keys
-               WHERE provider = %s AND deactivated_at IS NULL
-               ORDER BY created_at DESC, id DESC
-               LIMIT 1""",
-            (provider,),
+        row = await orm_one(
+            self.connection,
+            select(ProviderKey.encrypted_secret)
+            .where(ProviderKey.provider == provider, ProviderKey.deactivated_at.is_(None))
+            .order_by(ProviderKey.created_at.desc(), ProviderKey.id.desc())
+            .limit(1),
         )
-        row = await cursor.fetchone()
-        return bytes(row["encrypted_secret"]) if row is not None else None
+        return bytes(row["encrypted_secret"]) if row else None

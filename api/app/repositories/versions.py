@@ -4,15 +4,18 @@ from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
+from api.app.db.models import ProjectMember, Prompt, User, VersionContext, fields
+from api.app.db.orm import ORMConnection, orm_one
 from api.app.repositories.pagination import read_page
 from api.app.schemas.versions import (
     ModelConfiguration,
     PromptVersionResponse,
+    SavedModelConfiguration,
     VersionAuthorResponse,
 )
 from api.app.security import UserRole
-from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
+from sqlalchemy import exists, literal, or_, select
 
 _VERSION_COLUMNS = """
     pv.id, pv.prompt_id, pv.version_number, pv.parent_version_id,
@@ -29,7 +32,7 @@ def _version_from_row(row: Mapping[str, Any]) -> PromptVersionResponse:
         parent_version_id=row["parent_version_id"],
         template_body=row["template_body"],
         variables=row["variables"],
-        model_config=ModelConfiguration.model_validate(row["model_config"]),
+        model_config=SavedModelConfiguration.model_validate(row["model_config"]),
         commit_message=row["commit_message"],
         created_by=VersionAuthorResponse(
             id=row["creator_id"],
@@ -40,7 +43,7 @@ def _version_from_row(row: Mapping[str, Any]) -> PromptVersionResponse:
 
 
 class VersionRepository:
-    def __init__(self, connection: AsyncConnection[dict[str, Any]]) -> None:
+    def __init__(self, connection: ORMConnection) -> None:
         self.connection = connection
 
     async def create(
@@ -85,16 +88,16 @@ class VersionRepository:
         return version
 
     async def get(self, version_id: UUID) -> PromptVersionResponse | None:
-        cursor = await self.connection.execute(
-            f"""
-            SELECT {_VERSION_COLUMNS}
-            FROM prompt_versions pv
-            JOIN users creator ON creator.id = pv.created_by
-            WHERE pv.id = %s
-            """,
-            (version_id,),
+        row = await orm_one(
+            self.connection,
+            select(
+                *fields(VersionContext),
+                User.id.label("creator_id"),
+                User.display_name.label("creator_display_name"),
+            )
+            .join(User, User.id == VersionContext.created_by)
+            .where(VersionContext.id == version_id),
         )
-        row = await cursor.fetchone()
         return _version_from_row(row) if row else None
 
     async def get_scoped(
@@ -103,40 +106,41 @@ class VersionRepository:
         user_id: UUID,
         role: UserRole,
     ) -> PromptVersionResponse | None:
-        cursor = await self.connection.execute(
-            f"""
-            SELECT {_VERSION_COLUMNS}
-            FROM prompt_versions pv
-            JOIN prompts p ON p.id = pv.prompt_id
-            JOIN users creator ON creator.id = pv.created_by
-            WHERE pv.id = %s
-              AND (
-                  %s = 'admin'
-                  OR EXISTS (
-                      SELECT 1
-                      FROM project_members pm
-                      WHERE pm.project_id = p.project_id AND pm.user_id = %s
-                  )
-              )
-            """,
-            (version_id, role, user_id),
+        row = await orm_one(
+            self.connection,
+            select(
+                *fields(VersionContext),
+                User.id.label("creator_id"),
+                User.display_name.label("creator_display_name"),
+            )
+            .join(User, User.id == VersionContext.created_by)
+            .where(VersionContext.id == version_id)
+            .join(Prompt, Prompt.id == VersionContext.prompt_id)
+            .where(
+                or_(
+                    literal(role == "admin"),
+                    exists().where(
+                        ProjectMember.project_id == Prompt.project_id,
+                        ProjectMember.user_id == user_id,
+                    ),
+                )
+            ),
         )
-        row = await cursor.fetchone()
         return _version_from_row(row) if row else None
 
     async def latest(self, prompt_id: UUID) -> PromptVersionResponse | None:
-        cursor = await self.connection.execute(
-            f"""
-            SELECT {_VERSION_COLUMNS}
-            FROM prompt_versions pv
-            JOIN users creator ON creator.id = pv.created_by
-            WHERE pv.prompt_id = %s
-            ORDER BY pv.version_number DESC
-            LIMIT 1
-            """,
-            (prompt_id,),
+        row = await orm_one(
+            self.connection,
+            select(
+                *fields(VersionContext),
+                User.id.label("creator_id"),
+                User.display_name.label("creator_display_name"),
+            )
+            .join(User, User.id == VersionContext.created_by)
+            .where(VersionContext.prompt_id == prompt_id)
+            .order_by(VersionContext.version_number.desc())
+            .limit(1),
         )
-        row = await cursor.fetchone()
         return _version_from_row(row) if row else None
 
     async def list_for_prompt(
@@ -152,10 +156,10 @@ class VersionRepository:
         order = "ASC" if direction == "asc" else "DESC"
         rows, total = await read_page(
             self.connection,
-            count_query="SELECT count(*) AS total FROM prompt_versions WHERE prompt_id = %s",
+            count_query="SELECT count(*) AS total FROM version_context WHERE prompt_id = %s",
             items_query=f"""
             SELECT {_VERSION_COLUMNS}
-            FROM prompt_versions pv
+            FROM version_context pv
             JOIN users creator ON creator.id = pv.created_by
             WHERE pv.prompt_id = %s
             ORDER BY {sort_column} {order}, pv.id {order}
@@ -164,7 +168,7 @@ class VersionRepository:
             parameters=(prompt_id,),
             page=page,
             page_size=page_size,
-            order_by=f'{sort_column.removeprefix("pv.")} {order}, id {order}',
+            order_by=f"{sort_column.removeprefix('pv.')} {order}, id {order}",
         )
         return [_version_from_row(row) for row in rows], total
 
@@ -173,12 +177,12 @@ class VersionRepository:
             f"""
             WITH RECURSIVE ancestry AS (
                 SELECT pv.*, ARRAY[pv.id] AS path, 0 AS depth
-                FROM prompt_versions pv
+                FROM version_context pv
                 WHERE pv.id = %s
                 UNION ALL
                 SELECT parent.*, ancestry.path || parent.id, ancestry.depth + 1
                 FROM ancestry
-                JOIN prompt_versions parent
+                JOIN version_context parent
                   ON parent.id = ancestry.parent_version_id
                  AND NOT parent.id = ANY(ancestry.path)
             )
@@ -189,7 +193,7 @@ class VersionRepository:
                    ) AS cycle_detected,
                    ancestry.depth
             FROM ancestry
-            JOIN prompt_versions pv ON pv.id = ancestry.id
+            JOIN version_context pv ON pv.id = ancestry.id
             JOIN users creator ON creator.id = pv.created_by
             ORDER BY ancestry.depth
             """,

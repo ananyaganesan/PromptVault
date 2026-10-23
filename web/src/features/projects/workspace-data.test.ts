@@ -124,7 +124,7 @@ describe('workspaceService', () => {
   })
 
   it('does not downgrade latest-version metadata when a create response arrives late', async () => {
-    const newest = { id: 'v3', prompt_id: 'prompt', version_number: 3, parent_version_id: 'v2', template: 'Newest', variables: [], model_config: { provider: 'mock', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Newest', created_by: 'owner', created_by_name: 'Owner', created_at: '2026-10-10T00:00:00Z' }
+    const newest = { id: 'v3', prompt_id: 'prompt', version_number: 3, parent_version_id: 'v2', template: 'Newest', variables: [], model_config: { provider: 'gemini', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Newest', created_by: 'owner', created_by_name: 'Owner', created_at: '2026-10-10T00:00:00Z' }
     versionStore.prompt = [newest]
     promptStore.push({ id: 'prompt', project_id: 'project', key: 'prompt', name: 'Prompt', description: null, latest_version_number: 3, active_environment: 'draft', created_at: newest.created_at, updated_at: newest.created_at })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ ...newest, id: 'v2', version_number: 2, parent_version_id: 'v1', template_body: 'Late response', variables: [], created_by: { id: 'owner', display_name: 'Owner' }, created_at: '2026-10-09T00:00:00Z' })))
@@ -138,7 +138,7 @@ describe('workspaceService', () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(json({ items: [{ id: 'project-1', name: 'Live Project', key: 'live-project', description: null, owner: { id: 'user-1', display_name: 'Owner' }, member_count: 1, prompt_count: 1, created_at: '2026-09-27T00:00:00Z', updated_at: '2026-09-27T00:00:00Z' }], page: 1, page_size: 100, total: 1 }))
       .mockResolvedValueOnce(json({ items: [{ id: 'prompt-1', project_id: 'project-1', key: 'live-prompt', name: 'Live Prompt', description: null, latest_version_number: 1, created_at: '2026-09-27T00:00:00Z', updated_at: '2026-09-27T00:00:00Z' }], page: 1, page_size: 100, total: 1 }))
-      .mockResolvedValueOnce(json({ items: [{ id: 'version-1', prompt_id: 'prompt-1', version_number: 1, parent_version_id: null, template_body: 'Hello {{name}}', variables: ['name'], model_config: { provider: 'mock', model: 'deterministic', temperature: 0, max_output_tokens: 128 }, commit_message: 'Initial', created_by: { id: 'user-1', display_name: 'Owner' }, created_at: '2026-09-27T00:00:00Z' }], page: 1, page_size: 100, total: 1 }))
+      .mockResolvedValueOnce(json({ items: [{ id: 'version-1', prompt_id: 'prompt-1', version_number: 1, parent_version_id: null, template_body: 'Hello {{name}}', variables: ['name'], model_config: { provider: 'gemini', model: 'deterministic', temperature: 0, max_output_tokens: 128 }, commit_message: 'Initial', created_by: { id: 'user-1', display_name: 'Owner' }, created_at: '2026-09-27T00:00:00Z' }], page: 1, page_size: 100, total: 1 }))
     fetcher.mockResolvedValueOnce(json({ items: [], page: 1, page_size: 100, total: 0 }))
     vi.stubGlobal('fetch', fetcher)
 
@@ -170,7 +170,7 @@ describe('workspaceService', () => {
       id: `version-${index}`, prompt_id: 'prompt-0', version_number: index + 1,
       parent_version_id: index ? `version-${index - 1}` : null,
       template_body: `Version ${index}`, variables: [],
-      model_config: { provider: 'mock', model: 'deterministic', temperature: 0, max_output_tokens: 128 },
+      model_config: { provider: 'gemini', model: 'deterministic', temperature: 0, max_output_tokens: 128 },
       commit_message: `Save ${index}`, created_by: owner, created_at: '2026-09-27T00:00:00Z',
     })
     const fetcher = vi.fn().mockImplementation((url: string) => {

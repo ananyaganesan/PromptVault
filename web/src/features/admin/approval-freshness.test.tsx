@@ -15,7 +15,7 @@ function deployment(): BackendDeployment {
   return { id: 'request', project_id: 'project', prompt_id: 'prompt', prompt_key: 'reply', version_id: 'v2', version_number: 2, environment: 'prod', status, request_note: 'Ready', review_note: status === 'pending' ? null : 'Reviewed', rollback_reason: null, rollback_of_id: null, requested_by: { id: 'owner', display_name: 'Owner' }, reviewed_by: null, requested_at: '2026-10-10T00:00:00Z', reviewed_at: null, activated_at: null }
 }
 function detail(): BackendDeploymentReviewDetail {
-  const version = { id: 'v2', prompt_id: 'prompt', version_number: 2, parent_version_id: 'v1', template_body: 'Candidate from combined endpoint', variables: [], model_config: { provider: 'mock', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Saved', created_by: { id: 'owner', display_name: 'Owner' }, created_at: '2026-10-10T00:00:00Z' }
+  const version = { id: 'v2', prompt_id: 'prompt', version_number: 2, parent_version_id: 'v1', template_body: 'Candidate from combined endpoint', variables: [], model_config: { provider: 'gemini', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Saved', created_by: { id: 'owner', display_name: 'Owner' }, created_at: '2026-10-10T00:00:00Z' }
   return { deployment: deployment(), requested_version: version, active_version: { ...version, id: 'v1', version_number: 1, parent_version_id: null, template_body: 'Active from combined endpoint' }, recent_runs: [] }
 }
 function setup(queue = false) {

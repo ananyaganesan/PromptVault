@@ -3,11 +3,11 @@
 from collections.abc import Sequence
 from typing import Any
 
-from psycopg import AsyncConnection
+from api.app.db.orm import ORMConnection
 
 
 async def read_page(
-    connection: AsyncConnection[dict[str, Any]],
+    connection: ORMConnection,
     *,
     count_query: str,
     items_query: str,

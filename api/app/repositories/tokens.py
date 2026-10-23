@@ -6,9 +6,11 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from api.app.db.models import ApiToken, Project, fields
+from api.app.db.orm import ORMConnection, orm_one, orm_page
 from api.app.schemas.tokens import ApiTokenResponse, ServePromptResponse
-from api.app.schemas.versions import ModelConfiguration
-from psycopg import AsyncConnection
+from api.app.schemas.versions import SavedModelConfiguration
+from sqlalchemy import exists, func, insert, literal, or_, select, update
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,23 +33,26 @@ def _token_from_row(row: Mapping[str, Any]) -> ApiTokenResponse:
 
 
 class TokenRepository:
-    def __init__(self, connection: AsyncConnection[dict[str, Any]]) -> None:
+    def __init__(self, connection: ORMConnection) -> None:
         self.connection = connection
 
     async def set_audit_context(self, actor_id: UUID, request_id: str) -> None:
         await self.connection.execute(
-            "SELECT set_config('app.user_id', %s, true), "
-            "set_config('app.request_id', %s, true)",
+            "SELECT set_config('app.user_id', %s, true), set_config('app.request_id', %s, true)",
             (str(actor_id), request_id),
         )
 
     async def is_owner(self, project_id: UUID, actor_id: UUID, is_admin: bool) -> bool:
-        cursor = await self.connection.execute(
-            "SELECT EXISTS (SELECT 1 FROM projects WHERE id = %s "
-            "AND (owner_id = %s OR %s)) AS allowed",
-            (project_id, actor_id, is_admin),
+        row = await orm_one(
+            self.connection,
+            select(
+                exists()
+                .where(
+                    Project.id == project_id, or_(Project.owner_id == actor_id, literal(is_admin))
+                )
+                .label("allowed")
+            ),
         )
-        row = await cursor.fetchone()
         return bool(row and row["allowed"])
 
     async def create(
@@ -60,17 +65,19 @@ class TokenRepository:
         created_by: UUID,
         expires_at: datetime | None,
     ) -> ApiTokenResponse:
-        cursor = await self.connection.execute(
-            """
-            INSERT INTO api_tokens (
-                project_id, name, token_prefix, token_hash, created_by, expires_at
-            ) VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id, project_id, name, token_prefix, created_by,
-                      created_at, expires_at, revoked_at
-            """,
-            (project_id, name, token_prefix, token_hash, created_by, expires_at),
+        row = await orm_one(
+            self.connection,
+            insert(ApiToken)
+            .values(
+                project_id=project_id,
+                name=name,
+                token_prefix=token_prefix,
+                token_hash=token_hash,
+                created_by=created_by,
+                expires_at=expires_at,
+            )
+            .returning(*fields(ApiToken)),
         )
-        row = await cursor.fetchone()
         if row is None:
             raise RuntimeError("token insert returned no row")
         return _token_from_row(row)
@@ -84,59 +91,59 @@ class TokenRepository:
         page: int,
         page_size: int,
     ) -> tuple[list[ApiTokenResponse], int]:
-        where = "(%s OR p.owner_id = %s)"
-        parameters: list[Any] = [is_admin, actor_id]
+        statement = (
+            select(
+                ApiToken.id,
+                ApiToken.project_id,
+                ApiToken.name,
+                ApiToken.token_prefix,
+                ApiToken.created_by,
+                ApiToken.created_at,
+                ApiToken.expires_at,
+                ApiToken.revoked_at,
+            )
+            .join(Project, Project.id == ApiToken.project_id)
+            .where(or_(literal(is_admin), Project.owner_id == actor_id))
+        )
         if project_id is not None:
-            where += " AND t.project_id = %s"
-            parameters.append(project_id)
-        count_cursor = await self.connection.execute(
-            f"""SELECT count(*) AS total FROM api_tokens t
-                JOIN projects p ON p.id = t.project_id WHERE {where}""",
-            tuple(parameters),
+            statement = statement.where(ApiToken.project_id == project_id)
+        rows, total = await orm_page(
+            self.connection,
+            statement.order_by(ApiToken.created_at.desc(), ApiToken.id.desc()),
+            page=page,
+            page_size=page_size,
+            order=[("created_at", True), ("id", True)],
         )
-        total_row = await count_cursor.fetchone()
-        if total_row is None:
-            raise RuntimeError("token count returned no row")
-        cursor = await self.connection.execute(
-            f"""
-            SELECT t.id, t.project_id, t.name, t.token_prefix, t.created_by,
-                   t.created_at, t.expires_at, t.revoked_at
-            FROM api_tokens t
-            JOIN projects p ON p.id = t.project_id
-            WHERE {where}
-            ORDER BY t.created_at DESC, t.id DESC
-            LIMIT %s OFFSET %s
-            """,
-            (*parameters, page_size, (page - 1) * page_size),
-        )
-        return [_token_from_row(row) for row in await cursor.fetchall()], int(total_row["total"])
+        return [_token_from_row(row) for row in rows], total
 
     async def project_id_for_token(self, token_id: UUID) -> UUID | None:
-        cursor = await self.connection.execute(
-            "SELECT project_id FROM api_tokens WHERE id = %s", (token_id,)
+        row = await orm_one(
+            self.connection, select(ApiToken.project_id).where(ApiToken.id == token_id)
         )
-        row = await cursor.fetchone()
         return row["project_id"] if row else None
 
     async def revoke(self, token_id: UUID, actor_id: UUID) -> bool:
-        cursor = await self.connection.execute(
-            """UPDATE api_tokens SET revoked_at = CURRENT_TIMESTAMP, revoked_by = %s
-               WHERE id = %s AND revoked_at IS NULL RETURNING id""",
-            (actor_id, token_id),
+        return (
+            await orm_one(
+                self.connection,
+                update(ApiToken)
+                .where(ApiToken.id == token_id, ApiToken.revoked_at.is_(None))
+                .values(revoked_at=func.current_timestamp(), revoked_by=actor_id)
+                .returning(ApiToken.id),
+            )
+            is not None
         )
-        return await cursor.fetchone() is not None
 
     async def authenticate(self, token_hash: str) -> RuntimeTokenRecord | None:
-        cursor = await self.connection.execute(
-            """
-            SELECT id, project_id FROM api_tokens
-            WHERE token_hash = %s AND revoked_at IS NULL
-              AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-            """,
-            (token_hash,),
+        row = await orm_one(
+            self.connection,
+            select(ApiToken.id, ApiToken.project_id).where(
+                ApiToken.token_hash == token_hash,
+                ApiToken.revoked_at.is_(None),
+                or_(ApiToken.expires_at.is_(None), ApiToken.expires_at > func.current_timestamp()),
+            ),
         )
-        row = await cursor.fetchone()
-        return RuntimeTokenRecord(id=row["id"], project_id=row["project_id"]) if row else None
+        return RuntimeTokenRecord(**row) if row else None
 
     async def served_prompt(
         self, project_id: UUID, key: str, environment: str
@@ -147,8 +154,8 @@ class TokenRepository:
                    pv.id AS version_id, pv.version_number, pv.template_body,
                    pv.variables, pv.model_config, d.activated_at, d.id AS deployment_id
             FROM prompts p
-            JOIN deployments d ON d.prompt_id = p.id
-            JOIN prompt_versions pv ON pv.id = d.version_id
+            JOIN deployment_context d ON d.prompt_id = p.id
+            JOIN version_context pv ON pv.id = d.version_id
             WHERE p.project_id = %s AND p.key = %s
               AND d.environment = %s AND d.status = 'active'
             """,
@@ -167,7 +174,7 @@ class TokenRepository:
                 version=ServedVersion(id=row["version_id"], version_number=row["version_number"]),
                 template_body=row["template_body"],
                 variables=row["variables"],
-                model_config=ModelConfiguration.model_validate(row["model_config"]),
+                model_config=SavedModelConfiguration.model_validate(row["model_config"]),
                 activated_at=row["activated_at"],
             ),
             row["deployment_id"],

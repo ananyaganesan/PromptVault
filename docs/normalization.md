@@ -1,50 +1,49 @@
-# Database normalization
+# Normalization and functional dependencies
 
-The v1 schema is normalized to third normal form for transactional entities, with deliberate JSONB snapshots where the whole value is immutable and read together.
+Revision 030 removes stored transitive context and repeating variable/input collections. Model configuration uses atomic provider, model, temperature and output-limit columns. API JSON is reconstructed by views. No applied migration 001–029 was changed.
 
-## Normalized relationships
+## Table-by-table 3NF review
 
-- Users, projects, and memberships are separate tables. Membership uses `(project_id, user_id)` as its natural composite key; project ownership remains an explicit foreign key with a trigger that guarantees owner membership.
-- Prompts store stable metadata. Every editable template save creates a `prompt_versions` row, so version content is never overwritten.
-- Runs reference the exact user, project, prompt, and immutable version used. Historical provider/model/cost values live on the ledger row and do not change when pricing changes.
-- Deployments are lifecycle events referencing immutable versions. Rollback creates another event and links to the previous active event rather than rewriting history.
-- Budgets use nullable user/project foreign keys plus an XOR constraint because the two target types share identical enforcement behavior. Partial unique indexes preserve one budget per target.
-- Pricing rows are effective-dated and append-only in application behavior. A GiST exclusion constraint rejects overlapping provider/model windows.
+For each relation, the listed candidate key determines all remaining stored attributes. Composite keys have no proper subset determining a non-key attribute. No non-key stored attribute determines another non-key stored attribute under the application business rules. Unique indexes supply alternate keys where applicable; conditional keys are explicitly qualified.
 
-## Intentional JSONB fields
-
-`prompt_versions.variables`, `prompt_versions.model_config`, and `runs.input_variables` are JSONB because each is an immutable request/snapshot value consumed as a unit. Shape checks require arrays or objects. Values needed for authorization, filtering, joins, money calculations, and concurrency are regular typed columns and indexed accordingly.
-
-Audit before/after documents are JSONB snapshots. The database trigger removes `password_hash`, `encrypted_secret`, and `token_hash` before insertion.
-
-## Functional-dependency review
-
-| Relation(s) | Candidate key → non-key attributes | Normal-form conclusion |
+| Relation | Candidate keys / functional dependencies | 3NF rationale |
 |---|---|---|
-| `users` | `id → email, display_name, password_hash, role, status, timestamps`; `email → same` | BCNF; both determinants are candidate keys |
-| `projects`, `prompts` | ID determines metadata; project key and `(project_id,prompt key)` are alternate keys | BCNF |
-| `project_members` | `(project_id,user_id) → added_by,created_at` | BCNF; no partial dependency |
-| `prompt_versions` | `id → snapshot`; `(prompt_id,version_number) → snapshot` | BCNF; parent is a same-prompt FK, not duplicated parent data |
-| `model_pricing` | `id → price window`; the exclusion constraint makes provider/model/time windows non-overlapping | 3NF; history is effective-dated rather than overwritten |
-| `budgets` | `id → target,limit,timezone`; each partial unique target also determines its budget row | BCNF under the XOR target constraint |
-| `provider_keys`, `api_tokens` | ID determines secret metadata; active alias/token hash are constrained alternate identifiers | BCNF for persisted attributes |
-| `deployments` | `id → lifecycle snapshot`; active uniqueness is a conditional business invariant | 3NF; review/rollback facts belong to the deployment event |
-| `runs` | `(id,created_at) → immutable execution snapshot` | 3NF; provider/model/cost are intentional historical facts, not current pricing derivations |
-| `audit_events` | `id → actor,action,entity,snapshots,time` | 3NF append-only event relation |
-| `password_reset_tokens`, `auth_sessions` | token/session ID determines one user's lifecycle metadata | BCNF |
-| `password_history` | `id → user_id,password_hash,created_at`; `(user_id,password_hash) → id,created_at` | BCNF; UUID primary key and unique user/hash alternate key |
-| `run_reservations` | `id → request/target/cost/state`; `(user_id,idempotency_key) → same` | BCNF; actual cost/run reference appear only after reconciliation |
-| `schema_migrations` | `version → name,checksum,applied_at` | BCNF tracking relation |
+| `api_tokens` | `id`; `token_hash` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `audit_events` | `id` → remaining attributes | Before/after JSON is an opaque redacted historical document, not authoritative entity state. |
+| `auth_sessions` | `id` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `budgets` | `id` → remaining attributes | XOR user/project target; partial unique indexes ensure one budget per target. |
+| `deployment_rollbacks` | `deployment_id` → remaining attributes | One rollback link and reason per deployment; prompt/environment are derived. |
+| `deployments` | `id` → remaining attributes | Version determines scope through joins; rollback link/reason live separately. |
+| `email_verification_tokens` | `id`; `token_hash` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `model_pricing` | `id` → remaining attributes | Effective interval and prices belong to a pricing event; exclusion constraint prevents overlapping windows. |
+| `password_history` | `id`; `(user_id,password_hash)` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `password_reset_tokens` | `id`; `token_hash` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `project_invitations` | `id`; `token_hash` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `project_members` | `(project_id, user_id)` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `projects` | `id`; `key` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `prompt_version_parents` | `version_id` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `prompt_version_variables` | `(version_id, ordinal)`; `(version_id,name)` → remaining attributes | One ordered atomic name; names are unique within the version. |
+| `prompt_versions` | `id`; `(prompt_id,version_number)` → remaining attributes | Atomic configuration; ordered variables and ancestry live in separate relations. |
+| `prompts` | `id`; `(project_id,key)` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `provider_keys` | `id` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `reservation_results` | `reservation_id` → remaining attributes | One result link per reservation; composite run FK identifies a partitioned ledger row. |
+| `run_inputs` | `(run_id, run_created_at, name)` → remaining attributes | One atomic string per named execution input. |
+| `run_reservations` | `id`; `(user_id,idempotency_key)` → remaining attributes | Only admission facts remain; result identity and actual cost come from reservation_results and runs. |
+| `runs` | `(id, created_at)` → remaining attributes | Version identifies prompt/project/provider/model through joins; measured cost/usage are event facts, never current-price derivations. |
+| `schema_migrations` | `version` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
+| `users` | `id`; `email` (case-insensitive) → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
 
-No relation contains a non-key attribute that determines another non-key attribute. Apparent cross-table facts—owner name, prompt name, current price, member state—are obtained by joins or views rather than copied into transactional tables. The deliberate run/deployment/audit snapshots preserve facts as they were at an event time; replacing them with current master data would destroy history rather than improve normalization.
+## Dependencies removed by migration 030
 
-## Derived data
+- Former `runs.version_id → prompt_id → project_id` and `version_id → provider,model` no longer duplicate those facts in runs.
+- Former `run_reservations.version_id → prompt_id → project_id` is derived, and completed result cost is read from the ledger.
+- Former `deployments.version_id → prompt_id` is derived. Rollback relationships have their own relation.
+- Version variable arrays and execution input objects are normalized into rows; model configuration is typed scalar attributes.
 
-Lineage, deployment history, and monthly costs are views. Organization/user monthly metrics are materialized views with unique indexes so controlled concurrent refresh is possible. Derived rows are never authoritative for authorization, budget enforcement, or deployment state.
+## Derived and historical values
 
-## Project invitations (design for migration 024)
+The four context views rebuild the existing API shape; clients still receive variables/configuration/input JSON. Lineage, deployment history and monthly costs are views. Materialized metrics are caches, never authorization or budget authority. An immutable version fixes provider/model historically. Measured run cost remains stored because it is the amount recorded at execution, not a dependency on the current pricing row. Audit JSON remains an opaque event document.
 
-`project_invitations` has candidate keys `id` and `token_hash`, each determining
-all attributes. Project, recipient and inviter reference their existing entities;
-no user email or project name is duplicated. A partial unique index enforces one
-unconsumed, unrevoked invitation per project/recipient. The relation is in 3NF.
+A composite `runs(id,created_at)` primary key supports native range partitioning; child ledger references include both fields. Physical partitions are not additional independent logical entities. The [catalog dictionary](data-dictionary.md) supplies actual constraints and indexes, and the [upgrade test](../tests/database/test_normalization_upgrade.py) verifies preservation from revision 029.
+
+Revision 031 adds Gemini-only checks on new versions, keys and prices, and guards execution/admission/activation references. `NOT VALID` preserves historical provider rows while enforcing checks on every new write; historical values are not silently rewritten. Non-Gemini execution and Serve requests are also rejected by the API. This does not change the 24-table relational design.

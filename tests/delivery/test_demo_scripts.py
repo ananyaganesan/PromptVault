@@ -99,7 +99,7 @@ def test_serve_client_sends_runtime_token_and_prints_prompt(tmp_path: Path, toke
                     },
                     "template_body": "Hello {{name}}",
                     "variables": ["name"],
-                    "model_config": {"provider": "mock", "model": "deterministic-v1"},
+                    "model_config": {"provider": "gemini", "model": "gemini-3.5-flash-lite"},
                     "activated_at": "2026-09-27T00:00:00Z",
                 }
             ).encode()

@@ -1,6 +1,6 @@
 EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
 SELECT id, status, provider, model, cost, created_at
-FROM runs
+FROM run_context
 WHERE project_id = :'project_id'::uuid
 ORDER BY created_at DESC, id
 LIMIT 25;

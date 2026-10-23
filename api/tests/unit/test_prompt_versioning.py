@@ -30,8 +30,8 @@ def test_prompt_creation_rejects_server_derived_version_fields() -> None:
                 "name": "Support Reply",
                 "template_body": "Hello {{name}}",
                 "model_config": {
-                    "provider": "mock",
-                    "model": "deterministic-v1",
+                    "provider": "gemini",
+                    "model": "gemini-3.5-flash-lite",
                     "temperature": 0,
                     "max_output_tokens": 100,
                 },
@@ -45,8 +45,8 @@ def test_prompt_creation_rejects_server_derived_version_fields() -> None:
 
 def test_prompt_and_version_requests_reject_internal_model_configuration_name() -> None:
     model_configuration = {
-        "provider": "mock",
-        "model": "deterministic-v1",
+        "provider": "gemini",
+        "model": "gemini-3.5-flash-lite",
         "temperature": 0,
         "max_output_tokens": 100,
     }

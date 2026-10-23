@@ -12,7 +12,7 @@ export interface ProviderModel {
   unavailable_reason: string | null
 }
 export interface ProviderInfo {
-  provider: 'gemini' | 'openrouter' | 'groq'
+  provider: 'gemini'
   credential_available: boolean
   models: ProviderModel[]
   quota_note: string

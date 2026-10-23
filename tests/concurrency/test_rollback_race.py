@@ -29,19 +29,16 @@ def create_active_third_version(database_url: str) -> tuple[UUID, UUID]:
         )
         for index, version_id in enumerate(versions, start=1):
             connection.execute(
-                """
-                INSERT INTO prompt_versions (
-                    id, prompt_id, version_number, parent_version_id, template_body,
-                    variables, model_config, commit_message, created_by
-                ) VALUES (%s, %s, %s, %s, %s, '[]', %s, %s, %s)
-                """,
+                "\n                INSERT INTO prompt_versions (id, prompt_id, version_number, template_body, provider, model, temperature, max_output_tokens, commit_message, created_by) VALUES (%s, %s, %s, %s, (%s)::jsonb->>'provider', (%s)::jsonb->>'model', ((%s)::jsonb->>'temperature')::numeric, ((%s)::jsonb->>'max_output_tokens')::integer, %s, %s)\n                ",
                 (
                     version_id,
                     prompt_id,
                     index,
-                    versions[index - 2] if index > 1 else None,
                     f"Version {index}",
-                    '{"provider":"mock","model":"deterministic-v1","temperature":0,"max_output_tokens":10}',
+                    '{"provider":"gemini","model":"gemini-3.5-flash-lite","temperature":0,"max_output_tokens":10}',
+                    '{"provider":"gemini","model":"gemini-3.5-flash-lite","temperature":0,"max_output_tokens":10}',
+                    '{"provider":"gemini","model":"gemini-3.5-flash-lite","temperature":0,"max_output_tokens":10}',
+                    '{"provider":"gemini","model":"gemini-3.5-flash-lite","temperature":0,"max_output_tokens":10}',
                     f"Version {index}",
                     user_id,
                 ),
@@ -82,13 +79,13 @@ def test_same_target_rollbacks_have_exactly_one_winner(database_url: str) -> Non
     with psycopg.connect(database_url) as connection:
         active = connection.execute(
             """
-            SELECT version_id FROM deployments
+            SELECT version_id FROM deployment_context
             WHERE prompt_id = %s AND environment = 'prod' AND status = 'active'
             """,
             (prompt_id,),
         ).fetchall()
         rollback_count = connection.execute(
-            "SELECT count(*) FROM deployments WHERE prompt_id = %s AND rollback_of_id IS NOT NULL",
+            "SELECT count(*) FROM deployment_context WHERE prompt_id = %s AND rollback_of_id IS NOT NULL",
             (prompt_id,),
         ).fetchone()[0]
     assert active == [(target_version_id,)]

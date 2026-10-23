@@ -148,6 +148,30 @@ Indexes:
 - `CREATE UNIQUE INDEX uq_budgets_project ON public.budgets USING btree (project_id) WHERE (project_id IS NOT NULL)`
 - `CREATE UNIQUE INDEX uq_budgets_user ON public.budgets USING btree (user_id) WHERE (user_id IS NOT NULL)`
 
+## `deployment_rollbacks`
+
+Normalized rollback link and explanation without copied scope.
+
+| Column | Type | Nullable | Default / identity | Purpose |
+|---|---|---|---|---|
+| deployment_id | uuid | False | — | Referenced rollback deployment event. |
+| rollback_of_id | uuid | False | — | Deployment event being rolled back. |
+| reason | text | False | — | Reason recorded for a rollback decision. |
+
+Constraints and keys:
+
+- `FOREIGN KEY (deployment_id) REFERENCES deployments(id) ON DELETE RESTRICT`
+- `NOT NULL deployment_id`
+- `PRIMARY KEY (deployment_id)`
+- `CHECK ((length(TRIM(BOTH FROM reason)) > 0))`
+- `NOT NULL reason`
+- `FOREIGN KEY (rollback_of_id) REFERENCES deployments(id) ON DELETE RESTRICT`
+- `NOT NULL rollback_of_id`
+
+Indexes:
+
+- `CREATE UNIQUE INDEX deployment_rollbacks_pkey ON public.deployment_rollbacks USING btree (deployment_id)`
+
 ## `deployments`
 
 Prompt/version promotion, review and rollback lifecycle records.
@@ -155,14 +179,11 @@ Prompt/version promotion, review and rollback lifecycle records.
 | Column | Type | Nullable | Default / identity | Purpose |
 |---|---|---|---|---|
 | id | uuid | False | gen_random_uuid() | Surrogate row identity (runs also includes creation time in its primary key). |
-| prompt_id | uuid | False | — | Referenced prompt identity. |
 | version_id | uuid | False | — | Referenced immutable prompt version. |
 | environment | deployment_environment | False | — | Application promotion slot (dev/staging/prod), usable locally. |
 | status | deployment_status | False | — | Lifecycle state constrained by the relation's enum/checks. |
 | request_note | text | True | — | Requester's explanation for promotion. |
 | review_note | text | True | — | Reviewer's decision explanation. |
-| rollback_reason | text | True | — | Explanation of a rollback. |
-| rollback_of_id | uuid | True | — | Deployment event being rolled back. |
 | requested_by | uuid | False | — | User who requested the deployment. |
 | reviewed_by | uuid | True | — | Optional user who reviewed the deployment. |
 | requested_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Time the promotion was requested. |
@@ -176,30 +197,52 @@ Constraints and keys:
 - `CHECK (((environment = 'prod'::deployment_environment) OR (status <> 'pending'::deployment_status)))`
 - `PRIMARY KEY (id)`
 - `CHECK (((environment <> 'prod'::deployment_environment) OR (status <> ALL (ARRAY['active'::deployment_status, 'superseded'::deployment_status, 'rolled_back'::deployment_status])) OR (reviewed_at IS NOT NULL)))`
-- `FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT`
-- `NOT NULL prompt_id`
 - `CHECK (((status <> 'rejected'::deployment_status) OR (length(TRIM(BOTH FROM review_note)) > 0)))`
 - `NOT NULL requested_at`
 - `FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE RESTRICT`
 - `NOT NULL requested_by`
 - `CHECK (((reviewed_by IS NULL) = (reviewed_at IS NULL)))`
 - `FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE RESTRICT`
-- `FOREIGN KEY (rollback_of_id) REFERENCES deployments(id) ON DELETE RESTRICT`
-- `CHECK (((rollback_of_id IS NULL) OR (length(TRIM(BOTH FROM rollback_reason)) > 0)))`
 - `CHECK ((((status = ANY (ARRAY['pending'::deployment_status, 'cancelled'::deployment_status])) AND (reviewed_at IS NULL) AND (activated_at IS NULL)) OR ((status = 'rejected'::deployment_status) AND (reviewed_at IS NOT NULL) AND (activated_at IS NULL)) OR ((status = ANY (ARRAY['active'::deployment_status, 'superseded'::deployment_status, 'rolled_back'::deployment_status])) AND (activated_at IS NOT NULL))))`
 - `NOT NULL status`
+- `FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT`
 - `NOT NULL version_id`
-- `FOREIGN KEY (version_id, prompt_id) REFERENCES prompt_versions(id, prompt_id) ON DELETE RESTRICT`
-- `FOREIGN KEY (rollback_of_id, prompt_id, environment) REFERENCES deployments(id, prompt_id, environment) ON DELETE RESTRICT`
-- `UNIQUE (id, prompt_id, environment)`
 
 Indexes:
 
 - `CREATE UNIQUE INDEX deployments_pkey ON public.deployments USING btree (id)`
-- `CREATE INDEX ix_deployments_history ON public.deployments USING btree (prompt_id, environment, requested_at DESC, id)`
 - `CREATE INDEX ix_deployments_pending_prod ON public.deployments USING btree (requested_at, id) WHERE ((environment = 'prod'::deployment_environment) AND (status = 'pending'::deployment_status))`
-- `CREATE UNIQUE INDEX uq_deployments_id_prompt_environment ON public.deployments USING btree (id, prompt_id, environment)`
-- `CREATE UNIQUE INDEX uq_deployments_one_active ON public.deployments USING btree (prompt_id, environment) WHERE (status = 'active'::deployment_status)`
+- `CREATE INDEX ix_deployments_version_environment ON public.deployments USING btree (version_id, environment, status)`
+
+## `email_verification_tokens`
+
+Hashed, expiring single-use email ownership credentials.
+
+| Column | Type | Nullable | Default / identity | Purpose |
+|---|---|---|---|---|
+| id | uuid | False | gen_random_uuid() | Surrogate row identity (runs also includes creation time in its primary key). |
+| user_id | uuid | False | — | Referenced account/actor or user budget target. |
+| token_hash | character(64) | False | — | SHA-256 digest of the one-time disclosed token. |
+| expires_at | timestamp with time zone | False | — | Time after which the credential/session is invalid. |
+| used_at | timestamp with time zone | True | — | Optional time when a reset token was consumed. |
+| created_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Database timestamp when the record was created. |
+
+Constraints and keys:
+
+- `NOT NULL created_at`
+- `NOT NULL expires_at`
+- `NOT NULL id`
+- `PRIMARY KEY (id)`
+- `UNIQUE (token_hash)`
+- `NOT NULL token_hash`
+- `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
+- `NOT NULL user_id`
+
+Indexes:
+
+- `CREATE UNIQUE INDEX email_verification_tokens_pkey ON public.email_verification_tokens USING btree (id)`
+- `CREATE UNIQUE INDEX email_verification_tokens_token_hash_key ON public.email_verification_tokens USING btree (token_hash)`
+- `CREATE INDEX ix_email_verification_tokens_user_active ON public.email_verification_tokens USING btree (user_id, created_at DESC) WHERE (used_at IS NULL)`
 
 ## `model_pricing`
 
@@ -222,6 +265,7 @@ Constraints and keys:
 - `NOT NULL created_at`
 - `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL`
 - `NOT NULL effective_from`
+- `CHECK (((provider)::text = 'gemini'::text)) NOT VALID`
 - `NOT NULL id`
 - `NOT NULL input_price_per_million`
 - `CHECK ((length(TRIM(BOTH FROM model)) > 0))`
@@ -396,6 +440,55 @@ Indexes:
 - `CREATE UNIQUE INDEX projects_pkey ON public.projects USING btree (id)`
 - `CREATE UNIQUE INDEX uq_projects_key ON public.projects USING btree (key)`
 
+## `prompt_version_parents`
+
+Normalized same-prompt version ancestry.
+
+| Column | Type | Nullable | Default / identity | Purpose |
+|---|---|---|---|---|
+| version_id | uuid | False | — | Referenced immutable prompt version. |
+| parent_version_id | uuid | False | — | Optional predecessor version in the same prompt. |
+
+Constraints and keys:
+
+- `CHECK ((version_id <> parent_version_id))`
+- `FOREIGN KEY (parent_version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT`
+- `NOT NULL parent_version_id`
+- `PRIMARY KEY (version_id)`
+- `FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE CASCADE`
+- `NOT NULL version_id`
+
+Indexes:
+
+- `CREATE INDEX ix_version_parents_parent ON public.prompt_version_parents USING btree (parent_version_id)`
+- `CREATE UNIQUE INDEX prompt_version_parents_pkey ON public.prompt_version_parents USING btree (version_id)`
+
+## `prompt_version_variables`
+
+Ordered atomic variable declarations for immutable versions.
+
+| Column | Type | Nullable | Default / identity | Purpose |
+|---|---|---|---|---|
+| version_id | uuid | False | — | Referenced immutable prompt version. |
+| ordinal | integer | False | — | One-based declaration order within a version. |
+| name | text | False | — | Human-readable resource name (migration name for schema_migrations). |
+
+Constraints and keys:
+
+- `CHECK ((name ~ '^[A-Za-z_][A-Za-z0-9_]*$'::text))`
+- `NOT NULL name`
+- `CHECK ((ordinal > 0))`
+- `NOT NULL ordinal`
+- `PRIMARY KEY (version_id, ordinal)`
+- `FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE CASCADE`
+- `UNIQUE (version_id, name)`
+- `NOT NULL version_id`
+
+Indexes:
+
+- `CREATE UNIQUE INDEX prompt_version_variables_pkey ON public.prompt_version_variables USING btree (version_id, ordinal)`
+- `CREATE UNIQUE INDEX prompt_version_variables_version_id_name_key ON public.prompt_version_variables USING btree (version_id, name)`
+
 ## `prompt_versions`
 
 Immutable template and configuration snapshots with lineage.
@@ -405,41 +498,42 @@ Immutable template and configuration snapshots with lineage.
 | id | uuid | False | gen_random_uuid() | Surrogate row identity (runs also includes creation time in its primary key). |
 | prompt_id | uuid | False | — | Referenced prompt identity. |
 | version_number | integer | False | — | Monotonically assigned version number within a prompt. |
-| parent_version_id | uuid | True | — | Optional predecessor version in the same prompt. |
 | template_body | text | False | — | Immutable prompt template text. |
-| variables | jsonb | False | '[]'::jsonb | Template variable-name snapshot as a JSON array. |
-| model_config | jsonb | False | — | Provider/model/generation settings captured for this version. |
 | commit_message | character varying(500) | False | — | Author's explanation of the version change. |
 | created_by | uuid | False | — | User who created the resource. |
 | created_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Database timestamp when the record was created. |
+| provider | character varying(80) | False | — | Provider identity; external execution is restricted by application policy. |
+| model | character varying(160) | False | — | Provider-specific model identifier. |
+| temperature | numeric | True | — | Saved sampling temperature for an immutable version. |
+| max_output_tokens | integer | True | — | Saved output-token limit for an immutable version. |
 
 Constraints and keys:
 
-- `FOREIGN KEY (parent_version_id, prompt_id) REFERENCES prompt_versions(id, prompt_id) ON DELETE RESTRICT`
 - `NOT NULL commit_message`
 - `CHECK ((length(TRIM(BOTH FROM commit_message)) > 0))`
 - `NOT NULL created_at`
 - `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT`
 - `NOT NULL created_by`
 - `NOT NULL id`
-- `NOT NULL model_config`
-- `CHECK ((jsonb_typeof(model_config) = 'object'::text))`
+- `NOT NULL model`
 - `CHECK ((version_number > 0))`
 - `PRIMARY KEY (id)`
 - `FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT`
 - `NOT NULL prompt_id`
+- `NOT NULL provider`
 - `NOT NULL template_body`
 - `CHECK ((length(template_body) > 0))`
-- `CHECK ((jsonb_typeof(variables) = 'array'::text))`
-- `NOT NULL variables`
 - `NOT NULL version_number`
 - `UNIQUE (id, prompt_id)`
 - `UNIQUE (prompt_id, version_number)`
+- `CHECK ((length(TRIM(BOTH FROM model)) > 0))`
+- `CHECK (((max_output_tokens IS NULL) OR ((max_output_tokens >= 1) AND (max_output_tokens <= 1000000))))`
+- `CHECK (((provider)::text = 'gemini'::text)) NOT VALID`
+- `CHECK (((temperature IS NULL) OR ((temperature >= (0)::numeric) AND (temperature <= (2)::numeric))))`
 
 Indexes:
 
 - `CREATE INDEX ix_prompt_versions_history ON public.prompt_versions USING btree (prompt_id, version_number DESC, id)`
-- `CREATE INDEX ix_prompt_versions_parent ON public.prompt_versions USING btree (parent_version_id)`
 - `CREATE UNIQUE INDEX prompt_versions_pkey ON public.prompt_versions USING btree (id)`
 - `CREATE UNIQUE INDEX uq_prompt_versions_id_prompt ON public.prompt_versions USING btree (id, prompt_id)`
 - `CREATE UNIQUE INDEX uq_prompt_versions_number ON public.prompt_versions USING btree (prompt_id, version_number)`
@@ -503,6 +597,7 @@ Constraints and keys:
 - `NOT NULL created_by`
 - `CHECK (((deactivated_at IS NULL) OR (deactivated_at >= created_at)))`
 - `NOT NULL encrypted_secret`
+- `CHECK (((provider)::text = 'gemini'::text)) NOT VALID`
 - `NOT NULL id`
 - `PRIMARY KEY (id)`
 - `CHECK ((length(TRIM(BOTH FROM provider)) > 0))`
@@ -514,6 +609,57 @@ Indexes:
 - `CREATE UNIQUE INDEX provider_keys_pkey ON public.provider_keys USING btree (id)`
 - `CREATE UNIQUE INDEX uq_provider_keys_active_alias ON public.provider_keys USING btree (provider, alias) WHERE (deactivated_at IS NULL)`
 
+## `reservation_results`
+
+Normalized link from an admission to its immutable ledger result.
+
+| Column | Type | Nullable | Default / identity | Purpose |
+|---|---|---|---|---|
+| reservation_id | uuid | False | — | Referenced execution admission record. |
+| run_id | uuid | False | — | Optional execution ledger identity after reconciliation. |
+| run_created_at | timestamp with time zone | False | — | Creation time completing the composite run foreign key. |
+
+Constraints and keys:
+
+- `PRIMARY KEY (reservation_id)`
+- `FOREIGN KEY (reservation_id) REFERENCES run_reservations(id) ON DELETE CASCADE`
+- `NOT NULL reservation_id`
+- `NOT NULL run_created_at`
+- `NOT NULL run_id`
+- `FOREIGN KEY (run_id, run_created_at) REFERENCES runs(id, created_at) ON DELETE RESTRICT`
+- `FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_10(id, created_at) ON DELETE RESTRICT`
+- `FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_11(id, created_at) ON DELETE RESTRICT`
+
+Indexes:
+
+- `CREATE UNIQUE INDEX reservation_results_pkey ON public.reservation_results USING btree (reservation_id)`
+
+## `run_inputs`
+
+Atomic named input values for an immutable run.
+
+| Column | Type | Nullable | Default / identity | Purpose |
+|---|---|---|---|---|
+| run_id | uuid | False | — | Optional execution ledger identity after reconciliation. |
+| run_created_at | timestamp with time zone | False | — | Creation time completing the composite run foreign key. |
+| name | text | False | — | Human-readable resource name (migration name for schema_migrations). |
+| value | text | False | — | Supplied string value for this named run input. |
+
+Constraints and keys:
+
+- `NOT NULL name`
+- `PRIMARY KEY (run_id, run_created_at, name)`
+- `NOT NULL run_created_at`
+- `NOT NULL run_id`
+- `FOREIGN KEY (run_id, run_created_at) REFERENCES runs(id, created_at) ON DELETE CASCADE`
+- `FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_10(id, created_at) ON DELETE CASCADE`
+- `FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_11(id, created_at) ON DELETE CASCADE`
+- `NOT NULL value`
+
+Indexes:
+
+- `CREATE UNIQUE INDEX run_inputs_pkey ON public.run_inputs USING btree (run_id, run_created_at, name)`
+
 ## `run_reservations`
 
 Idempotent execution admission and cost reconciliation state.
@@ -522,25 +668,18 @@ Idempotent execution admission and cost reconciliation state.
 |---|---|---|---|---|
 | id | uuid | False | gen_random_uuid() | Surrogate row identity (runs also includes creation time in its primary key). |
 | user_id | uuid | False | — | Referenced account/actor or user budget target. |
-| project_id | uuid | False | — | Referenced project/workspace. |
-| prompt_id | uuid | False | — | Referenced prompt identity. |
 | version_id | uuid | False | — | Referenced immutable prompt version. |
 | idempotency_key | character varying(128) | False | — | User-scoped execution request deduplication key. |
 | request_fingerprint | character(64) | False | — | Digest binding an idempotency key to its request content. |
 | claim_token | uuid | False | — | Internal execution-admission ownership credential. |
 | estimated_cost | numeric(18,6) | False | — | Reserved cost before provider execution. |
-| actual_cost | numeric(18,6) | True | — | Reconciled cost after execution, if known. |
 | status | character varying(20) | False | — | Lifecycle state constrained by the relation's enum/checks. |
 | error_code | character varying(80) | True | — | Normalized safe execution failure code, if any. |
-| run_id | uuid | True | — | Optional execution ledger identity after reconciliation. |
-| run_created_at | timestamp with time zone | True | — | Creation time completing the composite run foreign key. |
 | created_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Database timestamp when the record was created. |
 | updated_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Timestamp of the latest mutable state change. |
 
 Constraints and keys:
 
-- `CHECK (((actual_cost IS NULL) OR (actual_cost >= (0)::numeric)))`
-- `CHECK (((run_id IS NULL) = (run_created_at IS NULL)))`
 - `NOT NULL claim_token`
 - `NOT NULL created_at`
 - `CHECK ((estimated_cost >= (0)::numeric))`
@@ -549,15 +688,8 @@ Constraints and keys:
 - `CHECK ((length((idempotency_key)::text) >= 16))`
 - `NOT NULL idempotency_key`
 - `PRIMARY KEY (id)`
-- `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT`
-- `NOT NULL project_id`
-- `FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT`
-- `NOT NULL prompt_id`
 - `CHECK ((request_fingerprint ~ '^[0-9a-f]{64}$'::text))`
 - `NOT NULL request_fingerprint`
-- `FOREIGN KEY (run_id, run_created_at) REFERENCES runs(id, created_at) ON DELETE RESTRICT`
-- `FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_10(id, created_at) ON DELETE RESTRICT`
-- `FOREIGN KEY (run_id, run_created_at) REFERENCES runs_2026_11(id, created_at) ON DELETE RESTRICT`
 - `CHECK (((status)::text = ANY ((ARRAY['reserved'::character varying, 'completed'::character varying, 'failed'::character varying, 'uncertain'::character varying, 'blocked'::character varying])::text[])))`
 - `NOT NULL status`
 - `NOT NULL updated_at`
@@ -569,7 +701,7 @@ Constraints and keys:
 
 Indexes:
 
-- `CREATE INDEX run_reservations_budget_project_idx ON public.run_reservations USING btree (project_id, created_at) WHERE ((status)::text = ANY ((ARRAY['reserved'::character varying, 'uncertain'::character varying])::text[]))`
+- `CREATE INDEX ix_reservations_version_created ON public.run_reservations USING btree (version_id, created_at DESC)`
 - `CREATE INDEX run_reservations_budget_user_idx ON public.run_reservations USING btree (user_id, created_at) WHERE ((status)::text = ANY ((ARRAY['reserved'::character varying, 'uncertain'::character varying])::text[]))`
 - `CREATE UNIQUE INDEX run_reservations_pkey ON public.run_reservations USING btree (id)`
 - `CREATE UNIQUE INDEX run_reservations_user_id_idempotency_key_key ON public.run_reservations USING btree (user_id, idempotency_key)`
@@ -582,13 +714,8 @@ Append-only execution ledger, physically partitioned by creation month.
 |---|---|---|---|---|
 | id | uuid | False | gen_random_uuid() | Surrogate row identity (runs also includes creation time in its primary key). |
 | user_id | uuid | False | — | Referenced account/actor or user budget target. |
-| project_id | uuid | False | — | Referenced project/workspace. |
-| prompt_id | uuid | False | — | Referenced prompt identity. |
 | version_id | uuid | False | — | Referenced immutable prompt version. |
 | status | run_status | False | — | Lifecycle state constrained by the relation's enum/checks. |
-| provider | character varying(80) | False | — | Provider identity; external execution is restricted by application policy. |
-| model | character varying(160) | False | — | Provider-specific model identifier. |
-| input_variables | jsonb | False | '{}'::jsonb | Execution input snapshot as JSON. |
 | output_text | text | True | — | Provider output, if execution produced a result. |
 | prompt_tokens | integer | False | 0 | Recorded input-token usage. |
 | completion_tokens | integer | False | 0 | Recorded output-token usage. |
@@ -600,8 +727,6 @@ Append-only execution ledger, physically partitioned by creation month.
 
 Constraints and keys:
 
-- `FOREIGN KEY (prompt_id, project_id) REFERENCES prompts(id, project_id) ON DELETE RESTRICT`
-- `FOREIGN KEY (version_id, prompt_id) REFERENCES prompt_versions(id, prompt_id) ON DELETE RESTRICT`
 - `CHECK (((status <> 'completed'::run_status) OR ((output_text IS NOT NULL) AND (error_code IS NULL))))`
 - `NOT NULL completion_tokens`
 - `CHECK ((cost >= (0)::numeric))`
@@ -609,20 +734,10 @@ Constraints and keys:
 - `NOT NULL created_at`
 - `CHECK (((status = 'completed'::run_status) OR (error_code IS NOT NULL)))`
 - `NOT NULL id`
-- `CHECK ((jsonb_typeof(input_variables) = 'object'::text))`
-- `NOT NULL input_variables`
 - `NOT NULL latency_ms`
 - `CHECK ((latency_ms >= 0))`
-- `CHECK ((length(TRIM(BOTH FROM model)) > 0))`
-- `NOT NULL model`
 - `PRIMARY KEY (id, created_at)`
-- `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT`
-- `NOT NULL project_id`
-- `FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT`
-- `NOT NULL prompt_id`
 - `NOT NULL prompt_tokens`
-- `CHECK ((length(TRIM(BOTH FROM provider)) > 0))`
-- `NOT NULL provider`
 - `NOT NULL status`
 - `CHECK (((prompt_tokens >= 0) AND (completion_tokens >= 0)))`
 - `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT`
@@ -632,12 +747,10 @@ Constraints and keys:
 
 Indexes:
 
-- `CREATE INDEX ix_runs_model_created ON ONLY public.runs USING btree (provider, model, created_at DESC, id)`
-- `CREATE INDEX ix_runs_project_created ON ONLY public.runs USING btree (project_id, created_at DESC, id)`
-- `CREATE INDEX ix_runs_prompt_created ON ONLY public.runs USING btree (prompt_id, created_at DESC, id)`
 - `CREATE INDEX ix_runs_status_created ON ONLY public.runs USING btree (status, created_at DESC, id)`
 - `CREATE INDEX ix_runs_user_created ON ONLY public.runs USING btree (user_id, created_at DESC, id)`
 - `CREATE INDEX ix_runs_version_created ON ONLY public.runs USING btree (version_id, created_at DESC, id)`
+- `CREATE INDEX ix_runs_version_timeline ON ONLY public.runs USING btree (version_id, created_at DESC, id DESC) INCLUDE (status, cost)`
 - `CREATE UNIQUE INDEX runs_pkey ON ONLY public.runs USING btree (id, created_at)`
 
 ## `schema_migrations`
@@ -677,6 +790,7 @@ Account identity, display name, credentials and authorization role.
 | is_active | boolean | False | true | Whether the account may authenticate and access resources. |
 | created_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Database timestamp when the record was created. |
 | updated_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Timestamp of the latest mutable state change. |
+| email_verified_at | timestamp with time zone | True | — | Time when the account proved control of its email address. |
 
 Constraints and keys:
 

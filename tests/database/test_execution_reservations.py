@@ -24,17 +24,7 @@ def create_domain(
         (prompt_id, project_id),
     )
     connection.execute(
-        """
-        INSERT INTO prompt_versions (
-            id, prompt_id, version_number, template_body, variables,
-            model_config, commit_message, created_by
-        ) VALUES (
-            %s, %s, 1, 'Prompt', '[]',
-            '{"provider":"gemini","model":"gemini-2.5-flash",'
-            '"temperature":0,"max_output_tokens":100}',
-            'Initial', %s
-        )
-        """,
+        '\n        INSERT INTO prompt_versions (id, prompt_id, version_number, template_body, provider, model, temperature, max_output_tokens, commit_message, created_by) VALUES (%s, %s, 1, \'Prompt\', (\'{"provider":"gemini","model":"gemini-2.5-flash",\'\n            \'"temperature":0,"max_output_tokens":100}\')::jsonb->>\'provider\', (\'{"provider":"gemini","model":"gemini-2.5-flash",\'\n            \'"temperature":0,"max_output_tokens":100}\')::jsonb->>\'model\', ((\'{"provider":"gemini","model":"gemini-2.5-flash",\'\n            \'"temperature":0,"max_output_tokens":100}\')::jsonb->>\'temperature\')::numeric, ((\'{"provider":"gemini","model":"gemini-2.5-flash",\'\n            \'"temperature":0,"max_output_tokens":100}\')::jsonb->>\'max_output_tokens\')::integer, \'Initial\', %s)\n        ',
         (version_id, prompt_id, user_id),
     )
     return user_id, project_id, prompt_id, version_id
@@ -110,10 +100,13 @@ def test_budget_is_reserved_before_execution_and_duplicate_key_is_reused(
     assert duplicate["id"] == first["id"]
     assert over_budget["status"] == "blocked"
     assert over_budget["error_code"] == "budget_exceeded"
-    assert db_connection.execute(
-        "SELECT count(*) FROM run_reservations WHERE user_id = %s",
-        (user_id,),
-    ).fetchone()["count"] == 2
+    assert (
+        db_connection.execute(
+            "SELECT count(*) FROM reservation_context WHERE user_id = %s",
+            (user_id,),
+        ).fetchone()["count"]
+        == 2
+    )
 
 
 @pytest.mark.database

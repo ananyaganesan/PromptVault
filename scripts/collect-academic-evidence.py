@@ -12,6 +12,11 @@ import psycopg
 from psycopg.rows import dict_row
 
 ENTITIES = {
+    "run_inputs": "Atomic named input values for an immutable run.",
+    "prompt_version_parents": "Normalized same-prompt version ancestry.",
+    "prompt_version_variables": "Ordered atomic variable declarations for immutable versions.",
+    "reservation_results": "Normalized link from an admission to its immutable ledger result.",
+    "deployment_rollbacks": "Normalized rollback link and explanation without copied scope.",
     "users": "Account identity, display name, credentials and authorization role.",
     "projects": "Owned workspace containing prompts and scoped memberships.",
     "project_invitations": "Pending, expiring recipient-accepted project access invitations.",
@@ -34,6 +39,13 @@ ENTITIES = {
 }
 
 PURPOSES = {
+    "temperature": "Saved sampling temperature for an immutable version.",
+    "max_output_tokens": "Saved output-token limit for an immutable version.",
+    "value": "Supplied string value for this named run input.",
+    "ordinal": "One-based declaration order within a version.",
+    "reservation_id": "Referenced execution admission record.",
+    "deployment_id": "Referenced rollback deployment event.",
+    "reason": "Reason recorded for a rollback decision.",
     "id": "Surrogate row identity (runs also includes creation time in its primary key).",
     "email": "Case-insensitive unique account login email.",
     "display_name": "User-editable name shown across the application.",
@@ -129,11 +141,12 @@ def catalog(connection):
         WHERE n.nspname='public' AND c.relkind IN ('r','p') AND NOT c.relispartition
         ORDER BY c.relname
     """).fetchall()
-    require({row['name'] for row in tables} == set(ENTITIES), "ER inventory mismatch")
+    require({row["name"] for row in tables} == set(ENTITIES), "ER inventory mismatch")
     for table in tables:
-        name = table['name']
-        table['purpose'] = ENTITIES[name]
-        table['columns'] = connection.execute("""
+        name = table["name"]
+        table["purpose"] = ENTITIES[name]
+        table["columns"] = connection.execute(
+            """
             SELECT a.attname AS name, format_type(a.atttypid,a.atttypmod) AS type,
                    NOT a.attnotnull AS nullable, a.attidentity AS identity,
                    pg_get_expr(d.adbin,d.adrelid) AS default
@@ -141,99 +154,184 @@ def catalog(connection):
               ON d.adrelid=a.attrelid AND d.adnum=a.attnum
             WHERE a.attrelid=%s::regclass AND a.attnum>0 AND NOT a.attisdropped
             ORDER BY a.attnum
-        """, (name,)).fetchall()
-        for column in table['columns']:
-            column['purpose'] = PURPOSES[column['name']]
-        table['constraints'] = connection.execute("""
+        """,
+            (name,),
+        ).fetchall()
+        for column in table["columns"]:
+            column["purpose"] = PURPOSES[column["name"]]
+        table["constraints"] = connection.execute(
+            """
             SELECT conname AS name, contype AS kind, pg_get_constraintdef(oid) AS definition
             FROM pg_constraint WHERE conrelid=%s::regclass ORDER BY conname
-        """, (name,)).fetchall()
-        require(any(row['kind'] == 'p' for row in table['constraints']), f"Missing PK: {name}")
-        table['indexes'] = connection.execute("""
+        """,
+            (name,),
+        ).fetchall()
+        require(
+            any(row["kind"] == "p" for row in table["constraints"]),
+            f"Missing PK: {name}",
+        )
+        table["indexes"] = connection.execute(
+            """
             SELECT indexname AS name,indexdef AS definition FROM pg_indexes
             WHERE schemaname='public' AND tablename=%s ORDER BY indexname
-        """, (name,)).fetchall()
+        """,
+            (name,),
+        ).fetchall()
     return tables
 
 
 def demonstrations(connection):
-    owner = connection.execute("SELECT id FROM users WHERE is_active ORDER BY id LIMIT 1").fetchone()
+    owner = connection.execute(
+        "SELECT id FROM users WHERE is_active ORDER BY id LIMIT 1"
+    ).fetchone()
     require(owner is not None, "Seed at least one active user")
     key = f"academic-{uuid4().hex}"
-    row = connection.execute("""
+    row = connection.execute(
+        """
         INSERT INTO projects(name,key,owner_id) VALUES ('Academic CRUD',%s,%s) RETURNING id
-    """, (key, owner['id'])).fetchone()
-    project = row['id']
+    """,
+        (key, owner["id"]),
+    ).fetchone()
+    project = row["id"]
     membership = connection.execute(
         "SELECT count(*) AS count FROM project_members WHERE project_id=%s AND user_id=%s",
-        (project, owner['id']),
-    ).fetchone()['count']
+        (project, owner["id"]),
+    ).fetchone()["count"]
     require(membership == 1, "Owner-membership trigger failed")
-    connection.execute("UPDATE projects SET name='Academic updated' WHERE id=%s", (project,))
-    require(connection.execute("SELECT name FROM projects WHERE id=%s", (project,)).fetchone()
-            ['name'] == 'Academic updated', "CRUD update failed")
+    connection.execute(
+        "UPDATE projects SET name='Academic updated' WHERE id=%s", (project,)
+    )
+    require(
+        connection.execute(
+            "SELECT name FROM projects WHERE id=%s", (project,)
+        ).fetchone()["name"]
+        == "Academic updated",
+        "CRUD update failed",
+    )
     # A savepoint rollback proves atomic recovery without altering real records.
     connection.execute("SAVEPOINT academic_rollback")
-    connection.execute("UPDATE projects SET name='Should roll back' WHERE id=%s", (project,))
+    connection.execute(
+        "UPDATE projects SET name='Should roll back' WHERE id=%s", (project,)
+    )
     connection.execute("ROLLBACK TO SAVEPOINT academic_rollback")
-    require(connection.execute("SELECT name FROM projects WHERE id=%s", (project,)).fetchone()
-            ['name'] == 'Academic updated', "Transaction rollback failed")
+    require(
+        connection.execute(
+            "SELECT name FROM projects WHERE id=%s", (project,)
+        ).fetchone()["name"]
+        == "Academic updated",
+        "Transaction rollback failed",
+    )
     connection.execute("SAVEPOINT invalid_fk")
     try:
-        connection.execute("INSERT INTO prompts(project_id,key,name) VALUES (%s,'bad','bad')",
-                           (uuid4(),))
+        connection.execute(
+            "INSERT INTO prompts(project_id,key,name) VALUES (%s,'bad','bad')",
+            (uuid4(),),
+        )
     except psycopg.errors.ForeignKeyViolation:
         connection.execute("ROLLBACK TO SAVEPOINT invalid_fk")
     else:
         raise RuntimeError("Invalid FK was accepted")
     connection.execute("DELETE FROM projects WHERE id=%s", (project,))
-    require(connection.execute("SELECT count(*) AS count FROM projects WHERE id=%s", (project,))
-            .fetchone()['count'] == 0, "CRUD delete failed")
-    require(connection.execute("SELECT count(*) AS count FROM project_members WHERE project_id=%s",
-                               (project,)).fetchone()['count'] == 0, "Membership cascade failed")
-    audits = connection.execute("""
+    require(
+        connection.execute(
+            "SELECT count(*) AS count FROM projects WHERE id=%s", (project,)
+        ).fetchone()["count"]
+        == 0,
+        "CRUD delete failed",
+    )
+    require(
+        connection.execute(
+            "SELECT count(*) AS count FROM project_members WHERE project_id=%s",
+            (project,),
+        ).fetchone()["count"]
+        == 0,
+        "Membership cascade failed",
+    )
+    audits = connection.execute(
+        """
         SELECT action,count(*) AS events FROM audit_events
         WHERE entity_id=%s AND entity_type='projects' GROUP BY action ORDER BY action
-    """, (project,)).fetchall()
+    """,
+        (project,),
+    ).fetchall()
     require(len(audits) == 3, "CRUD audit trigger evidence missing")
-    connection.execute("CALL perform_system_maintenance('365 days','365 days','365 days')")
-    return {"crud": "insert/read/update/delete passed", "owner_membership_trigger": membership,
-            "rollback": "savepoint restored prior value", "invalid_foreign_key": "23503 rejected",
-            "cascade_delete": "membership removed", "audit_trigger": audits,
-            "procedure_call": "perform_system_maintenance succeeded",
-            "cleanup": "all demonstration writes rolled back"}
+    connection.execute(
+        "CALL perform_system_maintenance('365 days','365 days','365 days')"
+    )
+    return {
+        "crud": "insert/read/update/delete passed",
+        "owner_membership_trigger": membership,
+        "rollback": "savepoint restored prior value",
+        "invalid_foreign_key": "23503 rejected",
+        "cascade_delete": "membership removed",
+        "audit_trigger": audits,
+        "procedure_call": "perform_system_maintenance succeeded",
+        "cleanup": "all demonstration writes rolled back",
+    }
 
 
 def markdown(tables):
-    lines = ["# PromptVault column dictionary", "",
-             "Generated from the live PostgreSQL catalog; see academic evidence for its migration revision.",
-             "Logical tables exclude physical partitions and views. No stored row values are exported.", ""]
+    lines = [
+        "# PromptVault column dictionary",
+        "",
+        "Generated from the live PostgreSQL catalog; see academic evidence for its migration revision.",
+        "Logical tables exclude physical partitions and views. No stored row values are exported.",
+        "",
+    ]
     for table in tables:
-        lines.extend([f"## `{table['name']}`", "", table['purpose'], "",
-                      "| Column | Type | Nullable | Default / identity | Purpose |",
-                      "|---|---|---|---|---|"])
-        for column in table['columns']:
-            default = column['default'] or ("GENERATED IDENTITY" if column['identity'] else "—")
-            values = [column['name'], column['type'], str(column['nullable']), default, column['purpose']]
-            lines.append("| " + " | ".join(str(value).replace('|', '\\|') for value in values) + " |")
+        lines.extend(
+            [
+                f"## `{table['name']}`",
+                "",
+                table["purpose"],
+                "",
+                "| Column | Type | Nullable | Default / identity | Purpose |",
+                "|---|---|---|---|---|",
+            ]
+        )
+        for column in table["columns"]:
+            default = column["default"] or (
+                "GENERATED IDENTITY" if column["identity"] else "—"
+            )
+            values = [
+                column["name"],
+                column["type"],
+                str(column["nullable"]),
+                default,
+                column["purpose"],
+            ]
+            lines.append(
+                "| "
+                + " | ".join(str(value).replace("|", "\\|") for value in values)
+                + " |"
+            )
         lines.extend(["", "Constraints and keys:", ""])
-        lines.extend(f"- `{row['definition']}`" for row in table['constraints'])
+        lines.extend(f"- `{row['definition']}`" for row in table["constraints"])
         lines.extend(["", "Indexes:", ""])
-        lines.extend(f"- `{row['definition']}`" for row in table['indexes'])
+        lines.extend(f"- `{row['definition']}`" for row in table["indexes"])
         lines.append("")
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--database-url', required=True)
-    parser.add_argument('--output-dir', type=Path, default=Path('evidence/academic'))
-    parser.add_argument('--dictionary', type=Path, default=Path('docs/data-dictionary.md'))
+    parser.add_argument("--database-url", required=True)
+    parser.add_argument("--output-dir", type=Path, default=Path("evidence/academic"))
+    parser.add_argument(
+        "--dictionary", type=Path, default=Path("docs/data-dictionary.md")
+    )
     args = parser.parse_args()
-    require(urlsplit(args.database_url).path.endswith('_test'), "Requires disposable _test database")
+    require(
+        urlsplit(args.database_url).path.endswith("_test"),
+        "Requires disposable _test database",
+    )
     with psycopg.connect(args.database_url, row_factory=dict_row) as connection:
-        require(connection.execute("SELECT current_database() AS name").fetchone()['name']
-                .endswith('_test'), "Connected database must end in _test")
+        require(
+            connection.execute("SELECT current_database() AS name")
+            .fetchone()["name"]
+            .endswith("_test"),
+            "Connected database must end in _test",
+        )
         tables = catalog(connection)
         migrations = connection.execute(
             "SELECT version,name,checksum FROM schema_migrations ORDER BY version"
@@ -261,12 +359,18 @@ def main():
             JOIN prompt_versions v ON v.prompt_id=pr.id ORDER BY p.id,v.id LIMIT 1
         """).fetchone()
         require(fixture is not None, "Seed a prompt version before collecting evidence")
-        connection.execute("""
-            INSERT INTO runs(user_id,project_id,prompt_id,version_id,status,provider,model,
+        connection.execute(
+            """
+            INSERT INTO runs(user_id,version_id,status,
                              output_text,prompt_tokens,completion_tokens,cost)
-            VALUES (%s,%s,%s,%s,'completed','mock','deterministic-v1',
+            VALUES (%s,%s,'completed',
                     'Synthetic academic SQL fixture; no provider request',7,3,0)
-        """, (fixture['owner_id'],fixture['project_id'],fixture['prompt_id'],fixture['version_id']))
+        """,
+            (
+                fixture["owner_id"],
+                fixture["version_id"],
+            ),
+        )
         joins = connection.execute("""
             SELECT p.key AS project,pr.key AS prompt,v.version_number
             FROM projects p JOIN prompts pr ON pr.project_id=p.id
@@ -284,30 +388,54 @@ def main():
             WHERE prompt_id=(SELECT id FROM prompts ORDER BY id LIMIT 1)
             ORDER BY version_number DESC LIMIT 25
         """).fetchone()
-        require(bool(joins) and bool(aggregates) and bool(view_samples), "Seeded query evidence is empty")
+        require(
+            bool(joins) and bool(aggregates) and bool(view_samples),
+            "Seeded query evidence is empty",
+        )
         result = demonstrations(connection)
         connection.rollback()
-        require(connection.execute("SELECT count(*) AS count FROM projects WHERE key LIKE 'academic-%'")
-                .fetchone()['count'] == 0, "Demonstration data remains")
-        report = {"generated_at": datetime.now(UTC).isoformat(), "logical_tables": len(tables),
-                  "migrations": migrations, "tables": tables, "views": views, "triggers": triggers,
-                  "procedure": procedure, "joins": joins, "aggregates": aggregates,
-                  "view_samples": view_samples, "query_plan": plans, "demonstrations": result,
-                  "execution_fixture": "rollback-only synthetic mock row; no provider call"}
+        require(
+            connection.execute(
+                "SELECT count(*) AS count FROM projects WHERE key LIKE 'academic-%'"
+            ).fetchone()["count"]
+            == 0,
+            "Demonstration data remains",
+        )
+        report = {
+            "generated_at": datetime.now(UTC).isoformat(),
+            "logical_tables": len(tables),
+            "migrations": migrations,
+            "tables": tables,
+            "views": views,
+            "triggers": triggers,
+            "procedure": procedure,
+            "joins": joins,
+            "aggregates": aggregates,
+            "view_samples": view_samples,
+            "query_plan": plans,
+            "demonstrations": result,
+            "execution_fixture": "rollback-only synthetic Gemini ledger row; no provider call",
+        }
     args.output_dir.mkdir(parents=True, exist_ok=True)
     args.dictionary.parent.mkdir(parents=True, exist_ok=True)
-    args.dictionary.write_text(markdown(tables), encoding='utf-8')
+    args.dictionary.write_text(markdown(tables), encoding="utf-8")
     root = Path(__file__).resolve().parents[1]
-    sources = [Path(__file__), root / 'docs' / 'erd.md', root / 'docs' / 'normalization.md']
-    sources.extend(sorted((root / 'db' / 'migrations').glob('*.sql')))
-    report['source_sha256'] = {
-        str(path.relative_to(root)): sha256(path.read_bytes()).hexdigest() for path in sources
+    sources = [
+        Path(__file__),
+        root / "docs" / "erd.md",
+        root / "docs" / "normalization.md",
+    ]
+    sources.extend(sorted((root / "db" / "migrations").glob("*.sql")))
+    report["source_sha256"] = {
+        str(path.relative_to(root)): sha256(path.read_bytes()).hexdigest()
+        for path in sources
     }
-    report['dictionary_sha256'] = sha256(args.dictionary.read_bytes()).hexdigest()
-    (args.output_dir / 'database-evidence.json').write_text(
-        json.dumps(report, default=str, indent=2) + '\n', encoding='utf-8')
+    report["dictionary_sha256"] = sha256(args.dictionary.read_bytes()).hexdigest()
+    (args.output_dir / "database-evidence.json").write_text(
+        json.dumps(report, default=str, indent=2) + "\n", encoding="utf-8"
+    )
     print(f"Verified {len(tables)} logical tables; dictionary and SQL evidence saved.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

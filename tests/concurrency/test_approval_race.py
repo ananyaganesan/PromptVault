@@ -30,17 +30,7 @@ def create_pending_deployment(database_url: str, label: str) -> tuple[UUID, UUID
             (prompt_id, project_id),
         )
         connection.execute(
-            """
-            INSERT INTO prompt_versions (
-                id, prompt_id, version_number, template_body, variables,
-                model_config, commit_message, created_by
-            ) VALUES (
-                %s, %s, 1, 'Approval', '[]',
-                '{"provider":"mock","model":"deterministic-v1",'
-                '"temperature":0,"max_output_tokens":10}',
-                'Initial', %s
-            )
-            """,
+            '\n            INSERT INTO prompt_versions (id, prompt_id, version_number, template_body, provider, model, temperature, max_output_tokens, commit_message, created_by) VALUES (%s, %s, 1, \'Approval\', (\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'provider\', (\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'model\', ((\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'temperature\')::numeric, ((\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'max_output_tokens\')::integer, \'Initial\', %s)\n            ',
             (version_id, prompt_id, user_id),
         )
         deployment_id = connection.execute(
@@ -78,14 +68,16 @@ def test_two_competing_production_reviews_have_exactly_one_winner(
     assert sum(result in {"active", "rejected"} for result in results) == 1
     with psycopg.connect(database_url) as connection:
         final_status = connection.execute(
-            "SELECT status FROM deployments WHERE id = %s", (deployment_id,)
+            "SELECT status FROM deployment_context WHERE id = %s", (deployment_id,)
         ).fetchone()[0]
     assert final_status in {"active", "rejected"}
 
 
 @pytest.mark.database
 def test_cancellation_and_review_cannot_both_win(database_url: str) -> None:
-    deployment_id, requester_id = create_pending_deployment(database_url, "cancel-review")
+    deployment_id, requester_id = create_pending_deployment(
+        database_url, "cancel-review"
+    )
     barrier = Barrier(2)
 
     def cancel() -> str:

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from api.app.errors import AppError
+from api.app.providers.policy import require_allowed_provider
 from api.app.repositories.tokens import RuntimeTokenRecord, TokenRepository
 from api.app.repositories.users import UserRecord
 from api.app.schemas.common import Page
@@ -22,15 +23,11 @@ class TokenService:
         self.tokens = tokens
         self.request_id = request_id
 
-    async def _require_owner(
-        self, project_id: UUID, actor: UserRecord
-    ) -> None:
+    async def _require_owner(self, project_id: UUID, actor: UserRecord) -> None:
         if not await self.tokens.is_owner(project_id, actor.id, actor.role == "admin"):
             raise AppError(403, "forbidden", "Project ownership is required")
 
-    async def create(
-        self, payload: ApiTokenCreate, actor: UserRecord
-    ) -> ApiTokenCreatedResponse:
+    async def create(self, payload: ApiTokenCreate, actor: UserRecord) -> ApiTokenCreatedResponse:
         await self._require_owner(payload.project_id, actor)
         if payload.expires_at is not None and payload.expires_at <= datetime.now(UTC):
             raise AppError(
@@ -112,4 +109,5 @@ class ServeService:
         if result is None:
             raise AppError(404, "not_found", "Active prompt was not found")
         prompt, deployment_id = result
+        require_allowed_provider(prompt.model_configuration.provider)
         return prompt, f'"{deployment_id}:{prompt.version.id}"'

@@ -19,7 +19,7 @@ function deployment(id = 'active'): BackendDeploymentDetail {
 }
 function setup() { render(<MemoryRouter initialEntries={['/rollback']}><Routes><Route path="/rollback" element={<DeploymentRollbackPage />} /><Route path="/deployments/:deploymentId" element={<DeploymentDetailPage />} /></Routes></MemoryRouter>) }
 beforeEach(() => {
-  versionStore.prompt = [3, 2, 1].map((number) => ({ id: `v${number}`, prompt_id: 'prompt', version_number: number, parent_version_id: null, template: 'Template', variables: [], model_config: { provider: 'mock', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Saved', created_by: 'admin', created_by_name: 'Admin', created_at: '2026-10-10T00:00:00Z' }))
+  versionStore.prompt = [3, 2, 1].map((number) => ({ id: `v${number}`, prompt_id: 'prompt', version_number: number, parent_version_id: null, template: 'Template', variables: [], model_config: { provider: 'gemini', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Saved', created_by: 'admin', created_by_name: 'Admin', created_at: '2026-10-10T00:00:00Z' }))
   vi.spyOn(deploymentsApi, 'list').mockResolvedValue({ items: [deployment()], total: 1, page: 1, page_size: 100 })
   vi.spyOn(deploymentsApi, 'get').mockImplementation(async (id) => deployment(id))
 })

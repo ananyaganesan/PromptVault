@@ -14,14 +14,14 @@ describe('admin API adapters', () => {
       project_count: 4, prompt_count: 5, run_count: 6, completed_run_count: 4,
       failed_run_count: 1, blocked_run_count: 1, total_spend: '1.250000',
       pending_approval_count: 2,
-      spend_by_model: [{ provider: 'mock', model: 'deterministic-v1', run_count: 4, cost: '1.000000' }],
+      spend_by_model: [{ provider: 'gemini', model: 'gemini-3.5-flash-lite', run_count: 4, cost: '1.000000' }],
       cost_trend: [], top_spenders: [], refreshed_through: '2026-09-27T00:00:00Z',
     })).toEqual(expect.objectContaining({ monthly_spend: '1.250000', run_count: 6, pending_approval_count: 2 }))
   })
 
   it('expands a backend input/output pricing record for the existing table', () => {
     expect(adaptModelPricing({
-      id: 'price-id', provider: 'mock', model: 'deterministic-v1', input_price_per_million: '1.0',
+      id: 'price-id', provider: 'gemini', model: 'gemini-3.5-flash-lite', input_price_per_million: '1.0',
       output_price_per_million: '2.0', effective_from: '2026-09-01T00:00:00Z', effective_to: null,
       created_by: null, created_at: '2026-09-01T00:00:00Z',
     })).toEqual([
@@ -57,7 +57,7 @@ describe('admin API adapters', () => {
       id, project_id: 'project-id', prompt_id: 'prompt-id', prompt_key: 'prompt',
       version_id: 'version-id', version_number: 1, user_id: 'user-id', status: 'completed',
       output_text: 'ok', input_variables: {}, prompt_tokens: 1, completion_tokens: 1,
-      latency_ms: 1, cost: '0.010000', model: 'deterministic-v1', provider: 'mock',
+      latency_ms: 1, cost: '0.010000', model: 'gemini-3.5-flash-lite', provider: 'gemini',
       error_code: null, created_at: '2026-09-28T00:00:00Z',
     })
     const first = Array.from({ length: 100 }, (_, index) => run(`run-${index}`))

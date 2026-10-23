@@ -28,17 +28,7 @@ def test_concurrent_admission_never_reserves_more_than_user_budget(
             (prompt_id, project_id),
         )
         connection.execute(
-            """
-            INSERT INTO prompt_versions (
-                id, prompt_id, version_number, template_body, variables,
-                model_config, commit_message, created_by
-            ) VALUES (
-                %s, %s, 1, 'Race', '[]',
-                '{"provider":"gemini","model":"gemini-2.5-flash",'
-                '"temperature":0,"max_output_tokens":100}',
-                'Initial', %s
-            )
-            """,
+            '\n            INSERT INTO prompt_versions (id, prompt_id, version_number, template_body, provider, model, temperature, max_output_tokens, commit_message, created_by) VALUES (%s, %s, 1, \'Race\', (\'{"provider":"gemini","model":"gemini-2.5-flash",\'\n                \'"temperature":0,"max_output_tokens":100}\')::jsonb->>\'provider\', (\'{"provider":"gemini","model":"gemini-2.5-flash",\'\n                \'"temperature":0,"max_output_tokens":100}\')::jsonb->>\'model\', ((\'{"provider":"gemini","model":"gemini-2.5-flash",\'\n                \'"temperature":0,"max_output_tokens":100}\')::jsonb->>\'temperature\')::numeric, ((\'{"provider":"gemini","model":"gemini-2.5-flash",\'\n                \'"temperature":0,"max_output_tokens":100}\')::jsonb->>\'max_output_tokens\')::integer, \'Initial\', %s)\n            ',
             (version_id, prompt_id, user_id),
         )
         connection.execute(
@@ -82,7 +72,7 @@ def test_concurrent_admission_never_reserves_more_than_user_budget(
     assert statuses.count("blocked") == workers - 4
     with psycopg.connect(database_url) as connection:
         total = connection.execute(
-            "SELECT sum(estimated_cost) FROM run_reservations "
+            "SELECT sum(estimated_cost) FROM reservation_context "
             "WHERE user_id = %s AND status = 'reserved'",
             (user_id,),
         ).fetchone()[0]

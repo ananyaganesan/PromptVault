@@ -3,7 +3,7 @@ from uuid import UUID
 import psycopg
 import pytest
 from api.app.repositories.deployments import DeploymentRepository
-from psycopg.rows import dict_row
+from tests.orm_support import orm_connection
 
 USER_ID = UUID("11111111-1111-4111-8111-111111111111")
 PROJECT_ID = UUID("33333333-3333-4333-8333-333333333333")
@@ -15,10 +15,10 @@ VERSION_ID = UUID("55555555-5555-4555-8555-555555555555")
 async def test_deployment_access_lock_blocks_concurrent_membership_removal(
     seeded_database_url: str,
 ) -> None:
-    async with await psycopg.AsyncConnection.connect(
-        seeded_database_url,
-        row_factory=dict_row,
-    ) as deployment_connection, deployment_connection.transaction():
+    async with (
+        orm_connection(seeded_database_url) as deployment_connection,
+        deployment_connection.transaction(),
+    ):
         allowed = await DeploymentRepository(deployment_connection).lock_version_access(
             VERSION_ID, USER_ID, "user"
         )

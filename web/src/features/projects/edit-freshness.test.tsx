@@ -12,7 +12,7 @@ const auth = vi.hoisted(() => ({ user: { id: 'owner', role: 'user', display_name
 vi.mock('../auth/auth-context', () => ({ useAuth: () => auth }))
 
 function version(number: number): PromptVersion {
-  return { id: `v${number}`, prompt_id: 'prompt', version_number: number, parent_version_id: number > 1 ? `v${number - 1}` : null, template: `Template ${number}`, variables: [], model_config: { provider: 'mock', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Saved', created_by: 'owner', created_by_name: 'Owner', created_at: '2026-10-10T00:00:00Z' }
+  return { id: `v${number}`, prompt_id: 'prompt', version_number: number, parent_version_id: number > 1 ? `v${number - 1}` : null, template: `Template ${number}`, variables: [], model_config: { provider: 'gemini', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Saved', created_by: 'owner', created_by_name: 'Owner', created_at: '2026-10-10T00:00:00Z' }
 }
 beforeEach(() => {
   auth.user = { id: 'owner', role: 'user', display_name: 'Owner' }

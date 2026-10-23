@@ -145,9 +145,8 @@ export function NewPromptPage() {
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const testProvider = import.meta.env.DEV || import.meta.env.MODE === "test";
-  const [provider, setProvider] = useState(testProvider ? "mock" : "gemini");
-  const [model, setModel] = useState(testProvider ? "deterministic-v1" : "");
+  const [provider, setProvider] = useState("gemini");
+  const [model, setModel] = useState("gemini-3.5-flash-lite");
   const discovery = useProviderModels();
   const providerInfo = discovery.data?.items.find((item) => item.provider === provider);
 
@@ -191,16 +190,15 @@ export function NewPromptPage() {
             setModel(discovery.data?.items.find((item) => item.provider === event.target.value)?.models[0]?.id ?? "");
           }}>
             {LLM_PROVIDERS.map((name) => <option key={name} value={name}>{name}</option>)}
-            {testProvider && <option value="mock">Mock (local testing)</option>}
           </select>
         </label>
         <label className="field">
           <span>Model identifier</span>
-          {provider === "mock" ? <input value={model} readOnly required /> : <select value={model} onChange={(event) => setModel(event.target.value)} required>
+          {<select value={model} onChange={(event) => setModel(event.target.value)} required>
             <option value="">Select a free-access model</option>
             {providerInfo?.models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>}
-          {provider !== "mock" && <p className="provider-note">{discovery.error || providerInfo?.quota_note || "Loading provider models…"}</p>}
+          {<p className="provider-note">{discovery.error || providerInfo?.quota_note || "Loading provider models…"}</p>}
         </label>
         <label className="field">
           <span>Project</span>

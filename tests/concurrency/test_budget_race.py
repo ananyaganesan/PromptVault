@@ -16,7 +16,7 @@ def test_concurrent_run_costs_cannot_overspend_user_budget(database_url: str) ->
     prompt_id = uuid4()
     version_id = uuid4()
     model_config = (
-        '{"provider":"mock","model":"deterministic-v1",'
+        '{"provider":"gemini","model":"gemini-3.5-flash-lite",'
         '"temperature":0,"max_output_tokens":10}'
     )
     with psycopg.connect(database_url) as connection:
@@ -42,16 +42,13 @@ def test_concurrent_run_costs_cannot_overspend_user_budget(database_url: str) ->
             (prompt_id, project_id),
         )
         connection.execute(
-            """
-            INSERT INTO prompt_versions (
-                id, prompt_id, version_number, template_body, variables,
-                model_config, commit_message, created_by
-            )
-            VALUES (%s, %s, 1, 'Race', '[]', %s, 'Initial', %s)
-            """,
+            "\n            INSERT INTO prompt_versions (id, prompt_id, version_number, template_body, provider, model, temperature, max_output_tokens, commit_message, created_by)\n            VALUES (%s, %s, 1, 'Race', (%s)::jsonb->>'provider', (%s)::jsonb->>'model', ((%s)::jsonb->>'temperature')::numeric, ((%s)::jsonb->>'max_output_tokens')::integer, 'Initial', %s)\n            ",
             (
                 version_id,
                 prompt_id,
+                model_config,
+                model_config,
+                model_config,
                 model_config,
                 user_id,
             ),
@@ -79,8 +76,8 @@ def test_concurrent_run_costs_cannot_overspend_user_budget(database_url: str) ->
                     p_prompt_id => %s,
                     p_version_id => %s,
                     p_status => 'completed',
-                    p_provider => 'mock',
-                    p_model => 'deterministic-v1',
+                    p_provider => 'gemini',
+                    p_model => 'gemini-3.5-flash-lite',
                     p_input_variables => '{}'::jsonb,
                     p_output_text => 'completed',
                     p_prompt_tokens => 1,
@@ -110,7 +107,7 @@ def test_concurrent_run_costs_cannot_overspend_user_budget(database_url: str) ->
                    count(*) FILTER (WHERE status = 'completed') AS completed_count,
                    count(*) FILTER (WHERE status = 'blocked') AS blocked_count,
                    sum(cost) AS total_cost
-            FROM runs
+            FROM run_context
             WHERE project_id = %s
             """,
             (project_id,),

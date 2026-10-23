@@ -16,8 +16,8 @@ vi.mock('../auth/auth-context', () => ({ useAuth: () => ({ user: { id: 'user-1',
 function run(id: string, status: BackendPromptRun['status'] = 'completed'): BackendPromptRun {
   return {
     id, user_id: 'user-1', project_id: 'project-1', prompt_id: 'prompt-1',
-    prompt_key: id, version_id: 'version-1', version_number: 1, provider: 'mock',
-    model: 'deterministic-v1', status, input_variables: {}, output_text: 'Output',
+    prompt_key: id, version_id: 'version-1', version_number: 1, provider: 'gemini',
+    model: 'gemini-3.5-flash-lite', status, input_variables: {}, output_text: 'Output',
     prompt_tokens: 1, completion_tokens: 1, latency_ms: 25, cost: '0',
     error_code: status === 'completed' ? null : status === 'blocked' ? 'budget_exceeded' : 'provider_error',
     created_at: '2026-10-10T10:00:00Z',

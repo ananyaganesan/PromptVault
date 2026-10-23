@@ -8,10 +8,10 @@ from api.app.providers.policy import ConfiguredProvider
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class ModelConfiguration(BaseModel):
+class SavedModelConfiguration(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: ConfiguredProvider
+    provider: str
     model: Annotated[str, Field(min_length=1, max_length=160)]
     temperature: Annotated[float, Field(ge=0, le=2)] = 0
     max_output_tokens: Annotated[int, Field(ge=1, le=1_000_000)]
@@ -23,6 +23,10 @@ class ModelConfiguration(BaseModel):
         if not normalized:
             raise ValueError("value must not be blank")
         return normalized
+
+
+class ModelConfiguration(SavedModelConfiguration):
+    provider: ConfiguredProvider
 
 
 class VersionAuthorResponse(BaseModel):
@@ -56,7 +60,7 @@ class PromptVersionResponse(BaseModel):
     parent_version_id: UUID | None
     template_body: str
     variables: list[str]
-    model_configuration: ModelConfiguration = Field(alias="model_config")
+    model_configuration: SavedModelConfiguration = Field(alias="model_config")
     commit_message: str
     created_by: VersionAuthorResponse
     created_at: datetime
@@ -75,8 +79,8 @@ class VariableDiff(BaseModel):
 
 class ModelConfigurationDiff(BaseModel):
     changed_fields: list[str]
-    before: ModelConfiguration
-    after: ModelConfiguration
+    before: SavedModelConfiguration
+    after: SavedModelConfiguration
 
 
 class VersionDiffResponse(BaseModel):

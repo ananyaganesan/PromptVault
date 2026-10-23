@@ -13,7 +13,7 @@ function deferred<T>() {
   return { promise, resolve }
 }
 function version(number: number): BackendVersion {
-  return { id: `v${number}`, prompt_id: 'prompt', version_number: number, parent_version_id: number > 1 ? `v${number - 1}` : null, template_body: `Template ${number}`, variables: [], model_config: { provider: 'mock', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Saved', created_by: { id: 'owner', display_name: 'Owner' }, created_at: '2026-10-10T00:00:00Z' }
+  return { id: `v${number}`, prompt_id: 'prompt', version_number: number, parent_version_id: number > 1 ? `v${number - 1}` : null, template_body: `Template ${number}`, variables: [], model_config: { provider: 'gemini', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Saved', created_by: { id: 'owner', display_name: 'Owner' }, created_at: '2026-10-10T00:00:00Z' }
 }
 function diff(number: number): BackendVersionDiff {
   return { from_version_id: `v${number - 1}`, to_version_id: `v${number}`, template_body: { before: `API base ${number}`, after: `API candidate ${number}`, changed: true }, variables: { added: [], removed: [] }, model_config: { before: version(number).model_config, after: version(number).model_config, changed_fields: [] } }

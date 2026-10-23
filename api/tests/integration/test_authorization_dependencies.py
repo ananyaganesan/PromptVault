@@ -38,6 +38,8 @@ def authorization_client(
     app = create_app(settings)
     install_test_routes(app)
     with TestClient(app) as client:
+        from tests.provider_support import seed_gemini_test_credential
+        seed_gemini_test_credential(client.app.state.settings)
         yield client
 
 

@@ -7,11 +7,7 @@ from fastapi.testclient import TestClient
 
 from tests.support import admin_headers, create_project, register
 
-MODELS = {
-    "gemini": "gemini-3.5-flash-lite",
-    "openrouter": "liquid/lfm-2.5-2.6b:free",
-    "groq": "qwen/qwen3.8-27b",
-}
+MODELS = {"gemini": "gemini-3.5-flash-lite"}
 
 
 def configure(
@@ -52,7 +48,7 @@ def configure(
 
 
 @pytest.mark.database
-@pytest.mark.parametrize("provider", ["gemini", "openrouter", "groq"])
+@pytest.mark.parametrize("provider", ["gemini"])
 def test_free_execution_is_persisted_and_duplicate_does_not_call_again(
     api_client: TestClient,
     database_url: str,
@@ -64,8 +60,6 @@ def test_free_execution_is_persisted_and_duplicate_does_not_call_again(
     assert discovery.status_code == 200
     assert [item["provider"] for item in discovery.json()["items"]] == [
         "gemini",
-        "openrouter",
-        "groq",
     ]
     selected = next(
         item for item in discovery.json()["items"] if item["provider"] == provider
@@ -114,7 +108,7 @@ def test_free_execution_is_persisted_and_duplicate_does_not_call_again(
     )
     with psycopg.connect(database_url) as connection:
         assert connection.execute(
-            "SELECT output_text, prompt_tokens, completion_tokens, cost FROM runs WHERE id=%s",
+            "SELECT output_text, prompt_tokens, completion_tokens, cost FROM run_context WHERE id=%s",
             (result["id"],),
         ).fetchone() == ("Provider output", 7, 3, 0)
 
@@ -130,7 +124,7 @@ def test_quota_and_bad_credentials_are_safe_and_recorded(
     status: int,
     code: str,
 ) -> None:
-    headers, version = configure(api_client, "groq")
+    headers, version = configure(api_client, "gemini")
     client = httpx.AsyncClient
     monkeypatch.setattr(
         httpx,
@@ -170,7 +164,9 @@ def test_retired_gemini_model_returns_actionable_error_and_is_recorded(
         "AsyncClient",
         lambda **kwargs: client(
             transport=httpx.MockTransport(
-                lambda request: httpx.Response(404, text="model is no longer available"),
+                lambda request: httpx.Response(
+                    404, text="private upstream retirement details"
+                ),
             )
         ),
     )
@@ -183,7 +179,7 @@ def test_retired_gemini_model_returns_actionable_error_and_is_recorded(
 
     assert response.status_code == 409
     assert response.json()["code"] == "model_not_available"
-    assert "model is no longer available" not in response.text
+    assert "private upstream retirement details" not in response.text
     rows = api_client.get("/api/v1/runs", headers=headers).json()["items"]
     assert (
         len(rows) == 1
@@ -202,7 +198,7 @@ def test_input_limits_and_missing_key_prevent_provider_call(
     api_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    headers, version = configure(api_client, "groq")
+    headers, version = configure(api_client, "gemini")
 
     def unexpected_call(*args: object, **kwargs: object) -> None:
         pytest.fail("Provider must not be contacted for denied admission")
@@ -219,13 +215,8 @@ def test_input_limits_and_missing_key_prevent_provider_call(
     assert response.status_code == 422
     admin = admin_headers(api_client)
     keys = api_client.get("/api/v1/admin/provider-keys", headers=admin).json()["items"]
-    groq_key = next(key for key in keys if key["provider"] == "groq")
-    assert (
-        api_client.delete(
-            f"/api/v1/admin/provider-keys/{groq_key['id']}", headers=admin
-        ).status_code
-        == 204
-    )
+    for key in keys:
+        assert api_client.delete(f"/api/v1/admin/provider-keys/{key['id']}",headers=admin).status_code == 204
     response = api_client.post(
         "/api/v1/runs",
         headers=headers,
@@ -240,7 +231,7 @@ def test_input_limits_and_missing_key_prevent_provider_call(
     )
     discovery = api_client.get("/api/v1/providers/models", headers=headers).json()
     assert (
-        next(item for item in discovery["items"] if item["provider"] == "groq")[
+        next(item for item in discovery["items"] if item["provider"] == "gemini")[
             "credential_available"
         ]
         is False
@@ -250,7 +241,7 @@ def test_input_limits_and_missing_key_prevent_provider_call(
 
 @pytest.mark.database
 def test_unsupported_model_cannot_be_saved(api_client: TestClient) -> None:
-    headers, version = configure(api_client, "openrouter")
+    headers, version = configure(api_client, "gemini")
     response = api_client.post(
         f"/api/v1/prompts/{version['prompt_id']}/versions",
         headers=headers,
@@ -258,7 +249,7 @@ def test_unsupported_model_cannot_be_saved(api_client: TestClient) -> None:
             "parent_version_id": version["id"],
             "template_body": "Hello",
             "model_config": {
-                "provider": "openrouter",
+                "provider": "gemini",
                 "model": "paid/model",
                 "max_output_tokens": 100,
             },

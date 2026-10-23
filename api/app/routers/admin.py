@@ -66,9 +66,7 @@ def get_rollback_service(
     return RollbackService(DeploymentRepository(connection), get_request_id(request))
 
 
-AdminDeploymentService = Annotated[
-    DeploymentService, Depends(get_admin_deployment_service)
-]
+AdminDeploymentService = Annotated[DeploymentService, Depends(get_admin_deployment_service)]
 AdminRollbackService = Annotated[RollbackService, Depends(get_rollback_service)]
 
 
@@ -80,7 +78,6 @@ def get_admin_governance_service(
         AdminRepository(connection),
         get_request_id(request),
         request.app.state.settings.resolved_provider_encryption_key,
-        allow_mock=request.app.state.settings.environment in {"development", "test"},
     )
 
 
@@ -98,9 +95,7 @@ AdminAudit = Annotated[AuditService, Depends(get_audit_service)]
     "/deployments/pending",
     response_model=Page[DeploymentResponse],
     responses=error_responses(400, 401, 403, 422),
-    dependencies=[
-        Depends(allow_query_parameters("project_id", "prompt_id", "page", "page_size"))
-    ],
+    dependencies=[Depends(allow_query_parameters("project_id", "prompt_id", "page", "page_size"))],
 )
 async def pending_deployments(
     _admin: SuperAdmin,
@@ -141,9 +136,7 @@ async def approve_deployment(
     admin: SuperAdmin,
     service: AdminDeploymentService,
 ) -> DeploymentResponse:
-    return await service.review(
-        deployment_id, admin, approve=True, review_note=payload.review_note
-    )
+    return await service.review(deployment_id, admin, approve=True, review_note=payload.review_note)
 
 
 @router.post(
@@ -198,9 +191,7 @@ async def admin_dashboard(
     response_model=Page[AdminUserResponse],
     responses=error_responses(400, 401, 403, 422),
     dependencies=[
-        Depends(
-            allow_query_parameters("search", "role", "is_active", "page", "page_size")
-        )
+        Depends(allow_query_parameters("search", "role", "is_active", "page", "page_size"))
     ],
 )
 async def list_admin_users(
@@ -314,9 +305,7 @@ async def list_admin_provider_keys(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
 ) -> Page[ProviderKeyResponse]:
-    return await service.list_provider_keys(
-        provider=provider, page=page, page_size=page_size
-    )
+    return await service.list_provider_keys(provider=provider, page=page, page_size=page_size)
 
 
 @router.post(
@@ -354,9 +343,7 @@ async def deactivate_admin_provider_key(
     "/model-pricing",
     response_model=Page[ModelPricingResponse],
     responses=error_responses(400, 401, 403, 422),
-    dependencies=[
-        Depends(allow_query_parameters("provider", "model", "page", "page_size"))
-    ],
+    dependencies=[Depends(allow_query_parameters("provider", "model", "page", "page_size"))],
 )
 async def list_admin_model_pricing(
     _admin: SuperAdmin,
@@ -393,8 +380,16 @@ async def create_admin_model_pricing(
     dependencies=[
         Depends(
             allow_query_parameters(
-                "search", "user_id", "project_id", "prompt_id", "model", "status",
-                "from", "to", "page", "page_size"
+                "search",
+                "user_id",
+                "project_id",
+                "prompt_id",
+                "model",
+                "status",
+                "from",
+                "to",
+                "page",
+                "page_size",
             )
         )
     ],
@@ -434,8 +429,7 @@ async def list_admin_runs(
     dependencies=[
         Depends(
             allow_query_parameters(
-                "actor_id", "action", "entity_type", "entity_id",
-                "from", "to", "page", "page_size"
+                "actor_id", "action", "entity_type", "entity_id", "from", "to", "page", "page_size"
             )
         )
     ],

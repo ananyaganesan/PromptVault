@@ -44,3 +44,34 @@ def create_verified_test_user(
     assert response.status_code == 200, response.text
     session = response.json()
     return session["user"], {"Authorization": f"Bearer {session['access_token']}"}
+
+
+def seed_owned_project(
+    client: TestClient, headers: dict[str, str], payload: dict[str, object]
+) -> dict[str, object]:
+    """Seed an owned project for downstream tests, not an ordinary-user POST permission."""
+    from psycopg.rows import dict_row
+
+    actor = client.get("/api/v1/auth/me", headers=headers)
+    assert actor.status_code == 200
+    app = cast(FastAPI, client.app)
+    database_url = str(app.state.settings.database_url)
+    if not unquote(urlparse(database_url).path).endswith("_test"):
+        raise RuntimeError("Project fixtures require an isolated _test database")
+    with psycopg.connect(database_url, row_factory=dict_row) as connection:
+        connection.execute(
+            "SELECT set_config('app.user_id',%s,true),set_config('app.request_id','test-fixture',true)",
+            (actor.json()["id"],),
+        )
+        row = connection.execute(
+            "INSERT INTO projects(name,key,description,owner_id) VALUES (%s,%s,%s,%s) RETURNING id",
+            (
+                payload["name"],
+                payload["key"],
+                payload.get("description"),
+                actor.json()["id"],
+            ),
+        ).fetchone()
+    result = client.get(f"/api/v1/projects/{row['id']}", headers=headers)
+    assert result.status_code == 200
+    return result.json()

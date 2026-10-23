@@ -7,12 +7,20 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from api.app.db.models import (
+    ProjectMember,
+    Prompt,
+    PromptVersion,
+    User,
+    VersionContext,
+)
+from api.app.db.orm import ORMConnection, orm_one
 from api.app.repositories.pagination import read_page
 from api.app.schemas.runs import RunResponse, RunStatus
-from api.app.schemas.versions import ModelConfiguration
+from api.app.schemas.versions import SavedModelConfiguration
 from api.app.security import UserRole
-from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
+from sqlalchemy import exists, literal, or_, select
 
 _RUN_COLUMNS = """
     r.id, r.user_id, r.project_id, r.prompt_id, p.key AS prompt_key,
@@ -39,7 +47,7 @@ class RunTarget:
     version_number: int
     template_body: str
     variables: list[str]
-    model_configuration: ModelConfiguration
+    model_configuration: SavedModelConfiguration
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +86,7 @@ def _run_from_row(row: Mapping[str, Any]) -> RunResponse:
 
 
 class RunRepository:
-    def __init__(self, connection: AsyncConnection[dict[str, Any]]) -> None:
+    def __init__(self, connection: ORMConnection) -> None:
         self.connection = connection
 
     async def get_target_scoped(
@@ -87,25 +95,24 @@ class RunRepository:
         user_id: UUID,
         role: UserRole,
     ) -> RunTarget | None:
-        cursor = await self.connection.execute(
-            """
-            SELECT p.project_id, p.id AS prompt_id, p.key AS prompt_key,
-                   pv.id AS version_id, pv.version_number, pv.template_body,
-                   pv.variables, pv.model_config
-            FROM prompt_versions pv
-            JOIN prompts p ON p.id = pv.prompt_id
-            WHERE pv.id = %s
-              AND (
-                  %s = 'admin'
-                  OR EXISTS (
-                      SELECT 1 FROM project_members pm
-                      WHERE pm.project_id = p.project_id AND pm.user_id = %s
-                  )
-              )
-            """,
-            (version_id, role, user_id),
+        member = exists().where(
+            ProjectMember.project_id == Prompt.project_id, ProjectMember.user_id == user_id
         )
-        row = await cursor.fetchone()
+        row = await orm_one(
+            self.connection,
+            select(
+                Prompt.project_id,
+                Prompt.id.label("prompt_id"),
+                Prompt.key.label("prompt_key"),
+                VersionContext.id.label("version_id"),
+                VersionContext.version_number,
+                VersionContext.template_body,
+                VersionContext.variables,
+                VersionContext.model_config,
+            )
+            .join(VersionContext, VersionContext.prompt_id == Prompt.id)
+            .where(VersionContext.id == version_id, or_(literal(role == "admin"), member)),
+        )
         if row is None:
             return None
         return RunTarget(
@@ -116,7 +123,7 @@ class RunRepository:
             version_number=row["version_number"],
             template_body=row["template_body"],
             variables=row["variables"],
-            model_configuration=ModelConfiguration.model_validate(row["model_config"]),
+            model_configuration=SavedModelConfiguration.model_validate(row["model_config"]),
         )
 
     async def lock_execution_access(
@@ -125,44 +132,32 @@ class RunRepository:
         # Admission upgrades this lock inside reserve_run_execution. Acquire its
         # final strength up front so concurrent admissions cannot deadlock while
         # each holds SHARE and waits for the other's UPDATE lock.
-        user_lock = "UPDATE" if for_reservation else "SHARE"
-        user_cursor = await self.connection.execute(
-            f"""
-            SELECT role
-            FROM users
-            WHERE id = %s AND is_active
-            FOR {user_lock}
-            """,
-            (user_id,),
+        user = await orm_one(
+            self.connection,
+            select(User.role)
+            .where(User.id == user_id, User.is_active)
+            .with_for_update(read=not for_reservation),
         )
-        user = await user_cursor.fetchone()
         if user is None:
             return False
+        statement = (
+            select(PromptVersion.id)
+            .join(Prompt, Prompt.id == PromptVersion.prompt_id)
+            .where(PromptVersion.id == version_id)
+        )
         if user["role"] == "admin":
-            cursor = await self.connection.execute(
-                """
-                SELECT pv.id
-                FROM prompt_versions pv
-                JOIN prompts p ON p.id = pv.prompt_id
-                WHERE pv.id = %s
-                FOR KEY SHARE OF pv, p
-                """,
-                (version_id,),
+            statement = statement.with_for_update(
+                read=True, key_share=True, of=(PromptVersion, Prompt)
             )
         else:
-            cursor = await self.connection.execute(
-                """
-                SELECT pv.id
-                FROM prompt_versions pv
-                JOIN prompts p ON p.id = pv.prompt_id
-                JOIN project_members pm
-                  ON pm.project_id = p.project_id AND pm.user_id = %s
-                WHERE pv.id = %s
-                FOR KEY SHARE OF pv, p, pm
-                """,
-                (user_id, version_id),
+            statement = (
+                statement.join(ProjectMember, ProjectMember.project_id == Prompt.project_id)
+                .where(ProjectMember.user_id == user_id)
+                .with_for_update(
+                    read=True, key_share=True, of=(PromptVersion, Prompt, ProjectMember)
+                )
             )
-        return await cursor.fetchone() is not None
+        return await orm_one(self.connection, statement) is not None
 
     async def reserve_execution(
         self,
@@ -324,7 +319,7 @@ class RunRepository:
         cursor = await self.connection.execute(
             f"""
             SELECT {_RUN_COLUMNS}
-            FROM runs r
+            FROM run_context r
             JOIN prompts p ON p.id = r.prompt_id
             JOIN prompt_versions pv ON pv.id = r.version_id
             WHERE r.id = %s
@@ -382,21 +377,19 @@ class RunRepository:
                 parameters.append(value)
         if search is not None:
             escaped_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            where.append(
-                "(p.key ILIKE %s ESCAPE E'\\\\' OR r.id::text ILIKE %s ESCAPE E'\\\\')"
-            )
+            where.append("(p.key ILIKE %s ESCAPE E'\\\\' OR r.id::text ILIKE %s ESCAPE E'\\\\')")
             pattern = f"%{escaped_search}%"
             parameters.extend((pattern, pattern))
         where_sql = " AND ".join(where)
         rows, total = await read_page(
             self.connection,
             count_query=f"""SELECT count(*) AS total
-                FROM runs r
+                FROM run_context r
                 JOIN prompts p ON p.id = r.prompt_id
                 WHERE {where_sql}""",
             items_query=f"""
             SELECT {_RUN_SUMMARY_COLUMNS}
-            FROM runs r
+            FROM run_context r
             JOIN prompts p ON p.id = r.prompt_id
             JOIN prompt_versions pv ON pv.id = r.version_id
             WHERE {where_sql}
@@ -406,7 +399,7 @@ class RunRepository:
             parameters=parameters,
             page=page,
             page_size=page_size,
-            order_by='created_at DESC, id DESC',
+            order_by="created_at DESC, id DESC",
         )
         return [_run_from_row(row) for row in rows], total
 
@@ -430,7 +423,7 @@ class RunRepository:
                     )
                 ) AS prompt_count,
                 (
-                    SELECT count(*) FROM deployments
+                    SELECT count(*) FROM deployment_context
                     WHERE requested_by = %s AND status = 'pending'
                 ) AS pending_approval_count,
                 count(*) FILTER (WHERE r.created_at >= %s AND r.created_at < %s) AS run_count,
@@ -446,7 +439,7 @@ class RunRepository:
                 COALESCE(sum(r.cost) FILTER (
                     WHERE r.status = 'completed' AND r.created_at >= %s AND r.created_at < %s
                 ), 0) AS monthly_spend
-            FROM runs r
+            FROM run_context r
             WHERE r.user_id = %s
             """,
             (
@@ -484,7 +477,7 @@ class RunRepository:
             SELECT (created_at AT TIME ZONE %s)::date AS date,
                    sum(cost) AS cost,
                    count(*) AS run_count
-            FROM runs
+            FROM run_context
             WHERE user_id = %s
               AND status = 'completed'
               AND created_at >= %s
@@ -500,7 +493,7 @@ class RunRepository:
         cursor = await self.connection.execute(
             f"""
             SELECT {_RUN_SUMMARY_COLUMNS}
-            FROM runs r
+            FROM run_context r
             JOIN prompts p ON p.id = r.prompt_id
             JOIN prompt_versions pv ON pv.id = r.version_id
             WHERE r.user_id = %s

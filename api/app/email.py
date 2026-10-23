@@ -22,9 +22,7 @@ _INVITATION_TEMPLATE = Template(
     (Path(__file__).parent / "templates" / "project-invitation.html").read_text(encoding="utf-8")
 )
 _VERIFICATION_TEMPLATE = Template(
-    (Path(__file__).parent / "templates" / "email-verification.html").read_text(
-        encoding="utf-8"
-    )
+    (Path(__file__).parent / "templates" / "email-verification.html").read_text(encoding="utf-8")
 )
 _LOGO_PNG = (Path(__file__).parent / "templates" / "assets" / "promptvault-logo.png").read_bytes()
 
@@ -53,6 +51,7 @@ def _verification_url(settings: Settings, token: str) -> str:
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
     query["token"] = token
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
 
 def send_password_changed_email(settings: Settings, recipient: str) -> None:
     """Notify an account holder after their password reset has completed."""

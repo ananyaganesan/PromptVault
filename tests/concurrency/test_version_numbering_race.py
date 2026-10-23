@@ -33,7 +33,7 @@ def test_concurrent_version_saves_allocate_unique_consecutive_numbers(
             """
             SELECT * FROM create_prompt_version(
                 %s, NULL, 'Initial {{value}}', '["value"]'::jsonb,
-                '{"provider":"mock","model":"deterministic-v1","temperature":0,"max_output_tokens":100}'::jsonb,
+                '{"provider":"gemini","model":"gemini-3.5-flash-lite","temperature":0,"max_output_tokens":100}'::jsonb,
                 'Initial', %s
             )
             """,
@@ -47,7 +47,7 @@ def test_concurrent_version_saves_allocate_unique_consecutive_numbers(
                 """
                 SELECT * FROM create_prompt_version(
                     %s, %s, %s, '["value"]'::jsonb,
-                    '{"provider":"mock","model":"deterministic-v1","temperature":0,"max_output_tokens":100}'::jsonb,
+                    '{"provider":"gemini","model":"gemini-3.5-flash-lite","temperature":0,"max_output_tokens":100}'::jsonb,
                     %s, %s
                 )
                 """,

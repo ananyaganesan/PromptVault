@@ -9,9 +9,9 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.mark.database
 def test_materialized_views_can_be_refreshed_after_migration(database_url: str) -> None:
-    refresh_sql = (REPOSITORY_ROOT / "db" / "maintenance" / "refresh-views.sql").read_text(
-        encoding="utf-8"
-    )
+    refresh_sql = (
+        REPOSITORY_ROOT / "db" / "maintenance" / "refresh-views.sql"
+    ).read_text(encoding="utf-8")
 
     with psycopg.connect(database_url, autocommit=True) as connection:
         connection.execute(refresh_sql)
@@ -45,11 +45,9 @@ def test_system_maintenance_recovers_stale_reservations_and_cleans_tokens(
         """
         INSERT INTO run_reservations (
             id, idempotency_key, request_fingerprint, claim_token, user_id,
-            project_id, prompt_id, version_id, estimated_cost, status, created_at
+            version_id, estimated_cost, status, created_at
         ) VALUES (
             %s, %s, %s, %s, '11111111-1111-4111-8111-111111111111',
-            '33333333-3333-4333-8333-333333333333',
-            '44444444-4444-4444-8444-444444444444',
             '55555555-5555-4555-8555-555555555555', 0.25, 'reserved',
             CURRENT_TIMESTAMP - INTERVAL '20 minutes'
         )
@@ -79,13 +77,19 @@ def test_system_maintenance_recovers_stale_reservations_and_cleans_tokens(
     )
 
     assert db_connection.execute(
-        "SELECT status, error_code FROM run_reservations WHERE id = %s",
+        "SELECT status, error_code FROM reservation_context WHERE id = %s",
         (reservation_id,),
     ).fetchone() == {"status": "uncertain", "error_code": "execution_interrupted"}
-    assert db_connection.execute(
-        "SELECT count(*) AS count FROM auth_sessions WHERE id = %s", (session_id,)
-    ).fetchone()["count"] == 0
-    assert db_connection.execute(
-        "SELECT count(*) AS count FROM password_reset_tokens WHERE token_hash = %s",
-        (token_hash,),
-    ).fetchone()["count"] == 0
+    assert (
+        db_connection.execute(
+            "SELECT count(*) AS count FROM auth_sessions WHERE id = %s", (session_id,)
+        ).fetchone()["count"]
+        == 0
+    )
+    assert (
+        db_connection.execute(
+            "SELECT count(*) AS count FROM password_reset_tokens WHERE token_hash = %s",
+            (token_hash,),
+        ).fetchone()["count"]
+        == 0
+    )

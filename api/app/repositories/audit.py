@@ -1,11 +1,12 @@
 """Redacted, filterable audit-event persistence."""
 
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
+from api.app.db.models import AuditEvent, fields
+from api.app.db.orm import ORMConnection, orm_page
 from api.app.schemas.admin import AuditEventResponse
-from psycopg import AsyncConnection
+from sqlalchemy import select
 
 _SECRET_FIELDS = {"password", "password_hash", "secret", "encrypted_secret", "token", "token_hash"}
 
@@ -13,9 +14,7 @@ _SECRET_FIELDS = {"password", "password_hash", "secret", "encrypted_secret", "to
 def _redact(value: object) -> object:
     if isinstance(value, dict):
         return {
-            key: _redact(item)
-            for key, item in value.items()
-            if key.lower() not in _SECRET_FIELDS
+            key: _redact(item) for key, item in value.items() if key.lower() not in _SECRET_FIELDS
         }
     if isinstance(value, list):
         return [_redact(item) for item in value]
@@ -23,7 +22,7 @@ def _redact(value: object) -> object:
 
 
 class AuditRepository:
-    def __init__(self, connection: AsyncConnection[dict[str, Any]]) -> None:
+    def __init__(self, connection: ORMConnection) -> None:
         self.connection = connection
 
     async def list_events(
@@ -38,38 +37,28 @@ class AuditRepository:
         page: int,
         page_size: int,
     ) -> tuple[list[AuditEventResponse], int]:
-        where = ["TRUE"]
-        parameters: list[Any] = []
-        for clause, value in (
-            ("actor_user_id = %s", actor_id),
-            ("action = %s", action),
-            ("entity_type = %s", entity_type),
-            ("entity_id = %s", entity_id),
-            ("created_at >= %s", created_from),
-            ("created_at < %s", created_to),
-        ):
+        statement = select(*fields(AuditEvent))
+        for column, operator, value in [
+            (AuditEvent.actor_user_id, "__eq__", actor_id),
+            (AuditEvent.action, "__eq__", action),
+            (AuditEvent.entity_type, "__eq__", entity_type),
+            (AuditEvent.entity_id, "__eq__", entity_id),
+            (AuditEvent.created_at, "__ge__", created_from),
+            (AuditEvent.created_at, "__lt__", created_to),
+        ]:
             if value is not None:
-                where.append(clause)
-                parameters.append(value)
-        where_sql = " AND ".join(where)
-        count_cursor = await self.connection.execute(
-            f"SELECT count(*) AS total FROM audit_events WHERE {where_sql}",
-            tuple(parameters),
+                statement = statement.where(getattr(column, operator)(value))
+        rows, total = await orm_page(
+            self.connection,
+            statement.order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc()),
+            page=page,
+            page_size=page_size,
+            order=[("created_at", True), ("id", True)],
         )
-        total = await count_cursor.fetchone()
-        cursor = await self.connection.execute(
-            f"""SELECT id, actor_user_id, action, entity_type, entity_id,
-                       before_data, after_data, request_id, created_at
-                FROM audit_events WHERE {where_sql}
-                ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s""",
-            (*parameters, page_size, (page - 1) * page_size),
-        )
-        if total is None:
-            raise RuntimeError("audit count returned no row")
         items = []
-        for row in await cursor.fetchall():
+        for row in rows:
             safe = dict(row)
             safe["before_data"] = _redact(safe["before_data"])
             safe["after_data"] = _redact(safe["after_data"])
             items.append(AuditEventResponse.model_validate(safe))
-        return items, int(total["total"])
+        return items, total

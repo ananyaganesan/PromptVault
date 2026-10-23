@@ -35,7 +35,7 @@ async function createVersionedPrompt(request: APIRequestContext, token: string, 
       name: `Release Reply ${suffix}`,
       description: 'Prompt used for the deployment lifecycle.',
       template_body: 'Reply to {{message}} with version one.',
-      model_config: { provider: 'mock', model: 'deterministic-v1', temperature: 0, max_output_tokens: 100 },
+      model_config: { provider: 'gemini', model: 'gemini-3.5-flash-lite', temperature: 0, max_output_tokens: 100 },
       commit_message: 'Version one',
     },
   })
@@ -48,7 +48,7 @@ async function createVersionedPrompt(request: APIRequestContext, token: string, 
       data: {
         parent_version_id: parent.id,
         template_body: `Reply to {{message}} with version ${versionNumber}.`,
-        model_config: { provider: 'mock', model: 'deterministic-v1', temperature: 0, max_output_tokens: 100 },
+        model_config: { provider: 'gemini', model: 'gemini-3.5-flash-lite', temperature: 0, max_output_tokens: 100 },
         commit_message: `Version ${versionNumber}`,
       },
     })

@@ -54,7 +54,7 @@ def run_race(url: str, workers: int) -> list[int]:
             """
             SELECT * FROM create_prompt_version(
                 %s, NULL, 'Initial {{value}}', '["value"]'::jsonb,
-                '{"provider":"mock","model":"deterministic-v1",'
+                '{"provider":"gemini","model":"gemini-3.5-flash-lite",'
                 '"temperature":0,"max_output_tokens":100}'::jsonb,
                 'Initial version', %s
             )
@@ -70,7 +70,7 @@ def run_race(url: str, workers: int) -> list[int]:
                 """
                 SELECT * FROM create_prompt_version(
                     %s, %s, %s, '["value"]'::jsonb,
-                    '{"provider":"mock","model":"deterministic-v1",'
+                    '{"provider":"gemini","model":"gemini-3.5-flash-lite",'
                     '"temperature":0,"max_output_tokens":100}'::jsonb,
                     %s, %s
                 )

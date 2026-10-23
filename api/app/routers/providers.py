@@ -3,6 +3,8 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
+from api.app.db.models import ProviderKey
+from api.app.db.orm import orm_all
 from api.app.db.transactions import DatabaseConnection, get_connection
 from api.app.dependencies.auth import CurrentUser
 from api.app.dependencies.query import allow_query_parameters
@@ -16,6 +18,7 @@ from api.app.schemas.providers import (
     ProviderResponse,
 )
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy import select
 
 router = APIRouter(prefix="/api/v1/providers", tags=["providers"])
 
@@ -31,12 +34,13 @@ async def discover_models(
     current_user: CurrentUser,
     connection: Annotated[DatabaseConnection, Depends(get_connection)],
 ) -> ProviderDiscoveryResponse:
-    cursor = await connection.execute(
-        "SELECT DISTINCT provider FROM provider_keys WHERE deactivated_at IS NULL"
+    rows = await orm_all(
+        connection,
+        select(ProviderKey.provider).where(ProviderKey.deactivated_at.is_(None)).distinct(),
     )
-    configured = {row["provider"] for row in await cursor.fetchall()}
+    configured = {row["provider"] for row in rows}
     items: list[ProviderResponse] = []
-    providers: tuple[ExternalProvider, ...] = ("gemini", "openrouter", "groq")
+    providers: tuple[ExternalProvider, ...] = ("gemini",)
     for provider in providers:
         models: list[ProviderModelResponse] = []
         for model in MODELS:

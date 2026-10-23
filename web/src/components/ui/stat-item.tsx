@@ -1,1 +1,0 @@
-export function StatItem({ label, value, note }: { label: string; value: string; note?: string }) { return <div className="stat"><span>{label}</span><strong>{value}</strong>{note && <small>{note}</small>}</div> }

@@ -11,3 +11,7 @@ web/.env.*.local
 .coverage
 coverage
 evidence
+
+secrets
+.env.*
+*.dump

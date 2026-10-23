@@ -12,27 +12,31 @@ from pydantic import ValidationError
 
 
 def test_external_provider_scope_is_fixed() -> None:
-    assert {"gemini", "openrouter", "groq"} == EXTERNAL_PROVIDERS
+    assert {"gemini"} == EXTERNAL_PROVIDERS
 
 
 def test_gemini_catalog_only_exposes_the_demo_model() -> None:
-    assert [model.id for model in MODELS if model.provider == "gemini"] == [
-        "gemini-3.5-flash-lite"
-    ]
+    assert [model.id for model in MODELS if model.provider == "gemini"] == ["gemini-3.5-flash-lite"]
 
 
-@pytest.mark.parametrize("provider", ["gemini", "openrouter", "groq"])
+@pytest.mark.parametrize("provider", ["gemini"])
 def test_selected_providers_are_valid_for_models_keys_and_pricing(provider: str) -> None:
     require_allowed_provider(provider)
     ModelConfiguration(provider=provider, model="selected-model", max_output_tokens=100)
     ProviderKeyCreate(provider=provider, alias="project", secret="test-secret")
     ModelPricingCreate(
-        provider=provider, model="selected-model", input_price_per_million=0,
-        output_price_per_million=0, effective_from=datetime.now(UTC),
+        provider=provider,
+        model="selected-model",
+        input_price_per_million=0,
+        output_price_per_million=0,
+        effective_from=datetime.now(UTC),
     )
 
 
-@pytest.mark.parametrize("provider", ["deepseek", "openai", "anthropic", "unknown", "GEMINI"])
+@pytest.mark.parametrize(
+    "provider",
+    ["mock", "openrouter", "groq", "deepseek", "openai", "anthropic", "unknown", "GEMINI"],
+)
 def test_other_providers_cannot_be_configured_or_dispatched(provider: str) -> None:
     with pytest.raises(ValidationError):
         ModelConfiguration(provider=provider, model="anything", max_output_tokens=100)
@@ -40,18 +44,13 @@ def test_other_providers_cannot_be_configured_or_dispatched(provider: str) -> No
         ProviderKeyCreate(provider=provider, alias="project", secret="test-secret")
     with pytest.raises(ValidationError):
         ModelPricingCreate(
-            provider=provider, model="anything", input_price_per_million=0,
-            output_price_per_million=0, effective_from=datetime.now(UTC),
+            provider=provider,
+            model="anything",
+            input_price_per_million=0,
+            output_price_per_million=0,
+            effective_from=datetime.now(UTC),
         )
     with pytest.raises(AppError):
-        require_allowed_provider(provider, allow_mock=True)
+        require_allowed_provider(provider)
     with pytest.raises(ProviderExecutionError):
-        get_provider(provider, credential="test-secret", allow_mock=True)
-
-
-def test_mock_requires_explicit_internal_allowance() -> None:
-    with pytest.raises(AppError):
-        require_allowed_provider("mock")
-    with pytest.raises(ProviderExecutionError):
-        get_provider("mock", credential="test-secret")
-    require_allowed_provider("mock", allow_mock=True)
+        get_provider(provider, credential="test-secret")

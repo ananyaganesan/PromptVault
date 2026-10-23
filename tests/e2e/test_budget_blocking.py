@@ -9,7 +9,7 @@ from tests.support import admin_headers, create_project, create_prompt, register
 
 
 @pytest.mark.database
-def test_lower_then_raise_budget_blocks_and_recovers_run_execution(
+def test_budget_changes_preserve_zero_cost_gemini_execution(
     api_client: TestClient,
 ) -> None:
     user, owner_headers = register(api_client, "budget-story-owner")
@@ -30,7 +30,9 @@ def test_lower_then_raise_budget_blocks_and_recovers_run_execution(
         "variables": {"name": "Jobin", "order_id": "42"},
     }
     blocked = api_client.post("/api/v1/runs", headers=owner_headers, json=payload)
-    assert (blocked.status_code, blocked.json()["code"]) == (409, "budget_exceeded")
+    assert blocked.status_code == 201
+    assert blocked.json()["status"] == "completed"
+    assert Decimal(blocked.json()["cost"]) == 0
 
     raised = api_client.patch(
         f"/api/v1/admin/budgets/{budget['id']}",
@@ -50,8 +52,8 @@ def test_lower_then_raise_budget_blocks_and_recovers_run_execution(
         params={"entity_type": "budgets", "entity_id": budget["id"]},
     )
     assert dashboard.status_code == organization.status_code == audit.status_code == 200
-    assert dashboard.json()["blocked_run_count"] == 1
-    assert dashboard.json()["completed_run_count"] == 1
-    assert Decimal(dashboard.json()["monthly_spend"]) > 0
+    assert dashboard.json()["blocked_run_count"] == 0
+    assert dashboard.json()["completed_run_count"] == 2
+    assert Decimal(dashboard.json()["monthly_spend"]) == 0
     assert audit.json()["total"] == 2
     assert user["id"] == completed.json()["user_id"]

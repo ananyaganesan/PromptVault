@@ -4,6 +4,8 @@ from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
+from api.app.db.models import Deployment, DeploymentContext, ProjectMember, Prompt, PromptVersion
+from api.app.db.orm import ORMConnection, orm_one
 from api.app.repositories.pagination import read_page
 from api.app.schemas.deployments import (
     DeploymentEnvironment,
@@ -12,7 +14,7 @@ from api.app.schemas.deployments import (
     DeploymentTimelineEvent,
 )
 from api.app.security import UserRole
-from psycopg import AsyncConnection
+from sqlalchemy import literal, or_, select, update
 
 _DEPLOYMENT_COLUMNS = """
     d.id, p.project_id, d.prompt_id, p.key AS prompt_key,
@@ -56,44 +58,34 @@ def _deployment_from_row(row: Mapping[str, Any]) -> DeploymentResponse:
 
 
 class DeploymentRepository:
-    def __init__(self, connection: AsyncConnection[dict[str, Any]]) -> None:
+    def __init__(self, connection: ORMConnection) -> None:
         self.connection = connection
 
     async def set_audit_context(self, actor_id: UUID, request_id: str) -> None:
         await self.connection.execute(
-            "SELECT set_config('app.user_id', %s, true), "
-            "set_config('app.request_id', %s, true)",
+            "SELECT set_config('app.user_id', %s, true), set_config('app.request_id', %s, true)",
             (str(actor_id), request_id),
         )
 
-    async def lock_version_access(
-        self, version_id: UUID, user_id: UUID, role: UserRole
-    ) -> bool:
+    async def lock_version_access(self, version_id: UUID, user_id: UUID, role: UserRole) -> bool:
+        statement = (
+            select(PromptVersion.id)
+            .join(Prompt, Prompt.id == PromptVersion.prompt_id)
+            .where(PromptVersion.id == version_id)
+        )
         if role == "admin":
-            cursor = await self.connection.execute(
-                """
-                SELECT pv.id
-                FROM prompt_versions pv
-                JOIN prompts p ON p.id = pv.prompt_id
-                WHERE pv.id = %s
-                FOR KEY SHARE OF pv, p
-                """,
-                (version_id,),
+            statement = statement.with_for_update(
+                read=True, key_share=True, of=(PromptVersion, Prompt)
             )
         else:
-            cursor = await self.connection.execute(
-                """
-                SELECT pv.id
-                FROM prompt_versions pv
-                JOIN prompts p ON p.id = pv.prompt_id
-                JOIN project_members pm
-                  ON pm.project_id = p.project_id AND pm.user_id = %s
-                WHERE pv.id = %s
-                FOR KEY SHARE OF pv, p, pm
-                """,
-                (user_id, version_id),
+            statement = (
+                statement.join(ProjectMember, ProjectMember.project_id == Prompt.project_id)
+                .where(ProjectMember.user_id == user_id)
+                .with_for_update(
+                    read=True, key_share=True, of=(PromptVersion, Prompt, ProjectMember)
+                )
             )
-        return await cursor.fetchone() is not None
+        return await orm_one(self.connection, statement) is not None
 
     async def create(
         self,
@@ -126,7 +118,7 @@ class DeploymentRepository:
         cursor = await self.connection.execute(
             f"""
             SELECT {_DEPLOYMENT_COLUMNS}
-            FROM deployments d
+            FROM deployment_context d
             JOIN prompts p ON p.id = d.prompt_id
             JOIN prompt_versions pv ON pv.id = d.version_id
             JOIN users requester ON requester.id = d.requested_by
@@ -144,7 +136,7 @@ class DeploymentRepository:
         cursor = await self.connection.execute(
             f"""
             SELECT {_DEPLOYMENT_COLUMNS}
-            FROM deployments d
+            FROM deployment_context d
             JOIN prompts p ON p.id = d.prompt_id
             JOIN prompt_versions pv ON pv.id = d.version_id
             JOIN users requester ON requester.id = d.requested_by
@@ -195,11 +187,11 @@ class DeploymentRepository:
         where_sql = " AND ".join(where)
         rows, total = await read_page(
             self.connection,
-            count_query=f"""SELECT count(*) AS total FROM deployments d
+            count_query=f"""SELECT count(*) AS total FROM deployment_context d
                 JOIN prompts p ON p.id = d.prompt_id WHERE {where_sql}""",
             items_query=f"""
             SELECT {_DEPLOYMENT_COLUMNS}
-            FROM deployments d
+            FROM deployment_context d
             JOIN prompts p ON p.id = d.prompt_id
             JOIN prompt_versions pv ON pv.id = d.version_id
             JOIN users requester ON requester.id = d.requested_by
@@ -211,7 +203,7 @@ class DeploymentRepository:
             parameters=parameters,
             page=page,
             page_size=page_size,
-            order_by='requested_at DESC, id DESC',
+            order_by="requested_at DESC, id DESC",
         )
         return [_deployment_from_row(row) for row in rows], total
 
@@ -222,7 +214,7 @@ class DeploymentRepository:
             """
             SELECT d.id, d.version_id, pv.version_number, d.status,
                    d.requested_at, d.reviewed_at, d.activated_at
-            FROM deployments d
+            FROM deployment_context d
             JOIN prompt_versions pv ON pv.id = d.version_id
             WHERE d.prompt_id = %s AND d.environment = %s
             ORDER BY d.requested_at DESC, d.id DESC
@@ -235,17 +227,17 @@ class DeploymentRepository:
     async def cancel(
         self, deployment_id: UUID, actor_id: UUID, role: UserRole
     ) -> DeploymentResponse | None:
-        cursor = await self.connection.execute(
-            """
-            UPDATE deployments
-            SET status = 'cancelled'
-            WHERE id = %s AND status = 'pending'
-              AND (requested_by = %s OR %s = 'admin')
-            RETURNING id
-            """,
-            (deployment_id, actor_id, role),
+        row = await orm_one(
+            self.connection,
+            update(Deployment)
+            .where(
+                Deployment.id == deployment_id,
+                Deployment.status == "pending",
+                or_(Deployment.requested_by == actor_id, literal(role == "admin")),
+            )
+            .values(status="cancelled")
+            .returning(Deployment.id),
         )
-        row = await cursor.fetchone()
         return await self.get(row["id"]) if row else None
 
     async def review(
@@ -296,10 +288,12 @@ class DeploymentRepository:
     async def active_version_id(
         self, prompt_id: UUID, environment: DeploymentEnvironment
     ) -> UUID | None:
-        cursor = await self.connection.execute(
-            """SELECT version_id FROM deployments
-               WHERE prompt_id = %s AND environment = %s AND status = 'active'""",
-            (prompt_id, environment),
+        row = await orm_one(
+            self.connection,
+            select(DeploymentContext.version_id).where(
+                DeploymentContext.prompt_id == prompt_id,
+                DeploymentContext.environment == environment,
+                DeploymentContext.status == "active",
+            ),
         )
-        row = await cursor.fetchone()
         return row["version_id"] if row else None

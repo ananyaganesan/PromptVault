@@ -48,17 +48,13 @@ class ApplicationMetrics:
                 ]
             )
             for code, count in sorted(self.errors.items()):
-                lines.append(
-                    f'promptvault_errors_total{{code="{_label(code)}"}} {count}'
-                )
+                lines.append(f'promptvault_errors_total{{code="{_label(code)}"}} {count}')
             lines.extend(
                 [
                     "# HELP promptvault_http_request_duration_seconds Request duration.",
                     "# TYPE promptvault_http_request_duration_seconds summary",
-                    "promptvault_http_request_duration_seconds_count "
-                    f"{self.duration_count}",
-                    "promptvault_http_request_duration_seconds_sum "
-                    f"{self.duration_sum:.9f}",
+                    f"promptvault_http_request_duration_seconds_count {self.duration_count}",
+                    f"promptvault_http_request_duration_seconds_sum {self.duration_sum:.9f}",
                     "# HELP promptvault_process_uptime_seconds Process uptime.",
                     "# TYPE promptvault_process_uptime_seconds gauge",
                     f"promptvault_process_uptime_seconds {monotonic() - self.started:.3f}",

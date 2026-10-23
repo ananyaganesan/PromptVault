@@ -28,9 +28,7 @@ ServeServiceDependency = Annotated[ServeService, Depends(get_serve_service)]
 
 
 async def get_runtime_token(
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None, Depends(runtime_bearer)
-    ],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(runtime_bearer)],
     service: ServeServiceDependency,
 ) -> RuntimeTokenRecord:
     if credentials is None or credentials.scheme.lower() != "bearer":

@@ -4,7 +4,7 @@ Use this guide to run the same PromptVault code on your own computer. Run comman
 
 ## 1. Prerequisites and fixed ports
 
-Install Python 3.11+, Node.js 22.12+ with npm, PostgreSQL 16 with its command-line tools (`psql`, `pg_dump`, `pg_restore`), and optionally pgAdmin. Docker is needed only for the optional Mailpit local inbox below. Keep PostgreSQL running on port 5432.
+Install Python 3.11+, Node.js 22.12+ with npm, PostgreSQL 16+ with its command-line tools (`psql`, `pg_dump`, `pg_restore`), and optionally pgAdmin. Docker is optional for native startup; it is required for the container deployment and optional Mailpit inbox. Keep PostgreSQL running on port 5432.
 
 | Component | Host / port | Purpose |
 |---|---|---|
@@ -162,13 +162,13 @@ Open `http://localhost:5173` and check the complete email path:
 
 Verification resend invalidates older links, uses a 60-second account cooldown and permits five attempts per rolling hour for each client/normalized-email hash. Resend/reset responses are generic; duplicate registration explicitly reports an existing account. Missing SMTP produces `503 email_delivery_unavailable` for eligible delivery attempts.
 
-External LLM execution needs your own free-access credentials added through the admin UI. Only Gemini, OpenRouter and Groq are allowed; no paid fallback or extra provider is supported. The internal `mock` adapter is available for deterministic local/test execution only. Simulated provider HTTP success is not real account verification.
+External LLM execution needs your own free-access credentials added through the admin UI. Only Gemini is allowed, including local development. Other adapters and the selectable mock provider are removed. Simulated Gemini HTTP in isolated tests is not real account verification. Historical versions retain their original metadata and require a new Gemini version before execution.
 
 ## 6. Database, schemas and tables
 
 The application database is **`promptvault`**. Its application relations live in the **`public` schema**; `pg_catalog` and `information_schema` are PostgreSQL system metadata. A database contains schemas; a schema contains tables, views and functions. No separate per-user or per-project schema is created.
 
-The checked-in migration chain currently runs from `001` through `029`. Its SQL is the schema source of truth; use the runner instead of manually pasting selected table definitions. The 19 logical tables below exclude monthly run partitions. Full column types, defaults, keys and indexes are in the [column dictionary](data-dictionary.md); see also the [ER diagram](erd.md) and [3NF explanation](normalization.md).
+The checked-in migration chain currently runs from `001` through `031`. Its SQL is the schema source of truth; use the runner instead of manually pasting selected table definitions. The 24 logical tables below exclude monthly run partitions. Full column types, defaults, keys and indexes are in the [column dictionary](data-dictionary.md); see also the [ER diagram](erd.md) and [3NF explanation](normalization.md).
 
 | Table in `public` | Identity / main relationships | Purpose and important rules |
 |---|---|---|
@@ -181,23 +181,29 @@ The checked-in migration chain currently runs from `001` through `029`. Its SQL 
 | `project_members` | Composite PK `(project_id,user_id)` | User/project access; automatic protected owner membership |
 | `project_invitations` | UUID `id`; project, recipient and inviter references | Hashed, expiring invitations with acceptance/revocation state |
 | `prompts` | UUID `id`; `project_id → projects` | Prompt identity; key unique within its project |
-| `prompt_versions` | UUID `id`; prompt, parent version and author references | Immutable body, variables and model config; unique per-prompt version number |
-| `runs` | Composite PK `(id,created_at)`; user/project/prompt/version references | Execution ledger, output, usage, latency and exact decimal cost; range-partitioned monthly |
-| `run_reservations` | UUID `id`; user/project/prompt/version and optional run references | Idempotent admission and budget reservation; unique user/idempotency key |
+| `prompt_versions` | UUID `id`; prompt and author references | Immutable body and atomic model configuration; unique per-prompt version number |
+| `runs` | Composite PK `(id,created_at)`; user/version references | Execution ledger, output, usage, latency and exact decimal cost; range-partitioned monthly |
+| `run_reservations` | UUID `id`; user/version references; result linked separately | Idempotent admission and budget reservation; unique user/idempotency key |
 | `budgets` | UUID `id`; exactly one user or project target | Nonnegative monthly limits with timezone |
 | `model_pricing` | UUID `id`; optional creator reference | Provider/model effective pricing windows with overlap prevention |
 | `provider_keys` | UUID `id`; creator reference | Encrypted server-side credentials, alias and active state |
 | `api_tokens` | UUID `id`; project and creator/revoker references | Project-scoped Serve credentials; only prefix/hash persist |
-| `deployments` | UUID `id`; prompt/version, requester/reviewer and rollback references | Activation, approval and rollback history; one active per prompt/environment |
+| `deployments` | UUID `id`; version, requester/reviewer references | Activation, approval and rollback history; one active per prompt/environment |
 | `audit_events` | Identity bigint `id`; optional actor reference | Redacted change records and attribution |
+| `prompt_version_parents` | PK `version_id`; parent version FK | Same-prompt immutable ancestry |
+| `prompt_version_variables` | PK `(version_id,ordinal)` | Ordered, unique variable names |
+| `run_inputs` | PK `(run_id,run_created_at,name)` | Atomic string input per run |
+| `reservation_results` | PK `reservation_id`; composite run FK | Finalized admission result; cost read from ledger |
+| `deployment_rollbacks` | PK `deployment_id`; rollback target FK | Same-prompt/environment rollback link and reason |
 | `schema_migrations` | Bigint `version` PK | Applied migration names, SHA-256 checksums and timestamps |
 
-UUIDs identify most entities, `JSONB` stores variables/configuration, `TIMESTAMPTZ` stores instants and `NUMERIC(18,6)` stores monetary values. Foreign keys, unique/check constraints, triggers and transactional functions enforce integrity alongside API validation. Controlled graph deletion has explicit database paths; append-only/immutable records are protected during ordinary writes.
+UUIDs identify most entities, child relations store variables and input values; audit documents use `JSONB`, `TIMESTAMPTZ` stores instants and `NUMERIC(18,6)` stores monetary values. Foreign keys, unique/check constraints, triggers and transactional functions enforce integrity alongside API validation. Controlled graph deletion has explicit database paths; append-only/immutable records are protected during ordinary writes.
 
 Other database objects:
 
 - Extensions: `pgcrypto`, `citext`, `btree_gist`.
 - Enums: `user_role`, `run_status`, `deployment_environment`, `deployment_status`. Deployment environments `dev`/`staging`/`prod` are application workflow labels and do not require hosted environments.
+- Context views: `version_context`, `run_context`, `reservation_context`, `deployment_context` reconstruct API JSON and derived scope without stored duplication.
 - Views: `prompt_version_lineage`, `deployment_history`, `monthly_costs`.
 - Materialized views: `organization_monthly_metrics`, `user_monthly_metrics`; refresh via `.venv/bin/python scripts/refresh-views.py`.
 - Run partitions: created by migrations and the partition helper. Before a month boundary run `.venv/bin/python scripts/create-partition.py`.
@@ -219,7 +225,7 @@ SELECT schemaname, tablename, indexname, indexdef
 FROM pg_indexes WHERE schemaname = 'public' ORDER BY tablename, indexname;
 ```
 
-The table listing includes physical partitions; it can therefore return more than 19 rows. Never edit, rename or delete applied migration SQL or bypass checksum errors. Add a new numbered migration for a schema change. The runner serializes changes with an advisory lock and commits each migration with its history row. See [migration rules](../db/README.md) for the narrowly supported legacy numbering reconciliation.
+The table listing includes physical partitions; it can therefore return more than 24 rows. Never edit, rename or delete applied migration SQL or bypass checksum errors. Add a new numbered migration for a schema change. The runner serializes changes with an advisory lock and commits each migration with its history row. See the root [migration instructions](../README.md#database-setup) for the narrowly supported legacy numbering reconciliation.
 
 ## 7. Optional: copy the current website data
 
@@ -257,4 +263,10 @@ Keep database dumps outside the repository. Compare source/destination migration
 | Provider decrypt fails after restore | Use the encryption key belonging to that snapshot or replace the provider credentials through the admin flow |
 | Migration checksum mismatch | Restore matching migration files from the same code revision; do not alter history or reset the database |
 
-Automated tests must use an explicitly separate database ending in `_test`, never `promptvault`. See [testing](testing.md) for suite-specific setup. Do not run the acceptance harness on the persistent app database or substitute its test ports for normal startup. Avoid `reset-development.py`, `docker compose down -v` and other data resets on a database you want to preserve.
+Automated tests must use an explicitly separate database ending in `_test`, never `promptvault`. See [testing instructions](../README.md#testing) for suite-specific setup. Do not run the acceptance harness on the persistent app database or substitute its test ports for normal startup. Avoid `reset-development.py`, `docker compose down -v` and other data resets on a database you want to preserve.
+
+## Docker alternative
+
+See [Docker local deployment](docker-local.md) to run the frontend and API in containers while retaining this same PostgreSQL database on port 5432. Stop the native app before starting Docker on ports 5173/8000. Both methods use the same migrations and accounts. The backend uses SQLAlchemy 2 async ORM for ordinary persistence; migration SQL remains the schema authority.
+
+Database transfer version: the existing native server is PostgreSQL 18. Use compatible PostgreSQL 18-or-newer dump/restore tools and a compatible destination server when transferring its private snapshot. The isolated Docker PostgreSQL 16 stack is validated by fresh migrations, not by importing a PostgreSQL 18 dump into an older server.

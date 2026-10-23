@@ -1,109 +1,157 @@
-# PromptVault v1 entity relationships
+# Database entity relationships and relational schema
+
+Revision 031 has 24 logical tables in `public`. Monthly `runs_*` partitions implement the single `runs` entity. Views and materialized views are derived projections. This document describes the implemented design; historical design-before-implementation evidence for the original project remains a separate submission limitation.
 
 ```mermaid
 erDiagram
-    users ||--o{ projects : owns
-    users ||--o{ project_members : joins
-    projects ||--o{ project_members : includes
-    projects ||--o{ prompts : contains
-    prompts ||--o{ prompt_versions : versions
-    prompt_versions o|--o{ prompt_versions : parent
-    users ||--o{ prompt_versions : authors
-    users ||--o{ runs : executes
-    projects ||--o{ runs : records
-    prompts ||--o{ runs : records
-    prompt_versions ||--o{ runs : executes
-    users o|--o| budgets : limited_by
-    projects o|--o| budgets : limited_by
-    prompts ||--o{ deployments : deploys
-    prompt_versions ||--o{ deployments : promotes
-    deployments o|--o{ deployments : rolls_back
-    projects ||--o{ api_tokens : scopes
-    users ||--o{ provider_keys : creates
-    users ||--o{ model_pricing : creates
-    projects ||--o{ project_invitations : invites
-    users ||--o{ project_invitations : receives
-    users ||--o{ project_invitations : sends
-    users ||--o{ audit_events : acts
-    users ||--o{ password_reset_tokens : resets
-    users ||--o{ password_history : remembers
-    users ||--o{ auth_sessions : authenticates
-    users ||--o{ run_reservations : reserves
-    projects ||--o{ run_reservations : budgets
-    prompts ||--o{ run_reservations : targets
-    prompt_versions ||--o{ run_reservations : executes
+    api_tokens {
+        uuid id PK
+    }
+    audit_events {
+        bigint id PK
+    }
+    auth_sessions {
+        uuid id PK
+    }
+    budgets {
+        uuid id PK
+    }
+    deployment_rollbacks {
+        uuid deployment_id PK
+    }
+    deployments {
+        uuid id PK
+    }
+    email_verification_tokens {
+        uuid id PK
+    }
+    model_pricing {
+        uuid id PK
+    }
+    password_history {
+        uuid id PK
+    }
+    password_reset_tokens {
+        uuid id PK
+    }
+    project_invitations {
+        uuid id PK
+    }
+    project_members {
+        uuid project_id PK
+        uuid user_id PK
+    }
+    projects {
+        uuid id PK
+    }
+    prompt_version_parents {
+        uuid version_id PK
+    }
+    prompt_version_variables {
+        uuid version_id PK
+        integer ordinal PK
+    }
+    prompt_versions {
+        uuid id PK
+    }
+    prompts {
+        uuid id PK
+    }
+    provider_keys {
+        uuid id PK
+    }
+    reservation_results {
+        uuid reservation_id PK
+    }
+    run_inputs {
+        uuid run_id PK
+        timestamptz run_created_at PK
+        text name PK
+    }
+    run_reservations {
+        uuid id PK
+    }
+    runs {
+        uuid id PK
+        timestamptz created_at PK
+    }
+    schema_migrations {
+        bigint version PK
+    }
+    users {
+        uuid id PK
+    }
+    users ||--o{ api_tokens : created_by
+    projects ||--o{ api_tokens : project_id
+    users o|--o{ api_tokens : revoked_by
+    users o|--o{ audit_events : actor_user_id
+    users ||--o{ auth_sessions : user_id
+    users o|--o{ budgets : created_by
+    projects o|--o{ budgets : project_id
+    users o|--o{ budgets : user_id
+    deployments ||--o| deployment_rollbacks : deployment_id
+    deployments ||--o{ deployment_rollbacks : rollback_of_id
+    users ||--o{ deployments : requested_by
+    users o|--o{ deployments : reviewed_by
+    prompt_versions ||--o{ deployments : version_id
+    users ||--o{ email_verification_tokens : user_id
+    users o|--o{ model_pricing : created_by
+    users ||--o{ password_history : user_id
+    users ||--o{ password_reset_tokens : user_id
+    users ||--o{ project_invitations : invited_by
+    projects ||--o{ project_invitations : project_id
+    users ||--o{ project_invitations : user_id
+    users o|--o{ project_members : added_by
+    projects ||--o{ project_members : project_id
+    users ||--o{ project_members : user_id
+    users ||--o{ projects : owner_id
+    prompt_versions ||--o{ prompt_version_parents : parent_version_id
+    prompt_versions ||--o| prompt_version_parents : version_id
+    prompt_versions ||--o{ prompt_version_variables : version_id
+    users ||--o{ prompt_versions : created_by
+    prompts ||--o{ prompt_versions : prompt_id
+    projects ||--o{ prompts : project_id
+    users ||--o{ provider_keys : created_by
+    run_reservations ||--o| reservation_results : reservation_id
+    runs ||--o{ reservation_results : run_id_run_created_at
+    runs ||--o{ run_inputs : run_id_run_created_at
+    users ||--o{ run_reservations : user_id
+    prompt_versions ||--o{ run_reservations : version_id
+    users ||--o{ runs : user_id
+    prompt_versions ||--o{ runs : version_id
 ```
 
-## Entity summary
+Cardinalities above show parent-to-child associations. Nullable actor/reviewer/target foreign keys permit an absent parent; optional relationship tables permit zero or one child for their owning key. The exact columns, nullability and constraints below are authoritative. `schema_migrations` is a standalone infrastructure entity.
 
-| Entity | Identity and ownership | Important invariants |
+| Relation | Primary key | Foreign keys |
 |---|---|---|
-| `users` | UUID; normalized `citext` email | Case-insensitive unique email; `user`/`admin`; last active admin protected |
-| `projects` | Owned by one user | Globally unique stable key; owner membership inserted automatically |
-| `project_invitations` | UUID; references project, recipient and inviter | Single-use hashed token; pending invitations grant no access |
-| `project_members` | Project/user composite key | No duplicate membership; owner membership cannot be deleted |
-| `prompts` | Belongs to one project | Key unique within project |
-| `prompt_versions` | Belongs to one prompt and author | Immutable; unique per-prompt version; parent must belong to same prompt |
-| `runs` | User/project/prompt/version ledger row | Append-only; monthly range partition; exact decimal cost |
-| `model_pricing` | Provider/model effective window | Nonnegative prices; no overlapping effective windows |
-| `budgets` | Exactly one user or project target | One row per target; nonnegative monthly limit |
-| `deployments` | Prompt/version/environment event | Version belongs to prompt; one active event per prompt/environment |
-| `api_tokens` | Scoped to one project | Only prefix and SHA-256 hash persist; revocation metadata retained |
-| `provider_keys` | Created by an administrator | Encrypted value only; active aliases unique per provider |
-| `audit_events` | Optional actor plus resource snapshot | Append-only; sensitive fields removed by trigger |
-| `password_reset_tokens` | Hashed one-time token for one user | Expiring, single-use; plaintext never stored |
-| `password_history` | UUID identity; unique user/hash history | Trigger-maintained Argon2id history; reuse checks |
-| `auth_sessions` | JWT `jti` for one user | Expiry and explicit revocation metadata |
-| `run_reservations` | User-scoped idempotency key | Pre-call budget reservation; terminal/uncertain reconciliation |
-| `schema_migrations` | Numeric migration version | Immutable filename/name/checksum tracking |
+| `api_tokens` | `PRIMARY KEY (id)` | `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT`; `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`; `FOREIGN KEY (revoked_by) REFERENCES users(id) ON DELETE SET NULL` |
+| `audit_events` | `PRIMARY KEY (id)` | `FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL` |
+| `auth_sessions` | `PRIMARY KEY (id)` | `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE` |
+| `budgets` | `PRIMARY KEY (id)` | `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL`; `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`; `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE` |
+| `deployment_rollbacks` | `PRIMARY KEY (deployment_id)` | `FOREIGN KEY (deployment_id) REFERENCES deployments(id) ON DELETE RESTRICT`; `FOREIGN KEY (rollback_of_id) REFERENCES deployments(id) ON DELETE RESTRICT` |
+| `deployments` | `PRIMARY KEY (id)` | `FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE RESTRICT`; `FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE RESTRICT`; `FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT` |
+| `email_verification_tokens` | `PRIMARY KEY (id)` | `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE` |
+| `model_pricing` | `PRIMARY KEY (id)` | `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL` |
+| `password_history` | `PRIMARY KEY (id)` | `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE` |
+| `password_reset_tokens` | `PRIMARY KEY (id)` | `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE` |
+| `project_invitations` | `PRIMARY KEY (id)` | `FOREIGN KEY (invited_by) REFERENCES users(id)`; `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`; `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE` |
+| `project_members` | `PRIMARY KEY (project_id, user_id)` | `FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL`; `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`; `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE` |
+| `projects` | `PRIMARY KEY (id)` | `FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT` |
+| `prompt_version_parents` | `PRIMARY KEY (version_id)` | `FOREIGN KEY (parent_version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT`; `FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE CASCADE` |
+| `prompt_version_variables` | `PRIMARY KEY (version_id, ordinal)` | `FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE CASCADE` |
+| `prompt_versions` | `PRIMARY KEY (id)` | `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT`; `FOREIGN KEY (prompt_id) REFERENCES prompts(id) ON DELETE RESTRICT` |
+| `prompts` | `PRIMARY KEY (id)` | `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE` |
+| `provider_keys` | `PRIMARY KEY (id)` | `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT` |
+| `reservation_results` | `PRIMARY KEY (reservation_id)` | `FOREIGN KEY (reservation_id) REFERENCES run_reservations(id) ON DELETE CASCADE`; `FOREIGN KEY (run_id, run_created_at) REFERENCES runs(id, created_at) ON DELETE RESTRICT` |
+| `run_inputs` | `PRIMARY KEY (run_id, run_created_at, name)` | `FOREIGN KEY (run_id, run_created_at) REFERENCES runs(id, created_at) ON DELETE CASCADE` |
+| `run_reservations` | `PRIMARY KEY (id)` | `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT`; `FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT` |
+| `runs` | `PRIMARY KEY (id, created_at)` | `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT`; `FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT` |
+| `schema_migrations` | `PRIMARY KEY (version)` | None |
+| `users` | `PRIMARY KEY (id)` | None |
 
-## Relational schema mapping
+Every column, alternate key, check, index, default and trigger is catalogued in the [data dictionary](data-dictionary.md). Migration 030 preserves source entity IDs and restores API scope through `version_context`, `run_context`, `reservation_context`, and `deployment_context`. Lineage, monthly costs and deployment history are ordinary views; organization/user monthly metrics are materialized views.
 
-Primary keys are underlined conceptually below; arrows name foreign-key targets. The complete column types/defaults are executable in `db/migrations`, while this mapping establishes that every physical table derives from the ER model.
+Ancestry must point to an earlier version of the same prompt. Rollback links must target an earlier active version in the same prompt/environment. Deployment activation locks the prompt and rejects a second active event per environment. Ownership/membership, provider scope, immutable history and budget enforcement remain database/application invariants.
 
-| Relation | Primary key | Foreign keys / alternate keys |
-|---|---|---|
-| `users` | `id` | `email` unique (case-insensitive) |
-| `projects` | `id` | `owner_id → users`; `key` unique |
-| `project_invitations` | `id` | project/recipient/inviter → corresponding entities; `token_hash` unique; partial unique pending project/recipient |
-| `project_members` | `(project_id, user_id)` | both columns and `added_by → users` |
-| `prompts` | `id` | `project_id → projects`; `(project_id,key)` unique |
-| `prompt_versions` | `id` | `prompt_id → prompts`, `parent_version_id → prompt_versions`, `created_by → users`; `(prompt_id,version_number)` unique |
-| `model_pricing` | `id` | `created_by → users`; non-overlapping `(provider,model,effective window)` |
-| `budgets` | `id` | exactly one of `user_id → users` or `project_id → projects`; partial unique target |
-| `provider_keys` | `id` | `created_by → users`; active `(provider,alias)` unique |
-| `api_tokens` | `id` | `project_id → projects`, creator/revoker → `users`; `token_hash` unique |
-| `deployments` | `id` | composite version/prompt reference; requester/reviewer → `users`; rollback → `deployments` |
-| `runs` | `(id, created_at)` | user/project/prompt/version references; range-partitioned by `created_at` |
-| `audit_events` | `id` | optional `actor_user_id → users` |
-| `password_reset_tokens` | `id` | `user_id → users`; `token_hash` unique |
-| `password_history` | `id` | `user_id → users`; `(user_id,password_hash)` unique |
-| `auth_sessions` | `id` | `user_id → users` |
-| `run_reservations` | `id` | user/project/prompt/version and optional composite run reference; `(user_id,idempotency_key)` unique |
-| `schema_migrations` | `version` | migration `name` and SHA-256 `checksum` are tracked attributes |
-
-`organization_monthly_metrics` and `user_monthly_metrics` are refreshable materialized views over the partitioned run ledger. `prompt_version_lineage`, `deployment_history`, and `monthly_costs` provide read-oriented projections without duplicating source-of-truth data.
-
-## A4 self-profile update boundary
-
-Migration 023 adds only `update_self_display_name`; there are no new entities,
-columns, dependencies or cardinality changes. It links the existing authenticated
-`users` row and `auth_sessions` row under locks, updates `users.display_name` only,
-and uses the existing redacted audit trigger. Session, role and account-security
-attributes remain on their separate reviewed flows.
-
-## Project invitation design (2026-10-13, before migration 024)
-
-A project has many `project_invitations`; each invitation targets one existing
-user and records the inviting user. Pending invitations are separate from
-`project_members` and confer no access. Owner membership remains automatic.
-
-Relation: `project_invitations(id UUID PK, project_id UUID FK → projects,
-user_id UUID FK → users, invited_by UUID FK → users, token_hash TEXT UNIQUE,
-created_at TIMESTAMPTZ, expires_at TIMESTAMPTZ, accepted_at TIMESTAMPTZ NULL,
-revoked_at TIMESTAMPTZ NULL)`. Project/recipient is unique while neither accepted
-nor revoked; expired invitations can be replaced. Only SHA-256 hashes persist.
-Acceptance locks the invitation, checks expiry, recipient identity and inviter
-permission, then inserts membership and consumes the invitation atomically.
-Cancellation and acceptance serialize on the same row. Invitations expire after
-seven days; SMTP failure rolls back creation. Existing memberships are preserved.
+Revision 031 adds Gemini-only checks on new versions, keys and prices, and guards execution/admission/activation references. `NOT VALID` preserves historical provider rows while enforcing checks on every new write; historical values are not silently rewritten. Non-Gemini execution and Serve requests are also rejected by the API. This does not change the 24-table relational design.

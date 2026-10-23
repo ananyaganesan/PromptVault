@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from api.app.errors import AppError
 from api.app.providers.policy import ExternalProvider
-from api.app.schemas.versions import ModelConfiguration
+from api.app.schemas.versions import SavedModelConfiguration
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,16 +17,10 @@ class SupportedModel:
 
 
 # Reviewed 2026-10-14 against the official pricing/free-plan documentation.
-# Groq model authors are not additional API providers: all requests go to Groq.
-MODELS = (
-    SupportedModel("gemini", "gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite"),
-    SupportedModel("openrouter", "liquid/lfm-2.5-2.6b:free", "LFM 2.5 2.6B (free)"),
-    SupportedModel("groq", "qwen/qwen3.8-27b", "Qwen 3.8 27B"),
-    SupportedModel("groq", "openai/gpt-oss-20b", "GPT OSS 20B via Groq"),
-)
+MODELS = (SupportedModel("gemini", "gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite"),)
 
 
-def require_free_model(config: ModelConfiguration) -> SupportedModel:
+def require_free_model(config: SavedModelConfiguration) -> SupportedModel:
     for model in MODELS:
         if (config.provider, config.model) == (model.provider, model.id):
             if config.max_output_tokens > model.max_output_tokens:

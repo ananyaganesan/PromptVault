@@ -5,7 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from api.app.schemas.deployments import DeploymentEnvironment
-from api.app.schemas.versions import ModelConfiguration
+from api.app.schemas.versions import SavedModelConfiguration
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -59,5 +59,5 @@ class ServePromptResponse(BaseModel):
     version: ServedVersion
     template_body: str
     variables: list[str]
-    model_configuration: ModelConfiguration = Field(alias="model_config")
+    model_configuration: SavedModelConfiguration = Field(alias="model_config")
     activated_at: datetime

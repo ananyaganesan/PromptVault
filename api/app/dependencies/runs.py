@@ -23,7 +23,6 @@ def get_run_execution_service(
         request.app.state.settings.resolved_provider_encryption_key,
         request.app.state.settings.gemini_api_base_url,
         request.app.state.settings.max_concurrent_runs_per_user,
-        allow_mock=request.app.state.settings.environment in {"development", "test"},
     )
 
 

@@ -23,9 +23,7 @@ class Limit(NamedTuple):
 
 
 class RateLimitStore(Protocol):
-    async def retry_after(
-        self, key: str, requests: int, window_seconds: int
-    ) -> int | None: ...
+    async def retry_after(self, key: str, requests: int, window_seconds: int) -> int | None: ...
 
     async def close(self) -> None: ...
 
@@ -36,9 +34,7 @@ class LocalRateLimitStore:
         self.hits: dict[str, deque[float]] = {}
         self.lock = Lock()
 
-    async def retry_after(
-        self, key: str, requests: int, window_seconds: int
-    ) -> int | None:
+    async def retry_after(self, key: str, requests: int, window_seconds: int) -> int | None:
         current = self.clock()
         cutoff = current - window_seconds
         with self.lock:
@@ -73,9 +69,7 @@ class RedisRateLimitStore:
 
         self.client = Redis.from_url(url, decode_responses=True)
 
-    async def retry_after(
-        self, key: str, requests: int, window_seconds: int
-    ) -> int | None:
+    async def retry_after(self, key: str, requests: int, window_seconds: int) -> int | None:
         result = await self.client.eval(
             _REDIS_LIMIT_SCRIPT,
             1,
@@ -139,12 +133,8 @@ class AuthRateLimitMiddleware:
         self.app = app
         self.store = store or LocalRateLimitStore(clock)
         self.limits = {
-            "/api/v1/auth/login": Limit(
-                "authentication", auth_requests, auth_window_seconds
-            ),
-            "/api/v1/auth/register": Limit(
-                "authentication", auth_requests, auth_window_seconds
-            ),
+            "/api/v1/auth/login": Limit("authentication", auth_requests, auth_window_seconds),
+            "/api/v1/auth/register": Limit("authentication", auth_requests, auth_window_seconds),
             "/api/v1/auth/password-reset": Limit(
                 "password-reset", reset_requests, reset_window_seconds
             ),
@@ -152,6 +142,7 @@ class AuthRateLimitMiddleware:
                 "password-reset", reset_requests, reset_window_seconds
             ),
         }
+
     async def _retry_after(self, scope: Scope, limit: Limit) -> int | None:
         client = scope.get("client")
         client_host = client[0] if client else "unknown"

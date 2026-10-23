@@ -11,7 +11,7 @@ const request = { version_id: 'version-1', variables: { message: 'Hello' } }
 const recorded: BackendPromptRun = {
   id: 'run-1', user_id: 'user-1', project_id: 'project-1', prompt_id: 'prompt-1',
   prompt_key: 'reply', version_id: 'version-1', version_number: 1,
-  provider: 'mock', model: 'deterministic-v1', status: 'completed',
+  provider: 'gemini', model: 'gemini-3.5-flash-lite', status: 'completed',
   input_variables: request.variables, output_text: 'Hello', prompt_tokens: 1,
   completion_tokens: 1, latency_ms: 25, cost: '0', error_code: null,
   created_at: '2026-10-10T10:00:00Z',

@@ -111,12 +111,8 @@ class ModelPricingCreate(BaseModel):
 
     provider: ConfiguredProvider
     model: Annotated[str, Field(min_length=1, max_length=160)]
-    input_price_per_million: Annotated[
-        Decimal, Field(ge=0, max_digits=18, decimal_places=6)
-    ]
-    output_price_per_million: Annotated[
-        Decimal, Field(ge=0, max_digits=18, decimal_places=6)
-    ]
+    input_price_per_million: Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=6)]
+    output_price_per_million: Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=6)]
     effective_from: datetime
     effective_to: datetime | None = None
 
