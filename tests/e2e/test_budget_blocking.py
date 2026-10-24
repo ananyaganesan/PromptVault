@@ -49,7 +49,7 @@ def test_budget_changes_preserve_zero_cost_gemini_execution(
     audit = api_client.get(
         "/api/v1/admin/audit",
         headers=administrator,
-        params={"entity_type": "budgets", "entity_id": budget["id"]},
+        params={"entity_type": "spend_limits", "entity_id": budget["id"]},
     )
     assert dashboard.status_code == organization.status_code == audit.status_code == 200
     assert dashboard.json()["blocked_run_count"] == 0

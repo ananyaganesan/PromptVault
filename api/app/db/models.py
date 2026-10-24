@@ -252,7 +252,7 @@ class ModelPrice(Base):
 
 
 class Budget(Base):
-    __tablename__ = "budgets"
+    __tablename__ = "spend_limits"
     id: Mapped[Any] = mapped_column(
         UUID(), primary_key=True, server_default=text("gen_random_uuid()")
     )

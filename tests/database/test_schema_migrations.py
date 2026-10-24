@@ -17,7 +17,7 @@ def migration_sql(version: int) -> str:
 def test_complete_migration_chain_is_discoverable() -> None:
     migrations = discover_migrations(MIGRATIONS_DIRECTORY)
 
-    assert [migration.version for migration in migrations] == list(range(1, 32))
+    assert [migration.version for migration in migrations] == list(range(1, 34))
 
 
 @pytest.mark.parametrize(
@@ -46,6 +46,16 @@ def test_migration_has_valid_postgresql_syntax(path: Path) -> None:
 )
 def test_domain_tables_are_declared(table: str) -> None:
     assert f"create table {table}" in migration_sql(2)
+
+
+def test_budget_relation_is_renamed_to_spend_limits() -> None:
+    rename = migration_sql(32)
+    constraint_cleanup = migration_sql(33)
+
+    assert "alter table budgets rename to spend_limits" in rename
+    assert "from spend_limits" in rename
+    assert "budgets_id_not_null" in constraint_cleanup
+    assert "spend_limits_" in constraint_cleanup
 
 
 def test_run_ledger_is_monthly_partitioned() -> None:

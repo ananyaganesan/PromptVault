@@ -32,7 +32,7 @@ def test_concurrent_admission_never_reserves_more_than_user_budget(
             (version_id, prompt_id, user_id),
         )
         connection.execute(
-            "INSERT INTO budgets (user_id, monthly_limit) VALUES (%s, 1)",
+            "INSERT INTO spend_limits (user_id, monthly_limit) VALUES (%s, 1)",
             (user_id,),
         )
 

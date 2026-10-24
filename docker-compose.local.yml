@@ -8,6 +8,9 @@ services:
   migrate:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-promptvault}:${POSTGRES_PASSWORD:-promptvault}@host.docker.internal:5432/${POSTGRES_DB:-promptvault}
+      # Match native Settings.resolved_provider_encryption_key when the older
+      # local .env has not yet split provider encryption into a separate key.
+      PROVIDER_ENCRYPTION_KEY: ${PROVIDER_ENCRYPTION_KEY:-${SECRET_KEY:-change-me}}
     depends_on: !reset {}
     command: [python, scripts/run-migrations.py]
 
@@ -15,6 +18,7 @@ services:
     ports: !override ["127.0.0.1:8000:8000"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-promptvault}:${POSTGRES_PASSWORD:-promptvault}@host.docker.internal:5432/${POSTGRES_DB:-promptvault}
+      PROVIDER_ENCRYPTION_KEY: ${PROVIDER_ENCRYPTION_KEY:-${SECRET_KEY:-change-me}}
 
   web:
     ports: !override ["127.0.0.1:5173:8080"]

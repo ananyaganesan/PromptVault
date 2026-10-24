@@ -11,7 +11,7 @@ For each relation, the listed candidate key determines all remaining stored attr
 | `api_tokens` | `id`; `token_hash` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
 | `audit_events` | `id` → remaining attributes | Before/after JSON is an opaque redacted historical document, not authoritative entity state. |
 | `auth_sessions` | `id` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
-| `budgets` | `id` → remaining attributes | XOR user/project target; partial unique indexes ensure one budget per target. |
+| `spend_limits` | `id` → remaining attributes | XOR user/project target; partial unique indexes ensure one spend limit per target. |
 | `deployment_rollbacks` | `deployment_id` → remaining attributes | One rollback link and reason per deployment; prompt/environment are derived. |
 | `deployments` | `id` → remaining attributes | Version determines scope through joins; rollback link/reason live separately. |
 | `email_verification_tokens` | `id`; `token_hash` → remaining attributes | Identity/lifecycle facts reference related entities through foreign keys; no copied parent descriptions or scope. |
@@ -46,4 +46,4 @@ The four context views rebuild the existing API shape; clients still receive var
 
 A composite `runs(id,created_at)` primary key supports native range partitioning; child ledger references include both fields. Physical partitions are not additional independent logical entities. The [catalog dictionary](data-dictionary.md) supplies actual constraints and indexes, and the [upgrade test](../tests/database/test_normalization_upgrade.py) verifies preservation from revision 029.
 
-Revision 031 adds Gemini-only checks on new versions, keys and prices, and guards execution/admission/activation references. `NOT VALID` preserves historical provider rows while enforcing checks on every new write; historical values are not silently rewritten. Non-Gemini execution and Serve requests are also rejected by the API. This does not change the 24-table relational design.
+Revision 031 adds Gemini-only checks on new versions, keys and prices, and guards execution/admission/activation references. `NOT VALID` preserves historical provider rows while enforcing checks on every new write; historical values are not silently rewritten. Non-Gemini execution and Serve requests are also rejected by the API. Revisions 032–033 rename the physical relation and its catalog objects to `spend_limits` while leaving budget behavior and the public API unchanged.

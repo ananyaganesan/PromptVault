@@ -141,7 +141,7 @@ def test_application_role_has_only_required_governance_write_boundaries(
                    'EXECUTE'
                ) AS user_transition,
                has_table_privilege(
-                   'promptvault_app', 'budgets', 'DELETE'
+                   'promptvault_app', 'spend_limits', 'DELETE'
                ) AS budget_delete,
                has_table_privilege(
                    'promptvault_app', 'users', 'UPDATE'

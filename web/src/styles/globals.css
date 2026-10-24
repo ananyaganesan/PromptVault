@@ -53,7 +53,8 @@
 .table-panel td code { overflow-wrap: anywhere; }
 .table-panel[aria-label="Organization runs table"] td:first-child code { max-width: none; overflow: visible; text-overflow: clip; }
 .table-panel[aria-label="Users table"] th:first-child, .table-panel[aria-label="Users table"] td:first-child { min-width: 220px; }
-.table-panel[aria-label="Users table"] th:last-child, .table-panel[aria-label="Users table"] td:last-child { min-width: 165px; }
+.table-panel[aria-label="Users table"] th:last-child, .table-panel[aria-label="Users table"] td:last-child { min-width: 165px; text-align: right; }
+.table-panel[aria-label="Users table"] .admin-actions .text-button:last-child { margin-right: 0; }
 .deployment-table th:first-child, .deployment-table td:first-child { min-width: 265px; }
 .deployment-table th:nth-child(2), .deployment-table td:nth-child(2) { min-width: 180px; }
 .deployment-table th:nth-child(4), .deployment-table td:nth-child(4) { min-width: 155px; }
@@ -562,6 +563,11 @@ pre {
 .project-page-header p {
   grid-column: 1 / -1;
   grid-row: 3;
+}
+.auth-card > .verification-sign-in {
+  display: block;
+  width: max-content;
+  margin: 10px auto 0;
 }
 
 @media (max-width: 800px) {

@@ -331,7 +331,7 @@ Application objects live in PostgreSQL’s **`public` schema**. There are **24 l
 | Accounts and authentication | `users`, `auth_sessions`, `email_verification_tokens`, `password_reset_tokens`, `password_history` |
 | Project access | `projects`, `project_members`, `project_invitations` |
 | Prompts and versions | `prompts`, `prompt_versions`, `prompt_version_parents`, `prompt_version_variables` |
-| Execution and budgets | `runs`, `run_inputs`, `run_reservations`, `reservation_results`, `budgets` |
+| Execution and budgets | `runs`, `run_inputs`, `run_reservations`, `reservation_results`, `spend_limits` |
 | Deployments and runtime access | `deployments`, `deployment_rollbacks`, `api_tokens` |
 | Administration and infrastructure | `provider_keys`, `model_pricing`, `audit_events`, `schema_migrations` |
 

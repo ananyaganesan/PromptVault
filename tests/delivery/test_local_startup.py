@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 import shutil
 import socket
 import subprocess
@@ -69,6 +70,11 @@ def test_local_docker_override_reuses_pgadmin_server() -> None:
             "json",
         ],
         cwd=ROOT,
+        env={
+            **os.environ,
+            "SECRET_KEY": "local-startup-test-secret",
+            "PROVIDER_ENCRYPTION_KEY": "",
+        },
         capture_output=True,
         text=True,
         check=False,
@@ -83,6 +89,14 @@ def test_local_docker_override_reuses_pgadmin_server() -> None:
     assert (
         services["api"]["environment"]["DATABASE_URL"]
         == (services["migrate"]["environment"]["DATABASE_URL"])
+    )
+    assert (
+        services["api"]["environment"]["PROVIDER_ENCRYPTION_KEY"]
+        == services["api"]["environment"]["SECRET_KEY"]
+    )
+    assert (
+        services["migrate"]["environment"]["PROVIDER_ENCRYPTION_KEY"]
+        == services["api"]["environment"]["PROVIDER_ENCRYPTION_KEY"]
     )
     assert not services["migrate"].get("depends_on")
     assert services["migrate"]["command"] == ["python", "scripts/run-migrations.py"]

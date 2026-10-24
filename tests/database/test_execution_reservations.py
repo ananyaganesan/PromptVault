@@ -66,11 +66,11 @@ def test_budget_is_reserved_before_execution_and_duplicate_key_is_reused(
     ids = create_domain(db_connection)
     user_id, project_id, _, _ = ids
     db_connection.execute(
-        "INSERT INTO budgets (user_id, monthly_limit) VALUES (%s, 1)",
+        "INSERT INTO spend_limits (user_id, monthly_limit) VALUES (%s, 1)",
         (user_id,),
     )
     db_connection.execute(
-        "INSERT INTO budgets (project_id, monthly_limit) VALUES (%s, 1)",
+        "INSERT INTO spend_limits (project_id, monthly_limit) VALUES (%s, 1)",
         (project_id,),
     )
 
@@ -153,7 +153,7 @@ def test_completed_reservation_reconciles_estimate_to_actual_run_cost(
     ids = create_domain(db_connection)
     user_id, _, _, _ = ids
     db_connection.execute(
-        "INSERT INTO budgets (user_id, monthly_limit) VALUES (%s, 1)",
+        "INSERT INTO spend_limits (user_id, monthly_limit) VALUES (%s, 1)",
         (user_id,),
     )
     reservation = reserve(

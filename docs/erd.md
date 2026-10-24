@@ -1,6 +1,6 @@
 # Database entity relationships and relational schema
 
-Revision 031 has 24 logical tables in `public`. Monthly `runs_*` partitions implement the single `runs` entity. Views and materialized views are derived projections. This document describes the implemented design; historical design-before-implementation evidence for the original project remains a separate submission limitation.
+Revision 033 has 24 logical tables in `public`. Monthly `runs_*` partitions implement the single `runs` entity. Views and materialized views are derived projections. This document describes the implemented design; historical design-before-implementation evidence for the original project remains a separate submission limitation.
 
 ```mermaid
 erDiagram
@@ -13,7 +13,7 @@ erDiagram
     auth_sessions {
         uuid id PK
     }
-    budgets {
+    spend_limits {
         uuid id PK
     }
     deployment_rollbacks {
@@ -86,9 +86,9 @@ erDiagram
     users o|--o{ api_tokens : revoked_by
     users o|--o{ audit_events : actor_user_id
     users ||--o{ auth_sessions : user_id
-    users o|--o{ budgets : created_by
-    projects o|--o{ budgets : project_id
-    users o|--o{ budgets : user_id
+    users o|--o{ spend_limits : created_by
+    projects o|--o{ spend_limits : project_id
+    users o|--o{ spend_limits : user_id
     deployments ||--o| deployment_rollbacks : deployment_id
     deployments ||--o{ deployment_rollbacks : rollback_of_id
     users ||--o{ deployments : requested_by
@@ -128,7 +128,7 @@ Cardinalities above show parent-to-child associations. Nullable actor/reviewer/t
 | `api_tokens` | `PRIMARY KEY (id)` | `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT`; `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`; `FOREIGN KEY (revoked_by) REFERENCES users(id) ON DELETE SET NULL` |
 | `audit_events` | `PRIMARY KEY (id)` | `FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL` |
 | `auth_sessions` | `PRIMARY KEY (id)` | `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE` |
-| `budgets` | `PRIMARY KEY (id)` | `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL`; `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`; `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE` |
+| `spend_limits` | `PRIMARY KEY (id)` | `FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL`; `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE`; `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE` |
 | `deployment_rollbacks` | `PRIMARY KEY (deployment_id)` | `FOREIGN KEY (deployment_id) REFERENCES deployments(id) ON DELETE RESTRICT`; `FOREIGN KEY (rollback_of_id) REFERENCES deployments(id) ON DELETE RESTRICT` |
 | `deployments` | `PRIMARY KEY (id)` | `FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE RESTRICT`; `FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE RESTRICT`; `FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE RESTRICT` |
 | `email_verification_tokens` | `PRIMARY KEY (id)` | `FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE` |
@@ -154,4 +154,4 @@ Every column, alternate key, check, index, default and trigger is catalogued in 
 
 Ancestry must point to an earlier version of the same prompt. Rollback links must target an earlier active version in the same prompt/environment. Deployment activation locks the prompt and rejects a second active event per environment. Ownership/membership, provider scope, immutable history and budget enforcement remain database/application invariants.
 
-Revision 031 adds Gemini-only checks on new versions, keys and prices, and guards execution/admission/activation references. `NOT VALID` preserves historical provider rows while enforcing checks on every new write; historical values are not silently rewritten. Non-Gemini execution and Serve requests are also rejected by the API. This does not change the 24-table relational design.
+Revision 031 adds Gemini-only checks on new versions, keys and prices, and guards execution/admission/activation references. `NOT VALID` preserves historical provider rows while enforcing checks on every new write; historical values are not silently rewritten. Non-Gemini execution and Serve requests are also rejected by the API. Revisions 032–033 rename the physical budget relation and its catalog objects to `spend_limits` without changing the public budget API or the 24-table relational design.

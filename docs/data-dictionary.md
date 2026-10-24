@@ -111,17 +111,17 @@ Indexes:
 - `CREATE INDEX ix_auth_sessions_expired_cleanup ON public.auth_sessions USING btree (expires_at) WHERE (revoked_at IS NULL)`
 - `CREATE INDEX ix_auth_sessions_user_active ON public.auth_sessions USING btree (user_id, expires_at DESC) WHERE (revoked_at IS NULL)`
 
-## `budgets`
+## `spend_limits`
 
 Monthly execution limit targeting exactly one user or project.
 
 | Column | Type | Nullable | Default / identity | Purpose |
 |---|---|---|---|---|
 | id | uuid | False | gen_random_uuid() | Surrogate row identity (runs also includes creation time in its primary key). |
-| user_id | uuid | True | — | Referenced account/actor or user budget target. |
+| user_id | uuid | True | — | Referenced account/actor or user spend-limit target. |
 | project_id | uuid | True | — | Referenced project/workspace. |
 | monthly_limit | numeric(18,6) | False | — | Exact decimal monthly execution allowance. |
-| timezone | character varying(64) | False | 'UTC'::character varying | Timezone defining the target's monthly budget boundaries. |
+| timezone | character varying(64) | False | 'UTC'::character varying | Timezone defining the target's monthly spend-limit boundaries. |
 | created_by | uuid | True | — | User who created the resource. |
 | created_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Database timestamp when the record was created. |
 | updated_at | timestamp with time zone | False | CURRENT_TIMESTAMP | Timestamp of the latest mutable state change. |
@@ -143,10 +143,10 @@ Constraints and keys:
 
 Indexes:
 
-- `CREATE UNIQUE INDEX budgets_pkey ON public.budgets USING btree (id)`
-- `CREATE INDEX ix_budgets_updated ON public.budgets USING btree (updated_at DESC, id DESC)`
-- `CREATE UNIQUE INDEX uq_budgets_project ON public.budgets USING btree (project_id) WHERE (project_id IS NOT NULL)`
-- `CREATE UNIQUE INDEX uq_budgets_user ON public.budgets USING btree (user_id) WHERE (user_id IS NOT NULL)`
+- `CREATE UNIQUE INDEX spend_limits_pkey ON public.spend_limits USING btree (id)`
+- `CREATE INDEX ix_spend_limits_updated ON public.spend_limits USING btree (updated_at DESC, id DESC)`
+- `CREATE UNIQUE INDEX uq_spend_limits_project ON public.spend_limits USING btree (project_id) WHERE (project_id IS NOT NULL)`
+- `CREATE UNIQUE INDEX uq_spend_limits_user ON public.spend_limits USING btree (user_id) WHERE (user_id IS NOT NULL)`
 
 ## `deployment_rollbacks`
 

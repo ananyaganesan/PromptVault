@@ -243,7 +243,7 @@ def test_paid_gemini_configuration_is_rejected_before_provider_call(
             _, version = create_prompt_version(client, headers, provider="gemini", model=model)
             with psycopg.connect(seeded_database_url) as connection:
                 connection.execute(
-                    "INSERT INTO budgets (user_id, monthly_limit) VALUES (%s, 0)",
+                    "INSERT INTO spend_limits (user_id, monthly_limit) VALUES (%s, 0)",
                     (user["id"],),
                 )
             response = client.post(
@@ -693,7 +693,7 @@ def test_free_gemini_executes_with_zero_budget_without_charge(
     with psycopg.connect(seeded_database_url) as connection:
         connection.execute(
             """
-            INSERT INTO budgets (user_id, monthly_limit, timezone, created_by)
+            INSERT INTO spend_limits (user_id, monthly_limit, timezone, created_by)
             VALUES (%s, 0, 'UTC', %s)
             """,
             (user["id"], user["id"]),

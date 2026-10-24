@@ -62,6 +62,7 @@ describe('email verification', () => {
     expect(confirm).toHaveBeenCalledOnce()
     expect(confirm).toHaveBeenCalledWith('verification-token-value')
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login')
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveClass('verification-sign-in')
     expect(sessionStorage.getItem('promptvault.api.session')).toBeNull()
   })
 

@@ -56,7 +56,7 @@ def test_over_limit_run_is_recorded_as_blocked_atomically(
     db_connection: psycopg.Connection,
 ) -> None:
     db_connection.execute(
-        "UPDATE budgets SET monthly_limit = 0 WHERE user_id = %s",
+        "UPDATE spend_limits SET monthly_limit = 0 WHERE user_id = %s",
         ("11111111-1111-4111-8111-111111111111",),
     )
 
@@ -106,11 +106,11 @@ def test_exact_limit_unlimited_and_overlapping_project_budget(
     assert unlimited["status"] == "completed"
 
     db_connection.execute(
-        "INSERT INTO budgets (user_id, monthly_limit) VALUES (%s, 52)",
+        "INSERT INTO spend_limits (user_id, monthly_limit) VALUES (%s, 52)",
         (user_id,),
     )
     db_connection.execute(
-        "INSERT INTO budgets (project_id, monthly_limit) VALUES (%s, 51)",
+        "INSERT INTO spend_limits (project_id, monthly_limit) VALUES (%s, 51)",
         (project_id,),
     )
     exact_project_limit = record(db_connection, ids, Decimal(1))
@@ -128,7 +128,7 @@ def test_budget_spend_resets_at_timezone_month_boundary(
     ids = create_domain(db_connection)
     user_id, _, _, _ = ids
     db_connection.execute(
-        "INSERT INTO budgets (user_id, monthly_limit, timezone) VALUES (%s, 1, 'UTC')",
+        "INSERT INTO spend_limits (user_id, monthly_limit, timezone) VALUES (%s, 1, 'UTC')",
         (user_id,),
     )
     current_month = datetime.now(UTC).replace(
@@ -156,7 +156,7 @@ def test_budget_month_boundary_uses_local_wall_time_across_dst(
     db_connection.execute("SELECT create_run_partition('2026-04-01'::date)")
     db_connection.execute(
         """
-        INSERT INTO budgets (user_id, monthly_limit, timezone)
+        INSERT INTO spend_limits (user_id, monthly_limit, timezone)
         VALUES (%s, 1, 'America/New_York')
         """,
         (user_id,),

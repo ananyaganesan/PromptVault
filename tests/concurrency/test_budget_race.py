@@ -55,7 +55,7 @@ def test_concurrent_run_costs_cannot_overspend_user_budget(database_url: str) ->
         )
         connection.execute(
             """
-            INSERT INTO budgets (user_id, monthly_limit, timezone, created_by)
+            INSERT INTO spend_limits (user_id, monthly_limit, timezone, created_by)
             VALUES (%s, 5, 'UTC', %s)
             """,
             (user_id, user_id),
