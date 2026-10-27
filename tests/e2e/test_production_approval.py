@@ -3,6 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.release_support import validated_deployment
 from tests.support import (
     add_version,
     admin_headers,
@@ -20,23 +21,26 @@ def test_staging_then_production_approval_with_forbidden_and_conflict_evidence(
     project = create_project(api_client, owner_headers, label="Approval")
     prompt = create_prompt(api_client, owner_headers, project["id"])
     version_one = prompt["latest_version"]
-    version = add_version(
-        api_client, owner_headers, prompt["id"], version_one["id"], 2
-    )
+    version = add_version(api_client, owner_headers, prompt["id"], version_one["id"], 2)
     administrator = admin_headers(api_client)
 
-    initial_production = api_client.post(
+    initial_production = validated_deployment(
+        api_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version_one["id"], "environment": "prod"},
     ).json()
-    assert api_client.post(
-        f"/api/v1/admin/deployments/{initial_production['id']}/approve",
-        headers=administrator,
-        json={"review_note": "baseline"},
-    ).status_code == 200
+    assert (
+        api_client.post(
+            f"/api/v1/admin/deployments/{initial_production['id']}/approve",
+            headers=administrator,
+            json={"review_note": "baseline"},
+        ).status_code
+        == 200
+    )
 
-    staging = api_client.post(
+    staging = validated_deployment(
+        api_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version["id"], "environment": "staging"},
@@ -52,7 +56,8 @@ def test_staging_then_production_approval_with_forbidden_and_conflict_evidence(
     )
     assert evidence.status_code == 201
 
-    requested = api_client.post(
+    requested = validated_deployment(
+        api_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version["id"], "environment": "prod"},
@@ -73,9 +78,7 @@ def test_staging_then_production_approval_with_forbidden_and_conflict_evidence(
     assert detail.status_code == 200
     assert detail.json()["requested_version"]["id"] == version["id"]
     assert detail.json()["active_version"]["id"] == version_one["id"]
-    assert evidence.json()["id"] in {
-        run["id"] for run in detail.json()["recent_runs"]
-    }
+    assert evidence.json()["id"] in {run["id"] for run in detail.json()["recent_runs"]}
 
     approved = api_client.post(
         f"/api/v1/admin/deployments/{deployment_id}/approve",

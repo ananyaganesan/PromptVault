@@ -8,9 +8,15 @@ import { EmptyState } from '../../components/ui/empty-state'
 import { useAuth } from '../auth/auth-context'
 import { runService, runStore } from '../runs/run-service'
 import type { PersonalDashboard } from '../../types/runs'
+import { AdminWorkspaceDashboard } from '../admin/admin-workspace-dashboard'
 import { useLiveRefresh } from '../../lib/live-refresh'
 
 export function DashboardPage() {
+  const { user } = useAuth()
+  return user?.role === 'admin' ? <AdminWorkspaceDashboard /> : <PersonalDashboardPage />
+}
+
+function PersonalDashboardPage() {
   const { user } = useAuth()
   const refresh = useLiveRefresh()
   const runRevision = useSyncExternalStore(runStore.subscribe, runStore.getSnapshot)

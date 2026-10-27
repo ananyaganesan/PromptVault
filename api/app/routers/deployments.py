@@ -19,6 +19,7 @@ from api.app.schemas.deployments import (
     DeploymentResponse,
     DeploymentStatus,
 )
+from api.app.schemas.release_validation import ReleaseValidationLink
 from api.app.services.deployments import DeploymentService
 from fastapi import APIRouter, Depends, Query, Request, status
 
@@ -114,3 +115,18 @@ async def cancel_deployment(
     service: DeploymentServiceDependency,
 ) -> DeploymentResponse:
     return await service.cancel(deployment_id, current_user)
+
+
+@router.post(
+    "/{deployment_id}/validation",
+    response_model=DeploymentResponse,
+    responses=error_responses(401, 404, 409, 422),
+    dependencies=[Depends(allow_query_parameters())],
+)
+async def replace_validation(
+    deployment_id: UUID,
+    payload: ReleaseValidationLink,
+    current_user: CurrentUser,
+    service: DeploymentServiceDependency,
+) -> DeploymentResponse:
+    return await service.revalidate(deployment_id, payload.validation_id, current_user)

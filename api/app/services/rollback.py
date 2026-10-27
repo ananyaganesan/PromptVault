@@ -6,7 +6,7 @@ from api.app.errors import AppError
 from api.app.repositories.deployments import DeploymentRepository
 from api.app.repositories.users import UserRecord
 from api.app.schemas.deployments import DeploymentResponse, RollbackCreate
-from psycopg.errors import CheckViolation, NoDataFound
+from psycopg.errors import CheckViolation, InsufficientPrivilege, NoDataFound
 
 
 class RollbackService:
@@ -22,6 +22,10 @@ class RollbackService:
             return await self.deployments.rollback(
                 prompt_id, payload.target_version_id, actor.id, payload.reason
             )
+        except InsufficientPrivilege as exc:
+            raise AppError(
+                403, "forbidden", "Rollback authorization changed during the request"
+            ) from exc
         except CheckViolation as exc:
             raise AppError(
                 409, "invalid_rollback_target", "Rollback target must be an earlier version"

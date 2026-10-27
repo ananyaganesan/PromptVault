@@ -71,7 +71,7 @@ def main() -> int:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
     print("SMTP settings saved to .env with owner-only permissions.")
-    print("Rebuild/recreate the API: docker compose up -d --build --force-recreate api")
+    print("Restart the local app: .venv/bin/python scripts/start-local.py")
     print("Then request a password reset for an existing account to verify email delivery.")
     return 0
 

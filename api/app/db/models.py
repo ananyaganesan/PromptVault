@@ -41,7 +41,7 @@ class User(Base):
     display_name: Mapped[Any] = mapped_column(VARCHAR(length=120), nullable=False)
     password_hash: Mapped[Any] = mapped_column(Text(), nullable=False)
     role: Mapped[Any] = mapped_column(
-        ENUM("user", "admin", name="user_role"),
+        ENUM("user", "admin", "super_admin", name="user_role"),
         nullable=False,
         server_default=text("'user'::user_role"),
     )
@@ -51,6 +51,9 @@ class User(Base):
     )
     updated_at: Mapped[Any] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+    is_approved: Mapped[Any] = mapped_column(
+        Boolean(), nullable=False, server_default=text("false")
     )
     email_verified_at: Mapped[Any] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
@@ -167,6 +170,7 @@ class RunReservation(Base):
 
 class Deployment(Base):
     __tablename__ = "deployments"
+    validation_id: Mapped[Any] = mapped_column(UUID(), nullable=True)
     id: Mapped[Any] = mapped_column(
         UUID(), primary_key=True, server_default=text("gen_random_uuid()")
     )

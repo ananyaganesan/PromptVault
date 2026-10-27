@@ -23,6 +23,7 @@ async def test_regular_user_cannot_create_project(test_settings: Settings) -> No
         password_hash="unused",
         role="user",
         is_active=True,
+        is_approved=True,
         email_verified_at=datetime.now(UTC),
         created_at=datetime.now(UTC),
     )
@@ -49,6 +50,7 @@ async def test_regular_user_cannot_delete_project(test_settings: Settings) -> No
         password_hash="unused",
         role="user",
         is_active=True,
+        is_approved=True,
         email_verified_at=datetime.now(UTC),
         created_at=datetime.now(UTC),
     )
@@ -70,8 +72,9 @@ async def test_admin_deletes_project_or_receives_not_found(test_settings: Settin
         email="admin@example.com",
         display_name="Administrator",
         password_hash="unused",
-        role="admin",
+        role="super_admin",
         is_active=True,
+        is_approved=True,
         email_verified_at=datetime.now(UTC),
         created_at=datetime.now(UTC),
     )

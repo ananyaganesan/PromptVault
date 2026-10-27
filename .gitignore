@@ -1,6 +1,7 @@
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
 secrets/
 __pycache__/
 *.py[cod]
@@ -15,6 +16,11 @@ playwright-report/
 .coverage
 .DS_Store
 
-# Regenerable verification and screenshot output
+# Generated verification reports
 evidence/
-docs/screenshots/
+
+# Local tool caches and parallel coverage output
+.mypy_cache/
+.ruff_cache/
+.deepeval/
+.coverage.*

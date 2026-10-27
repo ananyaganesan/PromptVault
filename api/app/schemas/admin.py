@@ -16,6 +16,7 @@ class AdminUserResponse(BaseModel):
     display_name: str
     role: UserRole
     is_active: bool
+    is_approved: bool
     project_count: int
     created_at: datetime
     updated_at: datetime
@@ -26,6 +27,7 @@ class AdminUserUpdate(BaseModel):
 
     role: UserRole | None = None
     is_active: bool | None = None
+    is_approved: bool | None = None
 
     @model_validator(mode="after")
     def require_update(self) -> Self:

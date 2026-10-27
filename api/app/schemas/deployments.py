@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
+from api.app.schemas.release_validation import ReleaseValidationResponse
 from api.app.schemas.runs import RunResponse
 from api.app.schemas.versions import PromptVersionResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -18,6 +19,7 @@ class DeploymentCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     version_id: UUID
+    validation_id: UUID | None = None
     environment: DeploymentEnvironment
     request_note: Annotated[str | None, Field(max_length=2_000)] = None
 
@@ -96,6 +98,7 @@ class DeploymentResponse(BaseModel):
     requested_at: datetime
     reviewed_at: datetime | None
     activated_at: datetime | None
+    validation_id: UUID | None = None
 
 
 class DeploymentTimelineEvent(BaseModel):
@@ -110,6 +113,7 @@ class DeploymentTimelineEvent(BaseModel):
 
 class DeploymentDetailResponse(DeploymentResponse):
     timeline: list[DeploymentTimelineEvent]
+    validation: ReleaseValidationResponse | None = None
 
 
 class DeploymentReviewDetailResponse(BaseModel):
@@ -117,3 +121,4 @@ class DeploymentReviewDetailResponse(BaseModel):
     requested_version: PromptVersionResponse
     active_version: PromptVersionResponse | None
     recent_runs: list[RunResponse]
+    validation: ReleaseValidationResponse | None = None

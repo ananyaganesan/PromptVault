@@ -44,12 +44,62 @@ export function AdminRunsExplorerPage() {
 }
 
 export function UserManagementPage() {
-  const { user, logout } = useAuth(); const navigate = useNavigate(); const revision = useSyncExternalStore(adminStore.subscribe, adminStore.getSnapshot); const [search, setSearch] = useState(''); const [role, setRole] = useState(''); const [status, setStatus] = useState(''); const [page, setPage] = useState(1); const [pending, setPending] = useState<{ target: AdminUser; role?: 'user' | 'super_admin'; is_active?: boolean } | null>(null); const [mutationError, setMutationError] = useState('')
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+  const revision = useSyncExternalStore(adminStore.subscribe, adminStore.getSnapshot)
+  const [search, setSearch] = useState('')
+  const [role, setRole] = useState('')
+  const [status, setStatus] = useState('')
+  const [page, setPage] = useState(1)
+  const [pending, setPending] = useState<{ target: AdminUser; role?: 'user' | 'admin' | 'super_admin'; is_active?: boolean; is_approved?: boolean } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [mutationError, setMutationError] = useState('')
   const load = useCallback(() => adminService.listUsers({ page, page_size: 25, search, role: role || undefined, is_active: status === '' ? undefined : status === 'active' }, user), [user, page, search, role, status])
   const { data, loading, error, reload } = useAdminData<Page<AdminUser>>(load, String(revision))
-  const hasFilters = Boolean(search.trim() || role || status)
-  async function save() { if (!pending) return; try { await adminService.updateUser(pending.target.id, { role: pending.role, is_active: pending.is_active }, user); setMutationError(''); if (pending.target.id === user?.id && (pending.role === 'user' || pending.is_active === false)) { logout(); navigate('/login'); return } setPending(null) } catch (cause) { setMutationError(cause instanceof Error ? cause.message : 'Could not update user.'); setPending(null) } }
-  return <><PageHeader title="Users" eyebrow="ADMINISTRATION" description="Manage account roles and access." /><div className="toolbar"><input aria-label="Search users" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Search users" /><select aria-label="Role filter" value={role} onChange={(event) => { setRole(event.target.value); setPage(1) }}><option value="">All roles</option><option value="super_admin">Super Admin</option><option value="user">User</option></select><select aria-label="Status filter" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div>{mutationError && <p className="form-error" role="alert">{mutationError}</p>}{!data ? <AdminDataState loading={loading} error={error} onRetry={reload} /> : <section className="panel table-panel" tabIndex={0} aria-label="Users table"><table><thead><tr><th>USER</th><th>ROLE</th><th>PROJECTS</th><th>LAST ACTIVE</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>{data.items.map((item) => { const peerDemotion = item.role === 'super_admin' && item.id !== user?.id; return <tr key={item.id}><td><b>{item.display_name}</b><small className="user-email">{item.email}</small></td><td>{item.role === 'super_admin' ? 'Super Admin' : 'User'}</td><td>{item.project_count}</td><td>{item.last_active_at ? new Date(item.last_active_at).toLocaleDateString() : 'Never'}</td><td><Status tone={item.is_active ? 'success' : 'neutral'}>{item.is_active ? 'Active' : 'Inactive'}</Status></td><td className="admin-actions"><button className="text-button" disabled={peerDemotion} title={peerDemotion ? 'Super Admins cannot demote another Super Admin' : undefined} onClick={() => setPending({ target: item, role: item.role === 'user' ? 'super_admin' : 'user' })}>{item.role === 'user' ? 'Make admin' : 'Make user'}</button><button className="text-button" onClick={() => setPending({ target: item, is_active: !item.is_active })}>{item.is_active ? 'Deactivate' : 'Activate'}</button></td></tr> })}</tbody></table>{!data.items.length && <p className="no-results">{hasFilters ? 'No users match these filters.' : 'No users are available.'}</p>}</section>}{data && <div className="run-pagination"><span>{data.total} users · page {page}</span><div><Button secondary disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button><Button secondary disabled={page * 25 >= data.total} onClick={() => setPage(page + 1)}>Next</Button></div></div>}{error && data && <p className="form-error" role="alert">{error}</p>}<ConfirmationDialog open={pending !== null} title="Confirm user change" message={pending ? `${pending.role ? `Change ${pending.target.display_name} to ${pending.role === 'super_admin' ? 'Super Admin' : 'User'}` : `${pending.is_active ? 'Activate' : 'Deactivate'} ${pending.target.display_name}`}?` : ''} onConfirm={save} onCancel={() => setPending(null)} /></>
+  const hasFilters = Boolean(search || role || status)
+  async function save() {
+    if (!pending || saving) return
+    setSaving(true)
+    try {
+      const request = { ...(pending.role !== undefined ? { role: pending.role } : {}), ...(pending.is_active !== undefined ? { is_active: pending.is_active } : {}), ...(pending.is_approved !== undefined ? { is_approved: pending.is_approved } : {}) }
+      await adminService.updateUser(pending.target.id, request, user)
+      setMutationError('')
+      if (pending.target.id === user?.id) { logout(); navigate('/login'); return }
+      setPending(null)
+    } catch (cause) { setMutationError(cause instanceof Error ? cause.message : 'Could not update user.'); setPending(null) }
+    finally { setSaving(false) }
+  }
+  return <>
+    <PageHeader title={user?.role === 'admin' ? 'User approvals' : 'Users'} eyebrow={user?.role === 'admin' ? 'ADMIN' : 'SUPER ADMIN'} description={user?.role === 'admin' ? 'Approve verified accounts and manage regular user access.' : 'Approve verified accounts, assign roles, and manage user access.'} />
+    <div className="toolbar">
+      <input aria-label="Search users" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Search users" />
+      <select aria-label="Role filter" value={role} onChange={(event) => { setRole(event.target.value); setPage(1) }}><option value="">All roles</option><option value="super_admin">Super Admin</option><option value="admin">Admin</option><option value="user">User</option></select>
+      <select aria-label="Status filter" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+    </div>
+    {mutationError && <p className="form-error" role="alert">{mutationError}</p>}
+    {!data ? <AdminDataState loading={loading} error={error} onRetry={reload} /> : <section className="panel table-panel" tabIndex={0} aria-label="Users table"><table><thead><tr><th>USER</th><th>ROLE</th><th>PROJECTS</th><th>LAST ACTIVE</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>{data.items.map((item) => {
+      const peerDemotion = item.role === 'super_admin' && item.id !== user?.id
+      const canManage = user?.role === 'super_admin' || item.role === 'user'
+      const roleLabel = item.role === 'super_admin' ? 'Super Admin' : item.role === 'admin' ? 'Admin' : 'User'
+      return <tr key={item.id}>
+        <td><b>{item.display_name}</b><small className="user-email">{item.email}</small></td><td>{roleLabel}</td><td>{item.project_count}</td><td>{item.last_active_at ? new Date(item.last_active_at).toLocaleDateString() : 'Never'}</td>
+        <td><Status tone={!item.is_active ? 'neutral' : item.is_approved === false ? 'warning' : 'success'}>{!item.is_active ? 'Inactive' : item.is_approved === false ? 'Awaiting approval' : 'Active'}</Status></td>
+        <td className="admin-actions">
+          {user?.role === 'super_admin' && <>
+            <button className="text-button" disabled={peerDemotion || saving} title={peerDemotion ? 'Super Admins cannot demote another Super Admin' : undefined} onClick={() => setPending({ target: item, role: item.role === 'user' ? 'admin' : 'user' })}>{item.role === 'user' ? 'Make admin' : 'Make user'}</button>
+            {item.role !== 'super_admin' && <button className="text-button" disabled={saving} onClick={() => setPending({ target: item, role: 'super_admin' })}>Make Super Admin</button>}
+          </>}
+          {canManage && <>
+            {item.is_approved === false && <button className="text-button" disabled={saving} onClick={() => setPending({ target: item, is_approved: true })}>Approve user</button>}
+            <button className="text-button" disabled={saving} onClick={() => setPending({ target: item, is_active: !item.is_active })}>{item.is_active ? 'Deactivate' : 'Activate'}</button>
+          </>}
+        </td>
+      </tr>
+    })}</tbody></table>{!data.items.length && <p className="no-results">{hasFilters ? 'No users match these filters.' : 'No users are available.'}</p>}</section>}
+    {data && <div className="run-pagination"><span>{data.total} users · page {page}</span><div><Button secondary disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button><Button secondary disabled={page * 25 >= data.total} onClick={() => setPage(page + 1)}>Next</Button></div></div>}
+    {error && data && <p className="form-error" role="alert">{error}</p>}
+    <ConfirmationDialog open={pending !== null} pending={saving} title="Confirm user change" message={pending ? pending.is_approved ? `Approve access for ${pending.target.display_name}?` : pending.role ? `Change ${pending.target.display_name} to ${pending.role === 'super_admin' ? 'Super Admin' : pending.role === 'admin' ? 'Admin' : 'User'}?` : `${pending.is_active ? 'Activate' : 'Deactivate'} ${pending.target.display_name}?` : ''} onConfirm={save} onCancel={() => setPending(null)} />
+  </>
 }
 
 export function ProviderKeyManagementPage() {

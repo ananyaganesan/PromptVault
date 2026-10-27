@@ -17,14 +17,14 @@ def test_concurrent_cross_deactivation_preserves_one_active_admin(
     second = uuid4()
     with psycopg.connect(database_url) as connection:
         connection.execute(
-            """INSERT INTO users (id, email, display_name, password_hash, role, is_active)
-               VALUES (%s, %s, 'Race Admin One', 'unused', 'admin', TRUE),
-                      (%s, %s, 'Race Admin Two', 'unused', 'admin', TRUE)""",
+            """INSERT INTO users (id, email, display_name, password_hash, role, is_active, is_approved, email_verified_at)
+               VALUES (%s, %s, 'Race Admin One', 'unused', 'super_admin', TRUE, TRUE, now()),
+                      (%s, %s, 'Race Admin Two', 'unused', 'super_admin', TRUE, TRUE, now())""",
             (first, f"admin-race-{first}@example.com", second, f"admin-race-{second}@example.com"),
         )
         connection.execute(
             """UPDATE users SET role = 'user', is_active = FALSE
-               WHERE role = 'admin' AND id NOT IN (%s, %s)""",
+               WHERE role = 'super_admin' AND id NOT IN (%s, %s)""",
             (first, second),
         )
 
@@ -35,7 +35,7 @@ def test_concurrent_cross_deactivation_preserves_one_active_admin(
             with psycopg.connect(database_url) as connection:
                 barrier.wait()
                 connection.execute(
-                    "SELECT admin_update_user(%s, %s, NULL, FALSE, FALSE, TRUE)",
+                    "SELECT admin_update_user(%s, %s, NULL, FALSE, FALSE, TRUE, NULL, FALSE)",
                     (target_id, actor_id),
                 )
             return "deactivated"
@@ -53,13 +53,13 @@ def test_concurrent_cross_deactivation_preserves_one_active_admin(
         assert sorted(results) == ["admin_required", "deactivated"]
         with psycopg.connect(database_url) as connection:
             active_count = connection.execute(
-                "SELECT count(*) FROM users WHERE role = 'admin' AND is_active"
+                "SELECT count(*) FROM users WHERE role = 'super_admin' AND is_active"
             ).fetchone()[0]
         assert active_count == 1
     finally:
         with psycopg.connect(database_url) as connection:
             connection.execute(
-                "UPDATE users SET role = 'admin', is_active = TRUE WHERE id = %s",
+                "UPDATE users SET role = 'super_admin', is_active = TRUE WHERE id = %s",
                 (SEEDED_ADMIN_ID,),
             )
             connection.execute(

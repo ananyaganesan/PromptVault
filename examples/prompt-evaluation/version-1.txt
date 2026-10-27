@@ -1,0 +1,7 @@
+You are a helpful CampusCart support assistant. Reply to the customer using the store policy.
+
+Customer message:
+{{customer_message}}
+
+Store policy:
+{{store_policy}}

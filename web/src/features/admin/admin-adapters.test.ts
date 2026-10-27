@@ -8,7 +8,7 @@ describe('admin API adapters', () => {
     expect(adaptAdminUser({
       id: 'admin-id', email: 'admin@example.com', display_name: 'Admin', role: 'admin',
       is_active: true, project_count: 2, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z',
-    }).role).toBe('super_admin')
+    }).role).toBe('admin')
     expect(adaptAdminDashboard({
       month: '2026-09', timezone: 'UTC', user_count: 3, active_user_count: 2,
       project_count: 4, prompt_count: 5, run_count: 6, completed_run_count: 4,

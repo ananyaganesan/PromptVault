@@ -34,6 +34,7 @@ let modelPrices: ModelPrice[] = [
 ]
 let refreshedAt: string | null = null
 
+function requireUserAdmin(actor: UserSummary | null): UserSummary { if (!actor || !['admin', 'super_admin'].includes(actor.role) || !actor.is_active) throw new Error('Admin access is required.'); return actor }
 function requireAdmin(actor: UserSummary | null): UserSummary { if (!actor || actor.role !== 'super_admin' || !actor.is_active) throw new Error('Super Admin access is required.'); return actor }
 function pageOf<T>(items: T[], page = 1, pageSize = 25): Page<T> { return { items: items.slice((page - 1) * pageSize, page * pageSize), total: items.length, page, page_size: pageSize } }
 function monthSpend(runs: PromptRun[], target: 'user' | 'project', targetId: string) { const month = now().slice(0, 7); return runs.filter((run) => run.status === 'completed' && run.created_at.startsWith(month) && (target === 'user' ? run.user_id : run.project_id) === targetId).reduce((total, run) => total + Number(run.cost), 0) }
@@ -72,8 +73,9 @@ export function adaptAdminUser(item: BackendAdminUser): AdminUser {
     id: item.id,
     email: item.email,
     display_name: item.display_name,
-    role: item.role === 'admin' ? 'super_admin' : 'user',
+    role: item.role,
     is_active: item.is_active,
+    is_approved: item.is_approved,
     created_at: item.created_at,
     project_count: item.project_count,
     last_active_at: item.updated_at,
@@ -175,9 +177,9 @@ export const adminService = {
     return pageOf(rows, query.page, query.page_size)
   },
   async listUsers(query: { page?: number; page_size?: number; search?: string; role?: string; is_active?: boolean } = {}, actor: UserSummary | null): Promise<Page<AdminUser>> {
-    requireAdmin(actor)
+    requireUserAdmin(actor)
     if (!demo) {
-      const role = query.role === 'super_admin' ? 'admin' : query.role === 'user' ? 'user' : undefined
+      const role = query.role as 'user' | 'admin' | 'super_admin' | undefined
       const page = await adminApi.listUsers({ ...query, role })
       return { ...page, items: page.items.map(adaptAdminUser) }
     }
@@ -185,14 +187,15 @@ export const adminService = {
     return pageOf(items, query.page, query.page_size)
   },
   async updateUser(userId: string, request: UpdateUserRequest, actor: UserSummary | null): Promise<AdminUser> {
-    const admin = requireAdmin(actor)
+    const admin = requireUserAdmin(actor)
     if (!demo) {
-      const updated = adaptAdminUser(await adminApi.updateUser(userId, { ...request, role: request.role === 'super_admin' ? 'admin' : request.role }))
+      const updated = adaptAdminUser(await adminApi.updateUser(userId, { ...request, role: request.role }))
       notify()
       return updated
     }
     const current = users.find((user) => user.id === userId)
     if (!current) throw new Error('User not found.')
+    if (admin.role === 'admin' && (current.role !== 'user' || request.role !== undefined)) throw new Error('Super Admin access is required.')
     const updated = { ...current, ...request }
     if (current.role === 'super_admin' && updated.role === 'user' && current.id !== admin.id) throw new Error('A Super Admin cannot change another Super Admin to User.')
     if (current.role === 'super_admin' && current.is_active && (updated.role !== 'super_admin' || !updated.is_active) && !users.some((item) => item.id !== userId && item.role === 'super_admin' && item.is_active)) throw new Error('The last active Super Admin cannot be changed.')

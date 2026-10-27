@@ -1,6 +1,8 @@
 import psycopg
 import pytest
 
+from tests.release_support import seed_release_evidence
+
 
 @pytest.mark.database
 @pytest.mark.parametrize(
@@ -88,7 +90,7 @@ def test_application_role_uses_function_boundaries_for_versions_and_deployments(
                ) AS version_function,
                has_function_privilege(
                    'promptvault_app',
-                   'request_deployment(uuid,deployment_environment,uuid,text)',
+                   'request_deployment(uuid,deployment_environment,uuid,text,uuid)',
                    'EXECUTE'
                ) AS deployment_function
         """
@@ -118,11 +120,14 @@ def test_application_role_uses_function_boundaries_for_versions_and_deployments(
         ),
     ).fetchone()
     assert version is not None
+    validation_id = seed_release_evidence(db_connection, version["id"],
+        "11111111-1111-4111-8111-111111111111", "staging")
     deployment = db_connection.execute(
-        "SELECT (request_deployment(%s, 'staging', %s, NULL)).status AS status",
+        "SELECT (request_deployment(%s, 'staging', %s, NULL, %s)).status AS status",
         (
             version["id"],
             "11111111-1111-4111-8111-111111111111",
+            validation_id,
         ),
     ).fetchone()
     assert deployment is not None
@@ -137,7 +142,7 @@ def test_application_role_has_only_required_governance_write_boundaries(
         """
         SELECT has_function_privilege(
                    'promptvault_app',
-                   'admin_update_user(uuid,uuid,user_role,boolean,boolean,boolean)',
+                   'admin_update_user(uuid,uuid,user_role,boolean,boolean,boolean,boolean,boolean)',
                    'EXECUTE'
                ) AS user_transition,
                has_table_privilege(

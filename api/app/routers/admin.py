@@ -5,7 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from api.app.db.transactions import DatabaseConnection, get_connection
-from api.app.dependencies.authorization import SuperAdmin
+from api.app.dependencies.authorization import Admin, SuperAdmin
 from api.app.dependencies.query import allow_query_parameters
 from api.app.dependencies.request_context import get_request_id
 from api.app.errors import error_responses
@@ -38,6 +38,7 @@ from api.app.schemas.deployments import (
 )
 from api.app.schemas.runs import RunResponse, RunStatus
 from api.app.schemas.users import UserRole
+from api.app.schemas.versions import PromptVersionResponse
 from api.app.services.admin import AdminGovernanceService
 from api.app.services.audit import AuditService
 from api.app.services.deployments import DeploymentService
@@ -98,7 +99,7 @@ AdminAudit = Annotated[AuditService, Depends(get_audit_service)]
     dependencies=[Depends(allow_query_parameters("project_id", "prompt_id", "page", "page_size"))],
 )
 async def pending_deployments(
-    _admin: SuperAdmin,
+    _admin: Admin,
     service: AdminDeploymentService,
     project_id: UUID | None = None,
     prompt_id: UUID | None = None,
@@ -111,6 +112,37 @@ async def pending_deployments(
 
 
 @router.get(
+    "/deployments/active",
+    response_model=Page[DeploymentResponse],
+    dependencies=[Depends(allow_query_parameters("page", "page_size"))],
+    responses=error_responses(401, 403, 422),
+)
+async def active_admin_deployments(
+    _admin: Admin,
+    service: AdminDeploymentService,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 100,
+) -> Page[DeploymentResponse]:
+    return await service.active_production(page=page, page_size=page_size)
+
+
+@router.get(
+    "/deployments/{deployment_id}/rollback-targets",
+    response_model=Page[PromptVersionResponse],
+    dependencies=[Depends(allow_query_parameters("page", "page_size"))],
+    responses=error_responses(401, 403, 404, 409, 422),
+)
+async def admin_rollback_targets(
+    deployment_id: UUID,
+    _admin: Admin,
+    service: AdminDeploymentService,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 100,
+) -> Page[PromptVersionResponse]:
+    return await service.rollback_targets(deployment_id, page=page, page_size=page_size)
+
+
+@router.get(
     "/deployments/{deployment_id}",
     response_model=DeploymentReviewDetailResponse,
     responses=error_responses(401, 403, 404, 422),
@@ -118,7 +150,7 @@ async def pending_deployments(
 )
 async def deployment_review_detail(
     deployment_id: UUID,
-    _admin: SuperAdmin,
+    _admin: Admin,
     service: AdminDeploymentService,
 ) -> DeploymentReviewDetailResponse:
     return await service.review_detail(deployment_id)
@@ -133,7 +165,7 @@ async def deployment_review_detail(
 async def approve_deployment(
     deployment_id: UUID,
     payload: DeploymentReview,
-    admin: SuperAdmin,
+    admin: Admin,
     service: AdminDeploymentService,
 ) -> DeploymentResponse:
     return await service.review(deployment_id, admin, approve=True, review_note=payload.review_note)
@@ -148,7 +180,7 @@ async def approve_deployment(
 async def reject_deployment(
     deployment_id: UUID,
     payload: DeploymentReject,
-    admin: SuperAdmin,
+    admin: Admin,
     service: AdminDeploymentService,
 ) -> DeploymentResponse:
     return await service.review(
@@ -166,7 +198,7 @@ async def reject_deployment(
 async def rollback_prompt(
     prompt_id: UUID,
     payload: RollbackCreate,
-    admin: SuperAdmin,
+    admin: Admin,
     service: AdminRollbackService,
 ) -> DeploymentResponse:
     return await service.rollback(prompt_id, payload, admin)
@@ -195,7 +227,7 @@ async def admin_dashboard(
     ],
 )
 async def list_admin_users(
-    _admin: SuperAdmin,
+    _admin: Admin,
     service: AdminGovernance,
     search: Annotated[str | None, Query(max_length=320)] = None,
     role: UserRole | None = None,
@@ -221,7 +253,7 @@ async def list_admin_users(
 async def update_admin_user(
     user_id: UUID,
     payload: AdminUserUpdate,
-    admin: SuperAdmin,
+    admin: Admin,
     service: AdminGovernance,
 ) -> AdminUserResponse:
     return await service.update_user(user_id, payload, admin)

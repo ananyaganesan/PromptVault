@@ -85,7 +85,10 @@ class AuthService:
             ) from exc
         return PendingVerificationResponse(
             email=user.email,
-            message="Check your email to verify your account",
+            message=(
+                "Check your email to verify your account. "
+                "An administrator must then approve access."
+            ),
         )
 
     async def confirm_email_verification(self, request: EmailVerificationConfirm) -> None:
@@ -163,6 +166,10 @@ class AuthService:
                 403,
                 "email_unverified",
                 "Verify your email before signing in",
+            )
+        if not user.is_approved:
+            raise AppError(
+                403, "approval_pending", "Your account is awaiting administrator approval"
             )
         return await self._session(user)
 

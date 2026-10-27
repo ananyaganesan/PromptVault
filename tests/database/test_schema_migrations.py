@@ -7,6 +7,7 @@ from api.app.db.migrations import discover_migrations
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS_DIRECTORY = REPOSITORY_ROOT / "db" / "migrations"
+DEMO_SEED = REPOSITORY_ROOT / "db" / "seeds" / "002_demo.sql"
 
 
 def migration_sql(version: int) -> str:
@@ -17,7 +18,7 @@ def migration_sql(version: int) -> str:
 def test_complete_migration_chain_is_discoverable() -> None:
     migrations = discover_migrations(MIGRATIONS_DIRECTORY)
 
-    assert [migration.version for migration in migrations] == list(range(1, 34))
+    assert [migration.version for migration in migrations] == list(range(1, 43))
 
 
 @pytest.mark.parametrize(
@@ -56,6 +57,7 @@ def test_budget_relation_is_renamed_to_spend_limits() -> None:
     assert "from spend_limits" in rename
     assert "budgets_id_not_null" in constraint_cleanup
     assert "spend_limits_" in constraint_cleanup
+    assert "insert into spend_limits" in DEMO_SEED.read_text(encoding="utf-8").lower()
 
 
 def test_run_ledger_is_monthly_partitioned() -> None:

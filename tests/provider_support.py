@@ -25,7 +25,7 @@ def seed_gemini_test_credential(settings: Settings) -> None:
         c.execute(
             """INSERT INTO provider_keys(provider,alias,encrypted_secret,created_by)
             SELECT 'gemini',%s,%s,id FROM users
-            WHERE role='admin' AND is_active ORDER BY created_at LIMIT 1
+            WHERE role='super_admin' AND is_active ORDER BY created_at LIMIT 1
             ON CONFLICT DO NOTHING""",
             (
                 "isolated-test-" + uuid4().hex,
@@ -67,3 +67,13 @@ def simulate_fixture_gemini(
         return get_provider(name, credential=credential, **kwargs)
 
     monkeypatch.setattr("api.app.services.playground.get_provider", provider)
+
+
+@pytest.fixture(autouse=True)
+def simulate_release_judge(monkeypatch):
+    from tests.release_support import ReleaseJudge
+
+    monkeypatch.setattr(
+        "api.app.services.evaluations.get_provider",
+        lambda *args, **kwargs: ReleaseJudge(),
+    )

@@ -58,7 +58,7 @@ describe('email verification', () => {
 
     renderVerification('/verify-email?token=verification-token-value')
 
-    expect(await screen.findByText('Your email has been verified.')).toBeInTheDocument()
+    expect(await screen.findByText(/Your email has been verified.*administrator must approve/)).toBeInTheDocument()
     expect(confirm).toHaveBeenCalledOnce()
     expect(confirm).toHaveBeenCalledWith('verification-token-value')
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login')

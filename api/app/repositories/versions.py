@@ -118,7 +118,7 @@ class VersionRepository:
             .join(Prompt, Prompt.id == VersionContext.prompt_id)
             .where(
                 or_(
-                    literal(role == "admin"),
+                    literal(role == "super_admin"),
                     exists().where(
                         ProjectMember.project_id == Prompt.project_id,
                         ProjectMember.user_id == user_id,
@@ -151,21 +151,27 @@ class VersionRepository:
         page_size: int,
         sort: str,
         direction: str,
+        before_version_number: int | None = None,
     ) -> tuple[list[PromptVersionResponse], int]:
         sort_column = {"version_number": "pv.version_number", "created_at": "pv.created_at"}[sort]
         order = "ASC" if direction == "asc" else "DESC"
+        where = "pv.prompt_id = %s"
+        parameters: tuple[Any, ...] = (prompt_id,)
+        if before_version_number is not None:
+            where += " AND pv.version_number < %s"
+            parameters += (before_version_number,)
         rows, total = await read_page(
             self.connection,
-            count_query="SELECT count(*) AS total FROM version_context WHERE prompt_id = %s",
+            count_query=f"SELECT count(*) AS total FROM version_context pv WHERE {where}",
             items_query=f"""
             SELECT {_VERSION_COLUMNS}
             FROM version_context pv
             JOIN users creator ON creator.id = pv.created_by
-            WHERE pv.prompt_id = %s
+            WHERE {where}
             ORDER BY {sort_column} {order}, pv.id {order}
             LIMIT %s OFFSET %s
             """,
-            parameters=(prompt_id,),
+            parameters=parameters,
             page=page,
             page_size=page_size,
             order_by=f"{sort_column.removeprefix('pv.')} {order}, id {order}",

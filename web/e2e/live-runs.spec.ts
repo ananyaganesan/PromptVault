@@ -10,6 +10,11 @@ test('playground execution persists tokens, latency, and history through FastAPI
   await expect(page).toHaveURL(/\/dashboard$/)
   await expect(page.locator('.activity')).toHaveCount(4)
   await page.goto('/playground')
+  const project = page.getByLabel('Project', { exact: true })
+  await expect(project).toHaveValue('')
+  const firstProject = await project.locator('option:not([value=""])').first().getAttribute('value')
+  expect(firstProject).toBeTruthy()
+  await project.selectOption(firstProject!)
 
   await expect(page.getByRole('button', { name: 'Run prompt' })).toBeVisible()
   const selectedPromptLabel = await page.getByLabel('Prompt version').locator('option:checked').textContent()

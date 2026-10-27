@@ -31,7 +31,7 @@ export function PlaygroundPage() {
   const allVersions = Object.values(versionStore).flat()
   const linkedVersion = allVersions.find((version) => version.id === params.get('version'))
   const requestedProjectId = params.get('project') ?? promptStore.find((prompt) => prompt.id === linkedVersion?.prompt_id)?.project_id
-  const projectId = projectStore.find((project) => project.id === requestedProjectId)?.id ?? projectStore[0]?.id ?? ''
+  const projectId = projectStore.find((project) => project.id === requestedProjectId)?.id ?? ''
   const projectPromptIds = new Set(promptStore.filter((prompt) => prompt.project_id === projectId).map((prompt) => prompt.id))
   const projectVersions = allVersions.filter((version) => projectPromptIds.has(version.prompt_id))
   const selected = projectVersions.find((version) => version.id === params.get('version')) ?? projectVersions[0]
@@ -57,7 +57,8 @@ export function PlaygroundPage() {
 
   function chooseVersion(nextProjectId: string, nextVersionId?: string) {
     const next = new URLSearchParams(params)
-    next.set('project', nextProjectId)
+    if (nextProjectId) next.set('project', nextProjectId)
+    else next.delete('project')
     if (nextVersionId) next.set('version', nextVersionId)
     else next.delete('version')
     setParams(next)
@@ -109,13 +110,14 @@ export function PlaygroundPage() {
     <div className="playground">
       <section className="panel"><div className="panel-head"><div><h2>Prompt configuration</h2><p>Select an immutable version to run.</p></div>{demoMode && <Status>Demo provider</Status>}</div>
         <label className="field"><span>Project</span><select disabled={pending || saving || !projectStore.length} value={projectId} onChange={(event) => changeProject(event.target.value)}>
-          {!projectStore.length && <option value="">No projects available</option>}
+          <option value="">{projectStore.length ? 'Select a project' : 'No projects available'}</option>
           {projectStore.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
         </select></label>
         <label className="field"><span>Prompt version</span><select disabled={pending || saving || !projectVersions.length} value={versionId} onChange={(event) => chooseVersion(projectId, event.target.value)}>
-          {!projectVersions.length && <option value="">No prompt versions in this project</option>}
+          {!projectVersions.length && <option value="">{projectId ? 'No prompt versions in this project' : 'Select a project first'}</option>}
           {projectVersions.map((version) => <option key={version.id} value={version.id}>{promptStore.find((prompt) => prompt.id === version.prompt_id)?.key ?? version.prompt_id} · v{version.version_number}</option>)}
         </select></label>
+        {!projectId && <p className="provider-note" role="status">Select a project from the dropdown to choose a prompt version.</p>}
         {legacyProvider && <p role="status">This historical version uses a retired provider. Save a Gemini configuration as a new version before running.</p>}
         {config && <>
           <label className="field"><span>LLM provider</span><select value={config.provider} disabled={pending || saving || (!discovery.data && !demoMode)} onChange={(event) => {

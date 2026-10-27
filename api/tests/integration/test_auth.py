@@ -65,10 +65,20 @@ def register_verify_login(
     registered = client.post("/api/v1/auth/register", json=payload)
     assert registered.status_code == 202, registered.text
     token = DELIVERED_VERIFICATION_TOKENS[email][-1]
-    confirmed = client.post(
-        "/api/v1/auth/email-verification/confirm", json={"token": token}
-    )
+    confirmed = client.post("/api/v1/auth/email-verification/confirm", json={"token": token})
     assert confirmed.status_code == 204, confirmed.text
+    admin_session = client.post(
+        "/api/v1/auth/login", json={"email": "admin@promptvault.dev", "password": "AdminDemo2026!"}
+    )
+    assert admin_session.status_code == 200
+    admin_headers = {"Authorization": f"Bearer {admin_session.json()['access_token']}"}
+    target = client.get(
+        "/api/v1/admin/users", headers=admin_headers, params={"search": email}
+    ).json()["items"][0]
+    approved = client.patch(
+        f"/api/v1/admin/users/{target['id']}", headers=admin_headers, json={"is_approved": True}
+    )
+    assert approved.status_code == 200, approved.text
     logged_in = client.post(
         "/api/v1/auth/login",
         json={"email": email, "password": password},
@@ -91,7 +101,10 @@ def test_register_creates_pending_account_without_session_and_hashes_token(
     assert registered.status_code == 202
     assert registered.json() == {
         "email": email,
-        "message": "Check your email to verify your account",
+        "message": (
+            "Check your email to verify your account. "
+            "An administrator must then approve access."
+        ),
     }
     assert "access_token" not in registered.text
     assert "password" not in registered.text.lower()
@@ -197,7 +210,7 @@ def test_login_reveals_pending_state_only_after_correct_password(
 
 
 @pytest.mark.database
-def test_confirmation_verifies_once_then_allows_login(
+def test_confirmation_verifies_once_then_requires_admin_approval(
     auth_client: TestClient,
     seeded_database_url: str,
 ) -> None:
@@ -221,7 +234,8 @@ def test_confirmation_verifies_once_then_allows_login(
     assert confirmed.status_code == 204
     assert reused.status_code == 400
     assert reused.json()["code"] == "invalid_verification_token"
-    assert login.status_code == 200
+    assert login.status_code == 403
+    assert login.json()["code"] == "approval_pending"
     with psycopg.connect(seeded_database_url) as connection:
         state = connection.execute(
             """

@@ -7,7 +7,8 @@ export interface BackendAdminUser {
   id: Id
   email: string
   display_name: string
-  role: 'user' | 'admin'
+  role: 'user' | 'admin' | 'super_admin'
+  is_approved?: boolean
   is_active: boolean
   project_count: number
   created_at: string
@@ -89,8 +90,8 @@ export interface BackendMaintenanceStatus {
 
 export const adminApi = {
   dashboard: (signal?: AbortSignal) => apiClient.request<BackendAdminDashboard>('/admin/dashboard', { signal }),
-  listUsers: (query: { page?: number; page_size?: number; search?: string; role?: 'user' | 'admin'; is_active?: boolean } = {}, signal?: AbortSignal) => apiClient.request<Page<BackendAdminUser>>('/admin/users', { query, signal }),
-  updateUser: (userId: Id, request: { role?: 'user' | 'admin'; is_active?: boolean }) => apiClient.request<BackendAdminUser>(`/admin/users/${userId}`, { method: 'PATCH', body: request }),
+  listUsers: (query: { page?: number; page_size?: number; search?: string; role?: 'user' | 'admin' | 'super_admin'; is_active?: boolean } = {}, signal?: AbortSignal) => apiClient.request<Page<BackendAdminUser>>('/admin/users', { query, signal }),
+  updateUser: (userId: Id, request: { role?: 'user' | 'admin' | 'super_admin'; is_active?: boolean; is_approved?: boolean }) => apiClient.request<BackendAdminUser>(`/admin/users/${userId}`, { method: 'PATCH', body: request }),
   listBudgets: (query: { page?: number; page_size?: number } = {}, signal?: AbortSignal) => apiClient.request<Page<BackendBudget>>('/admin/budgets', { query, signal }),
   createBudget: (request: { user_id?: Id; project_id?: Id; monthly_limit: string; timezone: string }) => apiClient.request<BackendBudget>('/admin/budgets', { method: 'POST', body: request }),
   updateBudget: (budgetId: Id, request: { monthly_limit: string; timezone?: string }) => apiClient.request<BackendBudget>(`/admin/budgets/${budgetId}`, { method: 'PATCH', body: request }),

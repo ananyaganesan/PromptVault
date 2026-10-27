@@ -30,9 +30,9 @@ def create_verified_test_user(
         connection.execute(
             """
             INSERT INTO users (
-                email, display_name, password_hash, role, is_active, email_verified_at
+                email, display_name, password_hash, role, is_active, email_verified_at, is_approved
             )
-            VALUES (%s, %s, %s, 'user', TRUE, CURRENT_TIMESTAMP)
+            VALUES (%s, %s, %s, 'user', TRUE, CURRENT_TIMESTAMP, TRUE)
             """,
             (email, display_name, hash_password(_TEST_PASSWORD)),
         )

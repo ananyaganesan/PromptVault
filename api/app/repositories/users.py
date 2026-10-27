@@ -36,6 +36,7 @@ class UserRecord:
     is_active: bool
     email_verified_at: datetime | None
     created_at: datetime
+    is_approved: bool
 
 
 def _user_from_row(row: Mapping[str, Any]) -> UserRecord:
@@ -46,6 +47,7 @@ def _user_from_row(row: Mapping[str, Any]) -> UserRecord:
         password_hash=str(row["password_hash"]),
         role=cast(UserRole, row["role"]),
         is_active=bool(row["is_active"]),
+        is_approved=bool(row["is_approved"]),
         email_verified_at=cast(datetime | None, row["email_verified_at"]),
         created_at=cast(datetime, row["created_at"]),
     )

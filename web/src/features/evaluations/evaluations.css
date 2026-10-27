@@ -1,0 +1,111 @@
+.evaluation-page{font-size:var(--pv-type-body);line-height:var(--pv-leading-body)}
+.evaluation-page,
+.evaluation-page *,
+.evaluation-page .field :is(input,textarea,select),
+.evaluation-page .text-button {
+  font-family: var(--pv-font-sans);
+  font-weight: 500;
+}
+.evaluation-page :is(h1,h2,h3,h4,legend),
+.evaluation-page .button,
+.evaluation-page summary {
+  font-family: var(--pv-font-sans);
+  font-weight: 600;
+}
+.evaluation-page :is(code,pre),
+.evaluation-page :is(code,pre) *,
+.evaluation-page .eval-version-option b,
+.evaluation-page .eval-example-inputs dt,
+.evaluation-page .eval-ranking strong,
+.evaluation-page .field > span,
+.evaluation-page .field input[type="number"],
+.evaluation-page .eval-history-row,
+.evaluation-page .eval-history-row span,
+.evaluation-page .eval-output h4 {
+  font-family: "SF Mono", Menlo, var(--pv-font-mono);
+  font-weight: 500;
+}
+.evaluation-page .eyebrow {
+  font-family: var(--pv-font-sans);
+  font-weight: 400;
+}
+.eval-example-inputs { display: grid; gap: 12px; margin: 12px 0; }
+.eval-example-inputs dt { font-weight: 600; margin-bottom: 4px; }
+.eval-example-inputs dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--pv-muted); }
+.evaluation-page input[type="checkbox"]{accent-color:var(--pv-text);width:14px;height:14px;flex-shrink:0;cursor:pointer}
+.evaluation-page h2,.evaluation-page h3{font-size:var(--pv-type-section-title)}
+.eval-setup,.eval-result-head,.eval-case-results,.eval-improve,.eval-history{padding:20px;margin-bottom:20px}
+.eval-setup fieldset{border:0;padding:0 0 20px;margin:0 0 20px;border-bottom:1px solid var(--border,#e4e6ed);min-width:0}
+.eval-setup legend{font-size:14px;font-weight:600;margin-bottom:14px}
+.eval-setup fieldset:disabled{opacity:.72}
+.eval-version-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:20px;max-height:320px;overflow:auto;padding-top:1px}
+.eval-version-option{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--border,#e4e6ed);padding:12px;border-radius:2px;cursor:pointer;transition:.15s}
+.eval-version-option:not(:has(input:disabled)):hover{border-color:#17171c;transform:translateY(-1px)}
+.eval-version-option input{margin-top:2px}
+.eval-version-option span{display:grid;gap:4px;min-width:0}
+.eval-version-option small{font-size:10px;color:var(--pv-muted);overflow-wrap:anywhere}
+.eval-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+.eval-case,.eval-suggestion{padding:16px;border:1px solid var(--border,#e4e6ed);border-radius:12px;margin:14px 0}
+.eval-case-heading{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}
+.eval-case h3,.eval-suggestion h3,.eval-improve h3{margin:0 0 12px}
+.eval-muted,.eval-history p,.eval-advanced p{color:var(--pv-muted);font-size:11px;line-height:1.6}
+.eval-setup .field{margin-bottom:16px}
+.eval-case textarea{min-height:76px}
+.eval-requirements{display:grid;gap:14px}
+.eval-advanced{margin-top:18px}
+.eval-advanced summary,.eval-suggestion summary,.eval-case-results summary{cursor:pointer;padding:10px 0}
+.eval-advanced > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--pv-border);
+  border-radius: var(--pv-radius);
+  background: var(--pv-surface);
+  color: var(--pv-text);
+  font-weight: 600;
+  list-style: none;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.eval-advanced > summary::-webkit-details-marker { display: none; }
+.eval-advanced > summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-right: 3px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 150ms ease;
+  flex-shrink: 0;
+}
+.eval-advanced > summary:hover {
+  background: #f0efeb;
+  border-color: var(--pv-text);
+}
+.eval-advanced[open] > summary { border-color: var(--pv-text); }
+.eval-advanced[open] > summary::after { transform: translateY(2px) rotate(225deg); }
+.eval-weights{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:16px}
+.eval-run-bar{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.eval-run-bar p{flex:1;min-width:200px;font-size:11px;line-height:1.6;color:var(--pv-muted)}
+.eval-notice{background:#f0f2ff;border:1px solid #d7daf6;padding:16px;border-radius:10px;margin-bottom:20px;overflow-wrap:anywhere}
+.eval-notice.error{background:#fff3f0;border-color:#f3ccc4}
+.eval-result-head h2{margin:16px 0 10px}
+.eval-result-head p{line-height:1.7}
+.eval-rankings{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin:20px 0}
+.eval-ranking{padding:20px}
+.eval-ranking strong{display:block;font-size:22px;margin:10px 0}
+.eval-ranking p,.eval-ranking small{font-size:11px;line-height:1.6}
+.eval-output-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:18px;margin-top:16px}
+.eval-output{min-width:0;border:1px solid var(--border,#e4e6ed);border-radius:10px;padding:16px}
+.eval-output h4{font-size:13px;margin:0 0 12px}
+.eval-output p{font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+.eval-output pre,.eval-case-results>details pre,.eval-suggestion pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;line-height:1.6;background:var(--bg-subtle,#f7f8fc);padding:12px;border-radius:8px;max-height:420px;overflow:auto}
+.eval-output blockquote{margin:8px 0;padding:8px 12px;border-left:3px solid #7976df;font-size:11px;overflow-wrap:anywhere}
+.eval-output mark{background:#fff0b8;color:#38300d}
+.eval-pass{color:#227049}.eval-fail{color:#a63f33}
+.eval-draft{min-height:260px!important}
+.eval-history-row{display:grid;grid-template-columns:1fr 1fr 2fr;width:100%;gap:16px;text-align:left;border:0;border-bottom:1px solid var(--border,#e4e6ed);background:transparent;padding:14px 0;color:inherit;cursor:pointer;font:inherit;font-size:11px}
+.eval-history-row:hover{color:#5351ce}
+@media(max-width:650px){.eval-setup,.eval-result-head,.eval-case-results,.eval-improve,.eval-history{padding:16px}.eval-history-row{grid-template-columns:1fr}.eval-actions{align-items:stretch}.eval-actions .button{flex:1}.eval-run-bar{align-items:stretch}.eval-version-options{grid-template-columns:1fr}}

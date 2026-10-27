@@ -16,7 +16,7 @@ function deployment(): BackendDeployment {
 }
 function detail(): BackendDeploymentReviewDetail {
   const version = { id: 'v2', prompt_id: 'prompt', version_number: 2, parent_version_id: 'v1', template_body: 'Candidate from combined endpoint', variables: [], model_config: { provider: 'gemini', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Saved', created_by: { id: 'owner', display_name: 'Owner' }, created_at: '2026-10-10T00:00:00Z' }
-  return { deployment: deployment(), requested_version: version, active_version: { ...version, id: 'v1', version_number: 1, parent_version_id: null, template_body: 'Active from combined endpoint' }, recent_runs: [] }
+  return { deployment: deployment(), requested_version: version, active_version: { ...version, id: 'v1', version_number: 1, parent_version_id: null, template_body: 'Active from combined endpoint' }, recent_runs: [], validation: { id: 'check', version_id: 'v2', environment: 'prod', created_by: 'owner', base_deployment_id: null, created_at: '2026-10-10T00:00:00Z', status: 'passed', summary: 'Every release check passed.', checks: [], configuration: null, evaluation: null, minimum_score: 70 } }
 }
 function setup(queue = false) {
   render(<MemoryRouter initialEntries={['/admin/approvals/request']}><Routes><Route path="/admin/approvals/:approvalId" element={<>{queue && <DeploymentApprovalQueuePage />}<DeploymentApprovalReviewPage /></>} /></Routes></MemoryRouter>)
@@ -84,4 +84,15 @@ it('handles a competing review by refetching the decision and preserving the dra
   expect(screen.getByText('Your draft note: Keep this explanation')).toBeInTheDocument()
   await screen.findByText('No production requests are waiting for review.')
   expect(screen.queryByRole('button', { name: 'Approve production' })).not.toBeInTheDocument()
+})
+
+
+it.each(['blocked', 'stale', 'running', 'missing'] as const)('blocks approval when validation is %s but allows rejection', async (state) => {
+  const data = detail()
+  data.validation = state === 'missing' ? null : { ...data.validation!, status: state }
+  vi.mocked(adminDeploymentsApi.reviewDetail).mockResolvedValue(data)
+  setup()
+  await screen.findByDisplayValue('Candidate from combined endpoint')
+  expect(screen.getByRole('button', { name: 'Approve production' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Reject request' })).toBeEnabled()
 })

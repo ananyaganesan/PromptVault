@@ -1,0 +1,73 @@
+/* Inherit the workspace scale used by Projects; keep the approval layout. */
+.admin-workspace-dashboard .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 10px 22px;
+  border-radius: var(--pv-radius);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.admin-workspace-dashboard .page-header .button {
+  background: linear-gradient(160deg, #1b1c21, #111216);
+  border-color: #111216;
+  color: #fff;
+}
+.admin-workspace-dashboard .button.secondary {
+  min-height: 32px;
+  padding: 8px 16px;
+  background: linear-gradient(180deg, #f5f4f2, #efeeeb);
+  border-color: var(--pv-border);
+  color: var(--pv-text);
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.admin-workspace-dashboard .button.secondary:hover {
+  background: #e9e7e2;
+  border-color: #bdbab3;
+}
+.admin-approval-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.admin-approval-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 230px;
+  border-radius: var(--pv-radius);
+}
+.admin-approval-panel .panel-head {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding-bottom: 20px;
+  margin: 0;
+  border-bottom: 1px solid #e5e3df;
+}
+.admin-approval-panel .panel-head > div { display: contents; }
+.admin-approval-panel h2 { order: 0; }
+.admin-approval-panel .panel-head a { order: 1; margin-left: auto; }
+.admin-approval-panel .panel-head p {
+  flex-basis: 100%;
+  order: 2;
+  margin: 0;
+}
+.admin-approval-panel .empty-evidence {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  margin: 0;
+  padding: 24px 0;
+  text-align: center;
+}
+.admin-approval-panel .health-row { gap: 10px; flex-wrap: wrap; }
+.admin-approval-panel .user-email { overflow-wrap: anywhere; }
+.admin-approval-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: var(--pv-type-supporting);
+}
+@media (max-width: 800px) {
+  .admin-approval-grid { grid-template-columns: minmax(0, 1fr); }
+  .admin-approval-panel { min-height: 210px; }
+}

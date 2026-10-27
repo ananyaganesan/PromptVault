@@ -35,7 +35,7 @@ function ProfileContent({ user }: { user: UserSummary }) {
         {notice && <p className="profile-notice" role="status">{notice}</p>}
         <Button type="submit" disabled={pending || name.trim() === user.display_name}>{pending ? 'Saving…' : 'Save display name'}</Button>
       </form>
-      <div className="profile-grid"><div><span>ROLE</span><b>{user.role === 'super_admin' ? 'Super Admin' : 'User'}</b></div><div><span>MEMBER SINCE</span><b>{new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date(user.created_at))}</b></div><div><span>WORKSPACE</span><b>PromptVault</b></div></div>
+      <div className="profile-grid"><div><span>ROLE</span><b>{user.role === 'super_admin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : 'User'}</b></div><div><span>MEMBER SINCE</span><b>{new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date(user.created_at))}</b></div><div><span>WORKSPACE</span><b>PromptVault</b></div></div>
     </section></>
 }
 export { ApiTokensPage } from './api-tokens-page'

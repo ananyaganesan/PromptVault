@@ -95,7 +95,7 @@ class AdminRepository:
             raise RuntimeError("user count returned no row")
         cursor = await self.connection.execute(
             f"""
-            SELECT u.id, u.email, u.display_name, u.role, u.is_active,
+            SELECT u.id, u.email, u.display_name, u.role, u.is_active, u.is_approved,
                    count(pm.project_id)::integer AS project_count,
                    u.created_at, u.updated_at
             FROM users u
@@ -124,6 +124,7 @@ class AdminRepository:
                 User.display_name,
                 User.role,
                 User.is_active,
+                User.is_approved,
                 User.created_at,
                 User.updated_at,
                 project_count.label("project_count"),
@@ -140,21 +141,24 @@ class AdminRepository:
         role_set: bool,
         is_active: bool | None,
         active_set: bool,
+        is_approved: bool | None,
+        approved_set: bool,
     ) -> AdminUserResponse:
         cursor = await self.connection.execute(
             """
             SELECT (admin_update_user(
                 p_target_user_id => %s, p_actor_user_id => %s,
                 p_role => %s::user_role, p_role_set => %s,
-                p_is_active => %s, p_active_set => %s
+                p_is_active => %s, p_active_set => %s,
+                p_is_approved => %s, p_approved_set => %s
             )).id AS id
             """,
-            (user_id, actor_id, role, role_set, is_active, active_set),
+            (user_id, actor_id, role, role_set, is_active, active_set, is_approved, approved_set),
         )
         row = await cursor.fetchone()
         if row is None:
             raise RuntimeError("user update function returned no row")
-        if role_set or active_set:
+        if role_set or active_set or approved_set:
             await execute_orm(
                 self.connection,
                 update(AuthSession)

@@ -6,11 +6,11 @@ const member = sampleUserProfiles[0]
 const admin = sampleUserProfiles[1]
 
 describe('deployment workflow', () => {
-  it('queues production requests and limits review to Super Admins', async () => {
+  it('queues production requests and limits review to Admins and Super Admins', async () => {
     const request = await deploymentService.create({ version_id: 'checkout-v3', environment: 'production', note: 'Ready for review' }, member)
     expect(request.status).toBe('pending_approval')
     expect((await deploymentService.pending(admin)).some((item) => item.id === request.id)).toBe(true)
-    await expect(deploymentService.review(request.id, 'approve', {}, member)).rejects.toThrow('Super Admin')
+    await expect(deploymentService.review(request.id, 'approve', {}, member)).rejects.toThrow('Admin')
     const approved = await deploymentService.review(request.id, 'approve', { note: 'Validated' }, admin)
     expect(approved.status).toBe('active')
     await expect(deploymentService.review(request.id, 'approve', {}, admin)).rejects.toThrow('already been reviewed')

@@ -16,8 +16,9 @@ def admin_actor() -> UserRecord:
         email="admin@example.com",
         display_name="Admin",
         password_hash="unused",
-        role="admin",
+        role="super_admin",
         is_active=True,
+        is_approved=True,
         email_verified_at=datetime.now(UTC),
         created_at=datetime.now(UTC),
     )

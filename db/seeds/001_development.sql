@@ -1,4 +1,4 @@
--- Demo credentials are documented in README.md and are development-only.
+-- Development-only demo identities; never applied by normal local startup.
 INSERT INTO users (
     id, email, display_name, password_hash, role, is_active, email_verified_at
 )
@@ -17,7 +17,7 @@ VALUES
         'admin@promptvault.dev',
         'Demo Super Admin',
         '$argon2id$v=19$m=65536,t=3,p=4$2Kh79+q0mqLIGNTr1o6Crw$op6gF9TZlG1WhrAqxb01DtHlIUahQSVPlW+v2e9Kw2k',
-        'admin',
+        'super_admin',
         TRUE,
         CURRENT_TIMESTAMP
     ),
@@ -54,3 +54,5 @@ SET display_name = EXCLUDED.display_name,
     role = EXCLUDED.role,
     is_active = EXCLUDED.is_active,
     email_verified_at = EXCLUDED.email_verified_at;
+
+UPDATE users SET is_approved = TRUE WHERE email IN ('user@promptvault.dev', 'admin@promptvault.dev', 'alice@promptvault.dev', 'bob@promptvault.dev');

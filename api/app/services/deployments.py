@@ -4,6 +4,7 @@ from uuid import UUID
 
 from api.app.errors import AppError
 from api.app.repositories.deployments import DeploymentRepository
+from api.app.repositories.release_validation import release_report
 from api.app.repositories.runs import RunRepository
 from api.app.repositories.users import UserRecord
 from api.app.repositories.versions import VersionRepository
@@ -16,10 +17,12 @@ from api.app.schemas.deployments import (
     DeploymentReviewDetailResponse,
     DeploymentStatus,
 )
+from api.app.schemas.versions import PromptVersionResponse
 from psycopg.errors import (
     CheckViolation,
     ForeignKeyViolation,
     NoDataFound,
+    RaiseException,
     SerializationFailure,
 )
 
@@ -47,7 +50,10 @@ class DeploymentService:
                 environment=payload.environment,
                 requested_by=actor.id,
                 request_note=payload.request_note,
+                validation_id=payload.validation_id,
             )
+        except RaiseException as exc:
+            raise release_error(exc) from exc
         except (ForeignKeyViolation, NoDataFound) as exc:
             raise AppError(404, "not_found", "Prompt version was not found") from exc
 
@@ -79,13 +85,20 @@ class DeploymentService:
         if deployment is None:
             raise AppError(404, "not_found", "Deployment was not found")
         timeline = await self.deployments.timeline(deployment.prompt_id, deployment.environment)
-        return DeploymentDetailResponse(**deployment.model_dump(), timeline=timeline)
+        validation = (
+            await release_report(self.deployments.connection, deployment.validation_id)
+            if deployment.validation_id
+            else None
+        )
+        return DeploymentDetailResponse(
+            **deployment.model_dump(), timeline=timeline, validation=validation
+        )
 
     async def cancel(self, deployment_id: UUID, actor: UserRecord) -> DeploymentResponse:
         deployment = await self.deployments.get_scoped(deployment_id, actor.id, actor.role)
         if deployment is None:
             raise AppError(404, "not_found", "Deployment was not found")
-        if actor.role != "admin" and deployment.requested_by.id != actor.id:
+        if actor.role != "super_admin" and deployment.requested_by.id != actor.id:
             raise AppError(403, "forbidden", "Only the requester can cancel this deployment")
         if deployment.status != "pending":
             raise AppError(409, "invalid_state", "Only pending deployments can be cancelled")
@@ -94,6 +107,24 @@ class DeploymentService:
         if cancelled is None:
             raise AppError(409, "invalid_state", "Deployment is no longer pending")
         return cancelled
+
+    async def revalidate(
+        self, deployment_id: UUID, validation_id: UUID, actor: UserRecord
+    ) -> DeploymentResponse:
+        deployment = await self.deployments.get_scoped(deployment_id, actor.id, actor.role)
+        if deployment is None:
+            raise AppError(404, "not_found", "Deployment was not found")
+        await self.deployments.set_audit_context(actor.id, self.request_id)
+        try:
+            await self.deployments.connection.execute(
+                "SELECT replace_release_validation(%s,%s,%s)",
+                (deployment_id, validation_id, actor.id),
+            )
+        except RaiseException as exc:
+            raise release_error(exc) from exc
+        result = await self.deployments.get(deployment_id)
+        assert result is not None
+        return result
 
     async def pending(
         self,
@@ -105,7 +136,7 @@ class DeploymentService:
     ) -> Page[DeploymentResponse]:
         items, total = await self.deployments.list_scoped(
             user_id=UUID(int=0),
-            role="admin",
+            role="super_admin",
             project_id=project_id,
             prompt_id=prompt_id,
             environment=None,
@@ -113,6 +144,40 @@ class DeploymentService:
             page=page,
             page_size=page_size,
             pending_admin_queue=True,
+        )
+        return Page(items=items, page=page, page_size=page_size, total=total)
+
+    async def active_production(self, *, page: int, page_size: int) -> Page[DeploymentResponse]:
+        items, total = await self.deployments.list_scoped(
+            user_id=UUID(int=0),
+            role="super_admin",
+            project_id=None,
+            prompt_id=None,
+            environment="prod",
+            status="active",
+            page=page,
+            page_size=page_size,
+        )
+        return Page(items=items, page=page, page_size=page_size, total=total)
+
+    async def rollback_targets(
+        self, deployment_id: UUID, *, page: int, page_size: int
+    ) -> Page[PromptVersionResponse]:
+        deployment = await self.deployments.get(deployment_id)
+        if deployment is None:
+            raise AppError(404, "not_found", "Deployment was not found")
+        if deployment.environment != "prod" or deployment.status != "active":
+            raise AppError(409, "conflict", "Select a currently active production deployment")
+        current = await self.versions.get(deployment.version_id)
+        if current is None:
+            raise AppError(404, "not_found", "Prompt version was not found")
+        items, total = await self.versions.list_for_prompt(
+            deployment.prompt_id,
+            page=page,
+            page_size=page_size,
+            sort="version_number",
+            direction="desc",
+            before_version_number=current.version_number,
         )
         return Page(items=items, page=page, page_size=page_size, total=total)
 
@@ -127,7 +192,7 @@ class DeploymentService:
         active = await self.versions.get(active_id) if active_id else None
         recent_runs, _ = await self.runs.list_scoped(
             user_id=UUID(int=0),
-            role="admin",
+            role="super_admin",
             project_id=deployment.project_id,
             prompt_id=deployment.prompt_id,
             version_id=deployment.version_id,
@@ -144,6 +209,9 @@ class DeploymentService:
             requested_version=requested,
             active_version=active,
             recent_runs=recent_runs,
+            validation=await release_report(self.deployments.connection, deployment.validation_id)
+            if deployment.validation_id
+            else None,
         )
 
     async def review(
@@ -162,6 +230,8 @@ class DeploymentService:
                 approve=approve,
                 review_note=review_note,
             )
+        except RaiseException as exc:
+            raise release_error(exc) from exc
         except SerializationFailure as exc:
             raise AppError(409, "already_reviewed", "Deployment was already reviewed") from exc
         except CheckViolation as exc:
@@ -173,3 +243,13 @@ class DeploymentService:
             if "already_reviewed" in message:
                 raise AppError(409, "already_reviewed", "Deployment was already reviewed") from exc
             raise
+
+
+def release_error(exc: RaiseException) -> AppError:
+    if "release_validation:" in str(exc):
+        return AppError(
+            409,
+            "release_validation_required",
+            str(exc).split("release_validation: ", 1)[-1].split("\n", 1)[0],
+        )
+    raise exc

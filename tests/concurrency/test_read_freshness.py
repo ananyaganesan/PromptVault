@@ -18,6 +18,7 @@ from api.app.repositories.users import UserRepository
 from api.app.repositories.versions import VersionRepository
 from api.app.services.prompt_versioning import PromptVersioningService
 from tests.invitation_support import accept_invitation
+from tests.release_support import validated_deployment
 from tests.support import create_project, create_prompt, register
 
 
@@ -62,7 +63,8 @@ async def test_page_count_and_rows_share_snapshot_during_concurrent_commit(
     )
     deployments = {}
     for environment in ("prod", "dev"):
-        response = api_client.post(
+        response = validated_deployment(
+            api_client,
             "/api/v1/deployments",
             headers=headers,
             json={"version_id": version["id"], "environment": environment},
@@ -120,7 +122,8 @@ async def test_page_count_and_rows_share_snapshot_during_concurrent_commit(
             )
         else:
             assert (
-                api_client.post(
+                validated_deployment(
+                    api_client,
                     "/api/v1/deployments",
                     headers=headers,
                     json={"version_id": version["id"], "environment": "dev"},
@@ -220,7 +223,10 @@ async def test_page_count_and_rows_share_snapshot_during_concurrent_commit(
     try:
         proxy = CommitAfterFirstRead()
         items, total = await read(proxy)
-        assert total == len(items) == (2 if scope == "members" else 1)
+        expected = (
+            2 if scope == "members" else 3 if scope in ("runs", "admin_runs") else 1
+        )
+        assert total == len(items) == expected
         assert proxy.calls == 1
         current, current_total = await read(connection)
         assert current_total == len(current)

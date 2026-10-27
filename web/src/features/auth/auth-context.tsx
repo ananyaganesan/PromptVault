@@ -20,7 +20,7 @@ function saveApiToken(token: string) {
 }
 
 function frontendUser(user: ApiUserSummary): UserSummary {
-  return { ...user, role: user.role === 'admin' ? 'super_admin' : 'user' }
+  return { ...user, role: user.role }
 }
 
 type AuthValue = {

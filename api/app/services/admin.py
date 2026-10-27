@@ -107,14 +107,20 @@ class AdminGovernanceService:
                 role_set="role" in payload.model_fields_set,
                 is_active=payload.is_active,
                 active_set="is_active" in payload.model_fields_set,
+                is_approved=payload.is_approved,
+                approved_set="is_approved" in payload.model_fields_set,
             )
         except NoDataFound as exc:
             raise AppError(404, "not_found", "User was not found") from exc
         except InsufficientPrivilege as exc:
             raise AppError(
-                403, "forbidden", "Super Admin authorization changed during the request"
+                403, "forbidden", "Authorization changed or this user change is not permitted"
             ) from exc
         except CheckViolation as exc:
+            if "email_unverified" in str(exc):
+                raise AppError(
+                    409, "email_unverified", "User must verify their email before approval"
+                ) from exc
             if "admin_peer_demotion" in str(exc):
                 raise AppError(
                     403,
@@ -316,7 +322,7 @@ class AdminGovernanceService:
             completed_at = await self.repository.refresh_views(actor.id, self.request_id)
         except InsufficientPrivilege as exc:
             raise AppError(
-                403, "forbidden", "Super Admin authorization changed during the request"
+                403, "forbidden", "Authorization changed or this user change is not permitted"
             ) from exc
         return ViewRefreshResponse(
             status="completed",
@@ -329,6 +335,6 @@ class AdminGovernanceService:
             name, existed = await self.repository.create_next_partition(actor.id, self.request_id)
         except InsufficientPrivilege as exc:
             raise AppError(
-                403, "forbidden", "Super Admin authorization changed during the request"
+                403, "forbidden", "Authorization changed or this user change is not permitted"
             ) from exc
         return PartitionCreateResponse(partition_name=name, already_existed=existed)

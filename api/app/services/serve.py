@@ -24,7 +24,7 @@ class TokenService:
         self.request_id = request_id
 
     async def _require_owner(self, project_id: UUID, actor: UserRecord) -> None:
-        if not await self.tokens.is_owner(project_id, actor.id, actor.role == "admin"):
+        if not await self.tokens.is_owner(project_id, actor.id, actor.role == "super_admin"):
             raise AppError(403, "forbidden", "Project ownership is required")
 
     async def create(self, payload: ApiTokenCreate, actor: UserRecord) -> ApiTokenCreatedResponse:
@@ -63,7 +63,7 @@ class TokenService:
             await self._require_owner(project_id, actor)
         items, total = await self.tokens.list_scoped(
             actor_id=actor.id,
-            is_admin=actor.role == "admin",
+            is_admin=actor.role == "super_admin",
             project_id=project_id,
             page=page,
             page_size=page_size,

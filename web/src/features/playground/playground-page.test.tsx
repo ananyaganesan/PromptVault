@@ -23,7 +23,7 @@ beforeEach(() => {
   })
 })
 
-function setup(entry = '/playground') { return render(<AuthProvider><MemoryRouter initialEntries={[entry]}><PlaygroundPage /></MemoryRouter></AuthProvider>) }
+function setup(entry = '/playground?project=checkout') { return render(<AuthProvider><MemoryRouter initialEntries={[entry]}><PlaygroundPage /></MemoryRouter></AuthProvider>) }
 
 describe('Playground run states', () => {
   it('loads editable sample values for a demo run', async () => {
@@ -114,6 +114,23 @@ describe('Playground project selection', () => {
   afterEach(() => {
     promptStore.splice(promptStore.findIndex((prompt) => prompt.id === 'growth-demo'), 1)
     delete versionStore['growth-demo']
+  })
+
+  it('starts without a project selected until the user chooses one', async () => {
+    const user = userEvent.setup(); setup('/playground')
+    expect(screen.getByLabelText('Project')).toHaveValue('')
+    expect(screen.getByRole('option', { name: 'Select a project' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Prompt version')).toBeDisabled()
+    expect(screen.queryByLabelText('LLM provider')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run prompt' })).toBeDisabled()
+    await user.selectOptions(screen.getByLabelText('Project'), 'checkout')
+    expect(screen.getByLabelText('Project')).toHaveValue('checkout')
+    expect(screen.getByLabelText('Prompt version')).toBeEnabled()
+    expect(screen.getByLabelText('LLM provider')).toHaveValue('gemini')
+    await user.selectOptions(screen.getByLabelText('Project'), '')
+    expect(screen.getByLabelText('Prompt version')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Run prompt' })).toBeDisabled()
+    expect(runService.create).not.toHaveBeenCalled()
   })
 
   it('filters versions by project even when prompt keys match', async () => {

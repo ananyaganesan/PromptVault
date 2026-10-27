@@ -1,3 +1,4 @@
+import type { ReleaseValidation } from '../features/deployments/release-validation-api'
 import type { Id, IsoDateString, PageQuery } from './api'
 
 export type DeploymentEnvironment = 'development' | 'staging' | 'production'
@@ -35,9 +36,12 @@ export interface Deployment {
   rollback_of_id?: Id | null
   rollback_reason?: string | null
   timeline?: DeploymentTimelineEvent[]
+  validation?: ReleaseValidation | null
+  validation_id?: Id | null
 }
 
 export interface CreateDeploymentRequest {
+  validation_id?: Id
   version_id: Id
   environment: DeploymentEnvironment
   note?: string

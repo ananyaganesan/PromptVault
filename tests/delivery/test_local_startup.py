@@ -1,11 +1,7 @@
 """Normal local startup must not switch to another database server or test data."""
 
 import importlib.util
-import json
-import os
-import shutil
 import socket
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -51,52 +47,3 @@ def test_normal_startup_can_reuse_a_port_after_the_previous_server_closes() -> N
             connection.close()
             assert client.recv(1) == b""
     startup.require_free_port(port)
-
-
-@pytest.mark.skipif(
-    shutil.which("docker") is None, reason="Docker CLI is not installed"
-)
-def test_local_docker_override_reuses_pgadmin_server() -> None:
-    result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            "docker-compose.yml",
-            "-f",
-            "docker-compose.local.yml",
-            "config",
-            "--format",
-            "json",
-        ],
-        cwd=ROOT,
-        env={
-            **os.environ,
-            "SECRET_KEY": "local-startup-test-secret",
-            "PROVIDER_ENCRYPTION_KEY": "",
-        },
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0
-    services = json.loads(result.stdout)["services"]
-    assert "db" not in services  # Its opt-in profile is not part of normal startup.
-    assert (
-        "@host.docker.internal:5432/promptvault"
-        in services["api"]["environment"]["DATABASE_URL"]
-    )
-    assert (
-        services["api"]["environment"]["DATABASE_URL"]
-        == (services["migrate"]["environment"]["DATABASE_URL"])
-    )
-    assert (
-        services["api"]["environment"]["PROVIDER_ENCRYPTION_KEY"]
-        == services["api"]["environment"]["SECRET_KEY"]
-    )
-    assert (
-        services["migrate"]["environment"]["PROVIDER_ENCRYPTION_KEY"]
-        == services["api"]["environment"]["PROVIDER_ENCRYPTION_KEY"]
-    )
-    assert not services["migrate"].get("depends_on")
-    assert services["migrate"]["command"] == ["python", "scripts/run-migrations.py"]

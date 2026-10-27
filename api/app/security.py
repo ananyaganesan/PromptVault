@@ -16,7 +16,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from api.app.config import Settings
 
-UserRole = Literal["user", "admin"]
+UserRole = Literal["user", "admin", "super_admin"]
 _JWT_ALGORITHM = "HS256"
 _PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
 _RUNTIME_TOKEN_PREFIX = "pv_live_"
@@ -127,7 +127,7 @@ def decode_access_token(
             },
         )
         role = payload["role"]
-        if role not in ("user", "admin"):
+        if role not in ("user", "admin", "super_admin"):
             raise InvalidAccessToken("invalid role claim")
         claims = AccessTokenClaims(
             token_id=UUID(payload["jti"]),

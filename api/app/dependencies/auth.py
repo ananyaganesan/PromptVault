@@ -47,6 +47,8 @@ async def _resolve_current_user(
         raise AppError(401, "invalid_token", "Access token is invalid", headers=_BEARER_HEADERS)
     if not user.is_active:
         raise AppError(403, "inactive_user", "User account is inactive")
+    if not user.is_approved:
+        raise AppError(403, "approval_pending", "Your account is awaiting administrator approval")
     if user.role != claims.role:
         raise AppError(401, "invalid_token", "Access token is invalid", headers=_BEARER_HEADERS)
     return user

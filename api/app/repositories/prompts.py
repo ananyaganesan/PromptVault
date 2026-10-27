@@ -59,13 +59,13 @@ class PromptRepository:
         return await orm_one(
             self.connection,
             select(*fields(Prompt)).where(
-                Prompt.id == prompt_id, or_(literal(role == "admin"), member)
+                Prompt.id == prompt_id, or_(literal(role == "super_admin"), member)
             ),
         )
 
     async def lock_member_access(self, prompt_id: UUID, user_id: UUID, role: UserRole) -> bool:
         statement = select(Prompt.id).where(Prompt.id == prompt_id)
-        if role == "admin":
+        if role == "super_admin":
             statement = statement.with_for_update(read=True, key_share=True, of=Prompt)
         else:
             statement = (

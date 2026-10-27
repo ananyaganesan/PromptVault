@@ -2,7 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '../components/layout/app-layout'
 import { AuthLayout } from '../components/layout/auth-layout'
 import { ProviderKeyManagementPage, UserManagementPage } from '../features/admin/console-pages'
-import { AuditLogPage } from '../features/admin/governance-console'
+import { AuditLogPage, MaintenanceHealthPage } from '../features/admin/governance-console'
 import { DeploymentApprovalQueuePage, DeploymentApprovalReviewPage, DeploymentRollbackPage } from '../features/admin/deployment-governance'
 import { AdminOnly } from '../features/admin/admin-only'
 import { ApiTokensPage, ProfilePage } from '../features/account/account-pages'
@@ -17,6 +17,7 @@ import { ProjectInvitationPage } from '../features/projects/invitation-page'
 import { WorkspaceBoundary } from '../features/projects/workspace-boundary'
 import { NewPromptPage, PromptDetailPage, PromptsPage } from '../features/prompts/prompt-pages'
 import { CompareVersionPage, VersionDetailPage, VersionLineagePage } from '../features/versions/version-pages'
+import { EvaluationPage } from '../features/evaluations/evaluation-page'
 import { ErrorPage } from '../features/workspace/error-page'
 
 export function App() {
@@ -43,6 +44,7 @@ export function App() {
       <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
       <Route path="/prompts" element={<PromptsPage />} />
       <Route path="/prompts/new" element={<NewPromptPage />} />
+      <Route path="/prompts/:promptId/evaluate" element={<EvaluationPage />} />
       <Route path="/prompts/:promptId" element={<PromptDetailPage />} />
       <Route path="/versions/:versionId" element={<VersionDetailPage />} />
       <Route path="/versions/:versionId/compare" element={<CompareVersionPage />} />
@@ -53,12 +55,15 @@ export function App() {
       <Route path="/deployments/:deploymentId" element={<DeploymentDetailPage />} />
       <Route path="/api-tokens" element={<ApiTokensPage />} />
       <Route path="/profile" element={<ProfilePage />} />
-      <Route element={<AdminOnly />}>
+      <Route element={<AdminOnly superOnly={false} />}>
       <Route path="/admin/approvals" element={<DeploymentApprovalQueuePage />} />
       <Route path="/admin/approvals/:approvalId" element={<DeploymentApprovalReviewPage />} />
       <Route path="/admin/rollback" element={<DeploymentRollbackPage />} />
       <Route path="/admin/users" element={<UserManagementPage />} />
+      </Route>
+      <Route element={<AdminOnly />}>
       <Route path="/admin/provider-keys" element={<ProviderKeyManagementPage />} />
+      <Route path="/admin/maintenance" element={<MaintenanceHealthPage />} />
       <Route path="/admin/audit" element={<AuditLogPage />} />
       </Route>
     </Route></Route></Route>

@@ -111,7 +111,7 @@ class RunRepository:
                 VersionContext.model_config,
             )
             .join(VersionContext, VersionContext.prompt_id == Prompt.id)
-            .where(VersionContext.id == version_id, or_(literal(role == "admin"), member)),
+            .where(VersionContext.id == version_id, or_(literal(role == "super_admin"), member)),
         )
         if row is None:
             return None
@@ -145,7 +145,7 @@ class RunRepository:
             .join(Prompt, Prompt.id == PromptVersion.prompt_id)
             .where(PromptVersion.id == version_id)
         )
-        if user["role"] == "admin":
+        if user["role"] == "super_admin":
             statement = statement.with_for_update(
                 read=True, key_share=True, of=(PromptVersion, Prompt)
             )
@@ -324,7 +324,7 @@ class RunRepository:
             JOIN prompt_versions pv ON pv.id = r.version_id
             WHERE r.id = %s
               AND (
-                  %s = 'admin'
+                  %s = 'super_admin'
                   OR r.user_id = %s
                   OR EXISTS (
                       SELECT 1 FROM project_members pm
@@ -356,7 +356,7 @@ class RunRepository:
         page_size: int,
     ) -> tuple[list[RunResponse], int]:
         where = [
-            """(%s = 'admin' OR r.user_id = %s OR EXISTS (
+            """(%s = 'super_admin' OR r.user_id = %s OR EXISTS (
                 SELECT 1 FROM project_members pm
                 WHERE pm.project_id = r.project_id AND pm.user_id = %s
             ))"""

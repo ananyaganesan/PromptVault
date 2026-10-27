@@ -54,7 +54,7 @@ class ProjectRepository:
 
     async def lock_member_access(self, project_id: UUID, user_id: UUID, role: UserRole) -> bool:
         statement = select(Project.id).where(Project.id == project_id)
-        if role == "admin":
+        if role == "super_admin":
             statement = statement.with_for_update(read=True, key_share=True, of=Project)
         else:
             statement = (
@@ -66,7 +66,7 @@ class ProjectRepository:
 
     async def lock_owner_access(self, project_id: UUID, user_id: UUID, role: UserRole) -> bool:
         statement = select(Project.id).where(Project.id == project_id)
-        if role == "admin":
+        if role == "super_admin":
             statement = statement.with_for_update(read=True, key_share=True, of=Project)
         else:
             statement = (
@@ -138,7 +138,7 @@ class ProjectRepository:
         direction: str,
     ) -> tuple[list[ProjectResponse], int]:
         where = [
-            """(%s = 'admin' OR EXISTS (
+            """(%s = 'super_admin' OR EXISTS (
                 SELECT 1 FROM project_members scope
                 WHERE scope.project_id = p.id AND scope.user_id = %s
             ))"""

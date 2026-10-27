@@ -94,7 +94,8 @@ type BackendMember = {
   id: string
   email: string
   display_name: string
-  role: 'user' | 'admin'
+  role: 'user' | 'admin' | 'super_admin'
+  is_approved?: boolean
   is_active: boolean
   created_at: string
   is_owner: boolean

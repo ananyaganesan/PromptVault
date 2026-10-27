@@ -9,6 +9,7 @@ export interface AdminUser extends UserSummary {
 
 export interface UpdateUserRequest {
   role?: UserRole
+  is_approved?: boolean
   is_active?: boolean
 }
 

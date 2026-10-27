@@ -1,13 +1,14 @@
 import type { Id, IsoDateString } from './api'
 
-export type UserRole = 'user' | 'super_admin'
-export type ApiUserRole = 'user' | 'admin'
+export type UserRole = 'user' | 'admin' | 'super_admin'
+export type ApiUserRole = 'user' | 'admin' | 'super_admin'
 
 export interface UserSummary {
   id: Id
   email: string
   display_name: string
   role: UserRole
+  is_approved?: boolean
   is_active: boolean
   created_at: IsoDateString
 }

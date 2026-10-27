@@ -1,0 +1,29 @@
+{
+  "policy": "CampusCart store policy: Customers may return unused items within 7 days of delivery. Keep the original packaging and receipt. To request a return, contact support with the order ID. A refund is processed within 5 business days after the returned item passes inspection. Damaged or incorrect items must be reported to support with photos within 48 hours of delivery. Never guarantee approval before inspection or promise an immediate refund. Never ask for a password, payment-card details, or an OTP.",
+  "cases": [
+    {
+      "name": "Unused item returned within 7 days",
+      "variables": {
+        "customer_message": "Order CC-1042 arrived 3 days ago. I have not used it and have the box and receipt. Can I return it and get a refund today?",
+        "store_policy": "CampusCart store policy: Customers may return unused items within 7 days of delivery. Keep the original packaging and receipt. To request a return, contact support with the order ID. A refund is processed within 5 business days after the returned item passes inspection. Damaged or incorrect items must be reported to support with photos within 48 hours of delivery. Never guarantee approval before inspection or promise an immediate refund. Never ask for a password, payment-card details, or an OTP."
+      },
+      "reference": "The item is within the 7-day return window if unused. Ask the customer to contact support with order ID CC-1042 and retain the packaging and receipt. Refund processing takes 5 business days after inspection. Do not promise a refund today or guaranteed approval."
+    },
+    {
+      "name": "Damaged item reported promptly",
+      "variables": {
+        "customer_message": "Order CC-2088 arrived yesterday and the item is damaged. I have photos. What should I do?",
+        "store_policy": "CampusCart store policy: Customers may return unused items within 7 days of delivery. Keep the original packaging and receipt. To request a return, contact support with the order ID. A refund is processed within 5 business days after the returned item passes inspection. Damaged or incorrect items must be reported to support with photos within 48 hours of delivery. Never guarantee approval before inspection or promise an immediate refund. Never ask for a password, payment-card details, or an OTP."
+      },
+      "reference": "The damage is reported within 48 hours. Direct the customer to contact support with order ID CC-2088 and photos. Do not guarantee a refund before inspection or ask for sensitive credentials."
+    },
+    {
+      "name": "Return request outside the policy window",
+      "variables": {
+        "customer_message": "I received order CC-3099 12 days ago. It is unused. Please promise me an immediate refund.",
+        "store_policy": "CampusCart store policy: Customers may return unused items within 7 days of delivery. Keep the original packaging and receipt. To request a return, contact support with the order ID. A refund is processed within 5 business days after the returned item passes inspection. Damaged or incorrect items must be reported to support with photos within 48 hours of delivery. Never guarantee approval before inspection or promise an immediate refund. Never ask for a password, payment-card details, or an OTP."
+      },
+      "reference": "The request is outside the 7-day return window. Explain the limit politely and direct the customer to support for review without guaranteeing an exception, approval, or immediate refund."
+    }
+  ]
+}

@@ -310,7 +310,7 @@ function PromptDetailContent({ prompt }: { prompt: Prompt }) {
         title={prompt.name}
         eyebrow={`PROMPTS / ${prompt.key.toUpperCase()}`}
         description={prompt.description ?? "Reusable prompt template."}
-        action={<Button onClick={saveVersion} disabled={saving || stale}>{saving ? "Saving…" : "Save new version"}</Button>}
+        action={<div className="eval-actions"><Link className="button secondary best-version-button" to={`/prompts/${prompt.id}/evaluate`}>Find the best version</Link><Button onClick={saveVersion} disabled={saving || stale}>{saving ? "Saving…" : "Save new version"}</Button></div>}
       />
       {stale && <div role="alert"><p>A newer version is available. Your draft and commit message are preserved; review the latest version before choosing a parent.</p>
         <details><summary>View latest version {latest?.version_number}</summary><pre>{latest?.template}</pre><p>Model: {latest?.model_config.model}</p></details>

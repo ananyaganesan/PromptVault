@@ -1,3 +1,4 @@
+import type { ReleaseValidation } from './release-validation-api'
 import { apiClient } from '../../lib/api/client'
 import type { Id, Page } from '../../types/api'
 import type { BackendVersion } from '../projects/workspace-data'
@@ -8,6 +9,7 @@ export type BackendDeploymentEnvironment = 'dev' | 'staging' | 'prod'
 export type BackendDeploymentStatus = 'pending' | 'active' | 'rejected' | 'cancelled' | 'superseded' | 'rolled_back'
 
 export interface BackendDeployment {
+  validation_id?: Id | null
   id: Id
   project_id: Id
   prompt_id: Id
@@ -28,6 +30,7 @@ export interface BackendDeployment {
 }
 
 export interface BackendDeploymentDetail extends BackendDeployment {
+  validation?: ReleaseValidation | null
   timeline: Array<{
     id: Id
     version_id: Id
@@ -62,9 +65,10 @@ export interface BackendDeploymentQuery {
 }
 
 export const deploymentsApi = {
+  revalidate: (id: Id, validation_id: Id) => apiClient.request<BackendDeployment>(`/deployments/${id}/validation`, { method: 'POST', body: { validation_id } }),
   list: (query: BackendDeploymentQuery = {}, signal?: AbortSignal) => apiClient.request<Page<BackendDeployment>>('/deployments', { query: { ...query }, signal }),
   get: (deploymentId: Id, signal?: AbortSignal) => apiClient.request<BackendDeploymentDetail>(`/deployments/${deploymentId}`, { signal }),
-  create: (request: { version_id: Id; environment: BackendDeploymentEnvironment; request_note?: string }) => apiClient.request<BackendDeployment>('/deployments', { method: 'POST', body: request }),
+  create: (request: { version_id: Id; environment: BackendDeploymentEnvironment; request_note?: string; validation_id?: Id }) => apiClient.request<BackendDeployment>('/deployments', { method: 'POST', body: request }),
   cancel: (deploymentId: Id) => apiClient.request<BackendDeployment>(`/deployments/${deploymentId}/cancel`, { method: 'POST' }),
 }
 
@@ -73,9 +77,12 @@ export interface BackendDeploymentReviewDetail {
   requested_version: BackendVersion
   active_version: BackendVersion | null
   recent_runs: BackendPromptRun[]
+  validation?: ReleaseValidation | null
 }
 
 export const adminDeploymentsApi = {
+  active: (page = 1) => apiClient.request<Page<BackendDeployment>>('/admin/deployments/active', { query: { page, page_size: 100 } }),
+  rollbackTargets: (id: Id, page = 1) => apiClient.request<Page<BackendVersion>>(`/admin/deployments/${id}/rollback-targets`, { query: { page, page_size: 100 } }),
   reviewDetail: (deploymentId: Id, signal?: AbortSignal) => apiClient.request<BackendDeploymentReviewDetail>(`/admin/deployments/${deploymentId}`, { signal }),
   pending: (page = 1, signal?: AbortSignal) => apiClient.request<Page<BackendDeployment>>('/admin/deployments/pending', { query: { page, page_size: 100 }, signal }),
   approve: (deploymentId: Id, reviewNote?: string) => apiClient.request<BackendDeployment>(`/admin/deployments/${deploymentId}/approve`, { method: 'POST', body: { review_note: reviewNote } }),

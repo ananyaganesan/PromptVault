@@ -50,7 +50,7 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO budgets (id, user_id, monthly_limit, timezone, created_by)
+INSERT INTO spend_limits (id, user_id, monthly_limit, timezone, created_by)
 VALUES (
     '66666666-6666-4666-8666-666666666666',
     '11111111-1111-4111-8111-111111111111',

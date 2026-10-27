@@ -115,10 +115,10 @@ def test_admin_users_dashboard_and_organization_runs(
     promoted = admin_client.patch(
         f"/api/v1/admin/users/{user['id']}",
         headers=admin_headers,
-        json={"role": "admin"},
+        json={"role": "super_admin"},
     )
     assert promoted.status_code == 200
-    assert promoted.json()["role"] == "admin"
+    assert promoted.json()["role"] == "super_admin"
     assert admin_client.get("/api/v1/auth/me", headers=user_headers).status_code == 401
     peer_demotion = admin_client.patch(
         f"/api/v1/admin/users/{user['id']}",
@@ -163,7 +163,7 @@ def test_admin_users_dashboard_and_organization_runs(
         admin_client.patch(
             f"/api/v1/admin/users/{user['id']}",
             headers=admin_headers,
-            json={"role": "admin"},
+            json={"role": "super_admin"},
         ).status_code
         == 200
     )
@@ -180,7 +180,7 @@ def test_admin_users_dashboard_and_organization_runs(
 
     with psycopg.connect(seeded_database_url) as connection:
         other_admins = connection.execute(
-            "SELECT id FROM users WHERE role = 'admin' AND id <> %s", (SEEDED_ADMIN_ID,)
+            "SELECT id FROM users WHERE role = 'super_admin' AND id <> %s", (SEEDED_ADMIN_ID,)
         ).fetchall()
         for (other_admin_id,) in other_admins:
             connection.execute(
@@ -260,7 +260,7 @@ def test_concurrent_admin_cross_deactivation_returns_safe_loser_response(
         promoted = admin_client.patch(
             f"/api/v1/admin/users/{user['id']}",
             headers=seeded_headers,
-            json={"role": "admin"},
+            json={"role": "super_admin"},
         )
         assert promoted.status_code == 200
     first_headers = login_user(admin_client, first["email"])
@@ -269,7 +269,7 @@ def test_concurrent_admin_cross_deactivation_returns_safe_loser_response(
     with psycopg.connect(seeded_database_url) as connection:
         connection.execute(
             """UPDATE users SET role = 'user', is_active = FALSE
-               WHERE role = 'admin' AND id NOT IN (%s, %s)""",
+               WHERE role = 'super_admin' AND id NOT IN (%s, %s)""",
             (first["id"], second["id"]),
         )
 
@@ -309,13 +309,13 @@ def test_concurrent_admin_cross_deactivation_returns_safe_loser_response(
         }
         with psycopg.connect(seeded_database_url) as connection:
             active_count = connection.execute(
-                "SELECT count(*) FROM users WHERE role = 'admin' AND is_active"
+                "SELECT count(*) FROM users WHERE role = 'super_admin' AND is_active"
             ).fetchone()[0]
         assert active_count == 1
     finally:
         with psycopg.connect(seeded_database_url) as connection:
             connection.execute(
-                "UPDATE users SET role = 'admin', is_active = TRUE WHERE id = %s",
+                "UPDATE users SET role = 'super_admin', is_active = TRUE WHERE id = %s",
                 (SEEDED_ADMIN_ID,),
             )
             connection.execute(

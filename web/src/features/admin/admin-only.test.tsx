@@ -8,7 +8,7 @@ import { AdminOnly } from './admin-only'
 
 function setup() { render(<AuthProvider><MemoryRouter initialEntries={['/login']}><Routes><Route path="/login" element={<LoginPage />} /><Route path="/403" element={<p>Access denied</p>} /><Route element={<AdminOnly />}><Route path="/dashboard" element={<p>Admin console</p>} /><Route path="/admin" element={<p>Admin console</p>} /></Route></Routes></MemoryRouter></AuthProvider>) }
 
-function mockSession(role: 'user' | 'admin') {
+function mockSession(role: 'user' | 'admin' | 'super_admin') {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
     access_token: `unit-${role}-token`,
     token_type: 'bearer',
@@ -39,8 +39,17 @@ describe('admin route access', () => {
     expect(await screen.findByText('Access denied')).toBeInTheDocument()
   })
 
-  it('allows the Super Admin', async () => {
+  it('denies an Admin access to Super Admin routes', async () => {
     mockSession('admin')
+    const user = userEvent.setup(); setup()
+    await user.type(screen.getByLabelText('Email address'), 'admin@promptvault.dev')
+    await user.type(screen.getByLabelText('Password'), 'AdminDemo2026!')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByText('Access denied')).toBeInTheDocument()
+  })
+
+  it('allows the Super Admin', async () => {
+    mockSession('super_admin')
     const user = userEvent.setup(); setup()
     await user.type(screen.getByLabelText('Email address'), 'admin@promptvault.dev')
     await user.type(screen.getByLabelText('Password'), 'AdminDemo2026!')

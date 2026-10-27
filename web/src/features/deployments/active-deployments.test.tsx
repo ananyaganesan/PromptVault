@@ -11,14 +11,15 @@ import { PromptsPage } from '../prompts/prompt-pages'
 import { promptStore } from '../projects/workspace-data'
 import { PromptDeploymentStatus, VersionDeploymentStatus } from '../versions/version-pages'
 import { refreshLiveData } from '../../lib/live-refresh'
-const auth = vi.hoisted(() => ({ user: { id: 'admin', role: 'super_admin' as const, display_name: 'Admin', email: 'admin@example.com', is_active: true, created_at: '2026-10-10T00:00:00Z' } }))
+const auth = vi.hoisted(() => ({ user: { id: 'admin', role: 'super_admin' as 'admin' | 'super_admin', display_name: 'Admin', email: 'admin@example.com', is_active: true, created_at: '2026-10-10T00:00:00Z' } }))
 vi.mock('../auth/auth-context', () => ({ useAuth: () => auth }))
 vi.mock('../../lib/runtime', () => ({ useDemoData: false }))
 function deployment(id = 'active'): BackendDeploymentDetail {
   return { id, project_id: 'project', prompt_id: 'prompt', prompt_key: id, version_id: 'v3', version_number: 3, environment: 'prod', status: 'active', request_note: null, review_note: null, rollback_reason: 'Restore stability', rollback_of_id: 'previous', requested_by: { id: 'admin', display_name: 'Admin' }, reviewed_by: null, requested_at: '2026-10-10T00:00:00Z', reviewed_at: null, activated_at: '2026-10-10T00:01:00Z', timeline: [{ id: 'previous', version_id: 'v2', version_number: 2, status: 'rolled_back', requested_at: '2026-10-09T00:00:00Z', reviewed_at: null, activated_at: '2026-10-09T00:01:00Z' }] }
 }
-function setup() { render(<MemoryRouter initialEntries={['/rollback']}><Routes><Route path="/rollback" element={<DeploymentRollbackPage />} /><Route path="/deployments/:deploymentId" element={<DeploymentDetailPage />} /></Routes></MemoryRouter>) }
+function setup() { render(<MemoryRouter initialEntries={['/rollback']}><Routes><Route path="/rollback" element={<DeploymentRollbackPage />} /><Route path="/deployments/:deploymentId" element={<DeploymentDetailPage />} /><Route path="/admin/approvals/:approvalId" element={<p>Admin rollback completed</p>} /></Routes></MemoryRouter>) }
 beforeEach(() => {
+  auth.user.role = 'super_admin'
   versionStore.prompt = [3, 2, 1].map((number) => ({ id: `v${number}`, prompt_id: 'prompt', version_number: number, parent_version_id: null, template: 'Template', variables: [], model_config: { provider: 'gemini', model: 'deterministic', temperature: 0, max_output_tokens: 100 }, commit_message: 'Saved', created_by: 'admin', created_by_name: 'Admin', created_at: '2026-10-10T00:00:00Z' }))
   vi.spyOn(deploymentsApi, 'list').mockResolvedValue({ items: [deployment()], total: 1, page: 1, page_size: 100 })
   vi.spyOn(deploymentsApi, 'get').mockImplementation(async (id) => deployment(id))
@@ -115,4 +116,27 @@ it('ignores an obsolete rollback list response after controlled refresh', async 
   await act(async () => resolve({ items: [deployment('obsolete')], total: 1, page: 1, page_size: 100 }))
   expect(screen.queryByRole('option', { name: /obsolete · production/ })).not.toBeInTheDocument()
   expect(screen.getByLabelText('Active deployment')).toHaveValue('current')
+})
+
+
+it('lets an admin restore an earlier version outside their project workspace', async () => {
+  auth.user.role = 'admin'
+  const current = versionStore.prompt[0]
+  const earlier = versionStore.prompt[1]
+  const backendVersion = (version: typeof current) => ({ ...version, template_body: version.template, variables: [], created_by: { id: 'owner', display_name: 'Owner' } })
+  versionStore.prompt = []
+  vi.spyOn(adminDeploymentsApi, 'active').mockResolvedValue({ items: [deployment()], total: 1, page: 1, page_size: 100 })
+  vi.spyOn(adminDeploymentsApi, 'rollbackTargets').mockResolvedValue({ items: [backendVersion(earlier)], total: 1, page: 1, page_size: 100 })
+  vi.spyOn(adminDeploymentsApi, 'reviewDetail').mockResolvedValue({ deployment: deployment(), requested_version: backendVersion(current), active_version: backendVersion(current), recent_runs: [] })
+  const post = vi.spyOn(adminDeploymentsApi, 'rollback').mockResolvedValue({ ...deployment('restored'), version_id: 'v2', version_number: 2 })
+  setup()
+  await screen.findByRole('option', { name: 'v2 · Saved' })
+  const user = userEvent.setup()
+  await user.type(screen.getByLabelText('Rollback reason'), 'Restore stable behavior')
+  await user.click(screen.getByRole('button', { name: 'Review rollback' }))
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }))
+  expect(await screen.findByText('Admin rollback completed')).toBeInTheDocument()
+  expect(post).toHaveBeenCalledWith('prompt', 'v2', 'Restore stable behavior')
+  expect(deploymentsApi.list).not.toHaveBeenCalled()
+  expect(deploymentsApi.get).not.toHaveBeenCalled()
 })

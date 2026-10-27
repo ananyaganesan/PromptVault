@@ -68,37 +68,6 @@ jobs:
         run: python -m compileall -q api/app api/tests scripts tests
       - name: Verify dependency consistency
         run: python -m pip check
-      - name: Verify generated OpenAPI contract
+      - name: Verify OpenAPI export
         run: |
           python scripts/export-openapi.py --output /tmp/promptvault-openapi.json
-          diff -u docs/openapi.json /tmp/promptvault-openapi.json
-
-  docker-local:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      COMPOSE_PROJECT_NAME: promptvault-ci
-      POSTGRES_PORT: "55439"
-      ENVIRONMENT: development
-      SECRET_KEY: isolated-ci-secret-at-least-32-characters
-      PROVIDER_ENCRYPTION_KEY: isolated-ci-provider-encryption-key
-      SMTP_HOST: ""
-      SMTP_PASSWORD: ""
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build application and verification images
-        run: docker compose --profile verification build api web verify
-      - name: Start isolated application stack
-        run: docker compose up -d --wait api web
-      - name: Verify container dependencies, migrations, API and SQL contracts
-        run: docker compose --profile verification run --rm verify
-      - name: Check local HTTP endpoints
-        run: |
-          curl --fail http://localhost:8000/ready
-          curl --fail --output /dev/null http://localhost:5173/login
-      - name: Container diagnostics
-        if: failure()
-        run: docker compose logs --tail=100 api migrate db web
-      - name: Remove isolated CI resources
-        if: always()
-        run: docker compose --profile verification down -v

@@ -22,7 +22,8 @@ _DEPLOYMENT_COLUMNS = """
     d.request_note, d.review_note, d.rollback_reason, d.rollback_of_id,
     requester.id AS requester_id, requester.display_name AS requester_display_name,
     reviewer.id AS reviewer_id, reviewer.display_name AS reviewer_display_name,
-    d.requested_at, d.reviewed_at, d.activated_at
+    d.requested_at, d.reviewed_at, d.activated_at,
+    (SELECT validation_id FROM deployments WHERE id=d.id) AS validation_id
 """
 
 
@@ -36,6 +37,7 @@ def _deployment_from_row(row: Mapping[str, Any]) -> DeploymentResponse:
         )
     return DeploymentResponse(
         id=row["id"],
+        validation_id=row.get("validation_id"),
         project_id=row["project_id"],
         prompt_id=row["prompt_id"],
         prompt_key=row["prompt_key"],
@@ -73,7 +75,7 @@ class DeploymentRepository:
             .join(Prompt, Prompt.id == PromptVersion.prompt_id)
             .where(PromptVersion.id == version_id)
         )
-        if role == "admin":
+        if role == "super_admin":
             statement = statement.with_for_update(
                 read=True, key_share=True, of=(PromptVersion, Prompt)
             )
@@ -94,6 +96,7 @@ class DeploymentRepository:
         environment: DeploymentEnvironment,
         requested_by: UUID,
         request_note: str | None,
+        validation_id: UUID | None = None,
     ) -> DeploymentResponse:
         cursor = await self.connection.execute(
             """
@@ -101,10 +104,10 @@ class DeploymentRepository:
                 p_version_id => %s,
                 p_environment => %s,
                 p_requested_by => %s,
-                p_request_note => %s
+                p_request_note => %s, p_validation_id => %s
             )).id AS id
             """,
-            (version_id, environment, requested_by, request_note),
+            (version_id, environment, requested_by, request_note, validation_id),
         )
         row = await cursor.fetchone()
         if row is None:
@@ -142,7 +145,7 @@ class DeploymentRepository:
             JOIN users requester ON requester.id = d.requested_by
             LEFT JOIN users reviewer ON reviewer.id = d.reviewed_by
             WHERE d.id = %s
-              AND (%s = 'admin' OR EXISTS (
+              AND (%s = 'super_admin' OR EXISTS (
                   SELECT 1 FROM project_members pm
                   WHERE pm.project_id = p.project_id AND pm.user_id = %s
               ))
@@ -171,7 +174,7 @@ class DeploymentRepository:
             where.extend(["d.environment = 'prod'", "d.status = 'pending'"])
         else:
             where.append(
-                "(%s = 'admin' OR EXISTS (SELECT 1 FROM project_members pm "
+                "(%s = 'super_admin' OR EXISTS (SELECT 1 FROM project_members pm "
                 "WHERE pm.project_id = p.project_id AND pm.user_id = %s))"
             )
             parameters.extend([role, user_id])
@@ -213,7 +216,8 @@ class DeploymentRepository:
         cursor = await self.connection.execute(
             """
             SELECT d.id, d.version_id, pv.version_number, d.status,
-                   d.requested_at, d.reviewed_at, d.activated_at
+                   d.requested_at, d.reviewed_at, d.activated_at,
+    (SELECT validation_id FROM deployments WHERE id=d.id) AS validation_id
             FROM deployment_context d
             JOIN prompt_versions pv ON pv.id = d.version_id
             WHERE d.prompt_id = %s AND d.environment = %s
@@ -233,7 +237,7 @@ class DeploymentRepository:
             .where(
                 Deployment.id == deployment_id,
                 Deployment.status == "pending",
-                or_(Deployment.requested_by == actor_id, literal(role == "admin")),
+                or_(Deployment.requested_by == actor_id, literal(role == "super_admin")),
             )
             .values(status="cancelled")
             .returning(Deployment.id),

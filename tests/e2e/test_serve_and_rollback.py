@@ -3,6 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.release_support import validated_deployment
 from tests.support import (
     add_version,
     admin_headers,
@@ -24,16 +25,20 @@ def test_runtime_token_observes_auditable_rollback_and_revocation(
     v2 = add_version(api_client, owner_headers, prompt["id"], v1["id"], 2)
     v3 = add_version(api_client, owner_headers, prompt["id"], v2["id"], 3)
 
-    pending = api_client.post(
+    pending = validated_deployment(
+        api_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": v3["id"], "environment": "prod"},
     ).json()
-    assert api_client.post(
-        f"/api/v1/admin/deployments/{pending['id']}/approve",
-        headers=administrator,
-        json={},
-    ).status_code == 200
+    assert (
+        api_client.post(
+            f"/api/v1/admin/deployments/{pending['id']}/approve",
+            headers=administrator,
+            json={},
+        ).status_code
+        == 200
+    )
 
     token_response = api_client.post(
         "/api/v1/api-tokens",
@@ -44,7 +49,9 @@ def test_runtime_token_observes_auditable_rollback_and_revocation(
     issued = token_response.json()
     runtime_headers = {"Authorization": f"Bearer {issued['token']}"}
     before = api_client.get(
-        "/serve/v1/prompts/support-reply", headers=runtime_headers, params={"env": "prod"}
+        "/serve/v1/prompts/support-reply",
+        headers=runtime_headers,
+        params={"env": "prod"},
     )
     assert before.status_code == 200
     assert before.json()["version"]["id"] == v3["id"]
@@ -60,9 +67,12 @@ def test_runtime_token_observes_auditable_rollback_and_revocation(
     assert after.status_code == 200
     assert after.json()["version"]["id"] == v2["id"]
 
-    assert api_client.delete(
-        f"/api/v1/api-tokens/{issued['id']}", headers=owner_headers
-    ).status_code == 204
+    assert (
+        api_client.delete(
+            f"/api/v1/api-tokens/{issued['id']}", headers=owner_headers
+        ).status_code
+        == 204
+    )
     revoked = api_client.get("/serve/v1/prompts/support-reply", headers=runtime_headers)
     assert (revoked.status_code, revoked.json()["code"]) == (401, "invalid_token")
 

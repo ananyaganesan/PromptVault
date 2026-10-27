@@ -11,6 +11,7 @@ from api.app.main import create_app
 from fastapi.testclient import TestClient
 from tests.auth_support import create_verified_test_user, seed_owned_project
 from tests.invitation_support import accept_invitation
+from tests.release_support import validated_deployment
 
 
 @pytest.fixture(scope="module")
@@ -21,6 +22,7 @@ def deployment_client(
     settings = test_settings.model_copy(update={"database_url": seeded_database_url})
     with TestClient(create_app(settings)) as client:
         from tests.provider_support import seed_gemini_test_credential
+
         seed_gemini_test_credential(client.app.state.settings)
         yield client
 
@@ -75,7 +77,8 @@ def test_staging_is_immediate_and_production_requires_atomic_admin_review(
     admin_headers = login_admin(deployment_client)
     project, prompt, version = create_prompt(deployment_client, owner_headers)
 
-    development = deployment_client.post(
+    development = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version["id"], "environment": "dev"},
@@ -84,7 +87,8 @@ def test_staging_is_immediate_and_production_requires_atomic_admin_review(
     assert development.json()["status"] == "active"
     assert development.json()["activated_at"] is not None
 
-    staging = deployment_client.post(
+    staging = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version["id"], "environment": "staging"},
@@ -93,7 +97,8 @@ def test_staging_is_immediate_and_production_requires_atomic_admin_review(
     assert staging.json()["status"] == "active"
     assert staging.json()["activated_at"] is not None
 
-    production = deployment_client.post(
+    production = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={
@@ -152,7 +157,8 @@ def test_staging_is_immediate_and_production_requires_atomic_admin_review(
     assert history.status_code == 200
     assert pending["id"] in {item["id"] for item in history.json()["items"]}
 
-    second = deployment_client.post(
+    second = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version["id"], "environment": "prod"},
@@ -192,7 +198,8 @@ def test_pending_deployment_cancellation_requires_requester(
         json={"project_id": project["id"], "name": "Not owner"},
     )
     assert member_token_attempt.status_code == 403
-    pending = deployment_client.post(
+    pending = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version["id"], "environment": "prod"},
@@ -221,7 +228,8 @@ def test_competing_http_reviews_and_cancel_review_have_one_success(
     admin_headers = login_admin(deployment_client)
     _, _, version = create_prompt(deployment_client, owner_headers)
 
-    pending = deployment_client.post(
+    pending = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version["id"], "environment": "prod"},
@@ -242,7 +250,8 @@ def test_competing_http_reviews_and_cancel_review_have_one_success(
     loser = next(response for response in review_responses if response.status_code == 409)
     assert loser.json()["code"] == "already_reviewed"
 
-    competing = deployment_client.post(
+    competing = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version["id"], "environment": "prod"},
@@ -280,7 +289,8 @@ def test_runtime_token_is_disclosed_once_scoped_revocable_and_serves_rollback(
     _, outsider_headers = register(deployment_client, "token-outsider")
     admin_headers = login_admin(deployment_client)
     project, prompt, version_one = create_prompt(deployment_client, owner_headers)
-    deployed = deployment_client.post(
+    deployed = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version_one["id"], "environment": "prod"},
@@ -390,7 +400,8 @@ def test_runtime_token_is_disclosed_once_scoped_revocable_and_serves_rollback(
     )
     assert version_two_response.status_code == 201
     version_two = version_two_response.json()
-    second_request = deployment_client.post(
+    second_request = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version_two["id"], "environment": "prod"},
@@ -453,7 +464,8 @@ def test_runtime_token_cannot_cross_project_or_outlive_expiration(
         deployment_client, owner_headers
     )
     project_with_active, _, version = create_prompt(deployment_client, owner_headers)
-    pending = deployment_client.post(
+    pending = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version["id"], "environment": "prod"},
@@ -491,7 +503,8 @@ def test_runtime_token_cannot_cross_project_or_outlive_expiration(
     assert cross_project.status_code == 404
     assert project_with_active["id"] not in cross_project.text
 
-    project_without_active_request = deployment_client.post(
+    project_without_active_request = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version_without_active["id"], "environment": "prod"},
@@ -567,7 +580,8 @@ def test_phase4_auth_validation_missing_and_failed_writes_are_safe(
     invalid_filter = deployment_client.get(
         "/api/v1/deployments", headers=owner_headers, params={"unknown": "value"}
     )
-    invalid_environment = deployment_client.post(
+    invalid_environment = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version["id"], "environment": "production"},
@@ -581,7 +595,8 @@ def test_phase4_auth_validation_missing_and_failed_writes_are_safe(
         headers=owner_headers,
         params={"project_id": project["id"]},
     ).json()["total"]
-    missing_version = deployment_client.post(
+    missing_version = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": str(uuid4()), "environment": "staging"},
@@ -643,7 +658,8 @@ def test_rollback_database_failure_reverts_state_and_audit_atomically(
     )
     assert version_two_response.status_code == 201
     version_two = version_two_response.json()
-    pending = deployment_client.post(
+    pending = validated_deployment(
+        deployment_client,
         "/api/v1/deployments",
         headers=owner_headers,
         json={"version_id": version_two["id"], "environment": "prod"},

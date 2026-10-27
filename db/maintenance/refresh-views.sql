@@ -1,2 +1,0 @@
-REFRESH MATERIALIZED VIEW CONCURRENTLY organization_monthly_metrics;
-REFRESH MATERIALIZED VIEW CONCURRENTLY user_monthly_metrics;

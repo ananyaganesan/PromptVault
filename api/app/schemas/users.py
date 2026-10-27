@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-UserRole = Literal["user", "admin"]
+UserRole = Literal["user", "admin", "super_admin"]
 
 
 class UserResponse(BaseModel):
@@ -17,6 +17,7 @@ class UserResponse(BaseModel):
     display_name: str
     role: UserRole
     is_active: bool
+    is_approved: bool
     created_at: datetime
 
 

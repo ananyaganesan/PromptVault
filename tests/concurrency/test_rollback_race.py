@@ -8,6 +8,8 @@ import psycopg
 import pytest
 from psycopg.errors import CheckViolation
 
+from tests.release_support import seed_release_evidence
+
 ADMIN_ID = UUID("22222222-2222-4222-8222-222222222222")
 
 
@@ -43,9 +45,10 @@ def create_active_third_version(database_url: str) -> tuple[UUID, UUID]:
                     user_id,
                 ),
             )
+        validation_id = seed_release_evidence(connection, versions[2], user_id)
         pending_id = connection.execute(
-            "SELECT (request_deployment(%s, 'prod', %s, NULL)).id",
-            (versions[2], user_id),
+            "SELECT (request_deployment(%s, 'prod', %s, NULL, %s)).id",
+            (versions[2], user_id, validation_id),
         ).fetchone()[0]
         connection.execute(
             "SELECT review_production_deployment(%s, %s, TRUE, 'approved')",

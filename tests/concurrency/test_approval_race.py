@@ -6,6 +6,8 @@ import psycopg
 import pytest
 from psycopg.errors import SerializationFailure
 
+from tests.release_support import seed_release_evidence
+
 ADMIN_ID = UUID("22222222-2222-4222-8222-222222222222")
 
 
@@ -33,9 +35,10 @@ def create_pending_deployment(database_url: str, label: str) -> tuple[UUID, UUID
             '\n            INSERT INTO prompt_versions (id, prompt_id, version_number, template_body, provider, model, temperature, max_output_tokens, commit_message, created_by) VALUES (%s, %s, 1, \'Approval\', (\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'provider\', (\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'model\', ((\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'temperature\')::numeric, ((\'{"provider":"gemini","model":"gemini-3.5-flash-lite",\'\n                \'"temperature":0,"max_output_tokens":10}\')::jsonb->>\'max_output_tokens\')::integer, \'Initial\', %s)\n            ',
             (version_id, prompt_id, user_id),
         )
+        validation_id = seed_release_evidence(connection, version_id, user_id)
         deployment_id = connection.execute(
-            "SELECT (request_deployment(%s, 'prod', %s, NULL)).id",
-            (version_id, user_id),
+            "SELECT (request_deployment(%s, 'prod', %s, NULL, %s)).id",
+            (version_id, user_id, validation_id),
         ).fetchone()[0]
     return deployment_id, user_id
 

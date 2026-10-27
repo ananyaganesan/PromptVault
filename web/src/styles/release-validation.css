@@ -1,0 +1,16 @@
+/* Deployment validation inherits the same compact workspace scale. */
+.release-request-form { max-width: 800px; }
+.release-validation { margin-top: 20px; }
+.release-validation p, .release-tests p { font-size: var(--pv-type-supporting); line-height: 1.6; }
+.release-validation .health-row > div { min-width: 0; }
+.release-validation .health-row p { margin: 5px 0 0; overflow-wrap: anywhere; }
+.release-tests { border: 1px solid var(--pv-border); padding: 16px; margin-top: 20px; min-width: 0; }
+.release-tests legend { padding: 0 6px; font-size: var(--pv-type-body); }
+.release-case + .release-case { border-top: 1px solid var(--pv-border); margin-top: 16px; padding-top: 12px; }
+.release-actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; font-size: var(--pv-type-supporting); }
+.release-diff { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.release-diff textarea { min-height: 180px; }
+.release-test-result { padding: 14px 0; border-top: 1px solid var(--pv-border); font-size: var(--pv-type-supporting); }
+.release-test-result summary { cursor: pointer; }
+.release-test-result pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: var(--pv-surface); }
+@media (max-width: 800px) { .release-diff { grid-template-columns: minmax(0, 1fr); } .release-actions { flex-wrap: wrap; } }

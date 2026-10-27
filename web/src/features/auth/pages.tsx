@@ -158,7 +158,7 @@ export function VerifyEmailPage() {
   return <main className="auth-main"><section className="auth-card">
     <h1>{state === 'verifying' ? 'Verifying your email' : state === 'verified' ? 'Email verified' : 'Invalid verification link'}</h1>
     {state === 'verifying' && <p>Checking your verification link…</p>}
-    {state === 'verified' && <><p>Your email has been verified.</p><Link className="button verification-sign-in" to="/login">Sign in</Link></>}
+    {state === 'verified' && <><p>Your email has been verified. An administrator must approve your account before you can sign in.</p><Link className="button verification-sign-in" to="/login">Sign in</Link></>}
     {state === 'invalid' && <><p className="form-error" role="alert">{message}</p><p className="switch"><Link to="/login">Back to sign in</Link></p></>}
   </section></main>
 }

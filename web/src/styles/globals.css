@@ -411,6 +411,18 @@ pre {
   border-color: var(--pv-text);
 }
 
+.button.secondary.best-version-button {
+  background: #fff;
+  border-color: var(--pv-border);
+  color: var(--pv-text);
+  text-decoration: none;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.button.secondary.best-version-button:hover {
+  background: var(--pv-surface);
+  border-color: var(--pv-border);
+}
+
 .version-compare-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
