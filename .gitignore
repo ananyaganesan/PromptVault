@@ -24,3 +24,4 @@ evidence/
 .ruff_cache/
 .deepeval/
 .coverage.*
+.prometheus-data/

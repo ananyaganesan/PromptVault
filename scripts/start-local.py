@@ -2,12 +2,15 @@
 
 import argparse
 import os
+import shutil
 import signal
 import socket
 import subprocess
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Protocol
 from urllib.parse import urlsplit
 
 import psycopg
@@ -21,6 +24,13 @@ from api.app.db.migrations import migrate_database
 
 API_PORT = 8000
 WEB_PORT = 5173
+PROMETHEUS_PORT = 9090
+PROMETHEUS_CONFIG = ROOT / 'monitoring' / 'prometheus.yml'
+PROMETHEUS_STORAGE = ROOT / '.prometheus-data'
+
+
+class ProcessLike(Protocol):
+    pid: int
 
 
 def validate_database_url(url: str) -> None:
@@ -41,6 +51,34 @@ def require_free_port(port: int) -> None:
                                'The launcher will not switch ports.') from error
 
 
+def resolve_prometheus_binary() -> str:
+    binary = shutil.which('prometheus')
+    if binary is None:
+        raise RuntimeError(
+            'Prometheus is not installed; run `brew install prometheus` and retry.'
+        )
+    return binary
+
+
+def prometheus_command(binary: str, *, config: Path, storage: Path) -> list[str]:
+    return [
+        binary,
+        f'--config.file={config}',
+        f'--storage.tsdb.path={storage}',
+        f'--web.listen-address=127.0.0.1:{PROMETHEUS_PORT}',
+    ]
+
+
+def stop_process_groups(children: Iterable[ProcessLike]) -> None:
+    for child in children:
+        try:
+            # npm starts Vite as a child: stopping only npm leaves the web
+            # port occupied. Each app has its own process group here.
+            os.killpg(child.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='Check PostgreSQL settings without starting')
@@ -59,10 +97,12 @@ def main() -> int:
     print(f'PostgreSQL: localhost:5432 / {database}', flush=True)
     if args.check:
         return 0
-    for port in (API_PORT, WEB_PORT):
+    prometheus_binary = resolve_prometheus_binary()
+    for port in (API_PORT, WEB_PORT, PROMETHEUS_PORT):
         require_free_port(port)
     # Preserve migration checksums and existing records; never reset or auto-seed.
     migrate_database(settings.database_url, ROOT / 'db' / 'migrations')
+    PROMETHEUS_STORAGE.mkdir(exist_ok=True)
     environment = {
         **os.environ,
         'DATABASE_URL': settings.database_url,
@@ -77,13 +117,7 @@ def main() -> int:
     def stop(_signal=None, _frame=None) -> None:
         nonlocal stopping
         stopping = True
-        for child in children:
-            try:
-                # npm starts Vite as a child: stopping only npm leaves the web
-                # port occupied. Each app has its own process group here.
-                os.killpg(child.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
+        stop_process_groups(children)
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
@@ -93,10 +127,24 @@ def main() -> int:
              '--port', str(API_PORT)], cwd=ROOT, env=environment, start_new_session=True,
         ))
         children.append(subprocess.Popen(
+            prometheus_command(
+                prometheus_binary,
+                config=PROMETHEUS_CONFIG,
+                storage=PROMETHEUS_STORAGE,
+            ),
+            cwd=ROOT,
+            env=environment,
+            start_new_session=True,
+        ))
+        children.append(subprocess.Popen(
             ['npm', 'run', 'dev', '--', '--host', '127.0.0.1', '--port', str(WEB_PORT), '--strictPort'],
             cwd=ROOT / 'web', env=environment, start_new_session=True,
         ))
-        print('App: http://localhost:5173 | API: http://localhost:8000', flush=True)
+        print(
+            'App: http://localhost:5173 | API: http://localhost:8000 | '
+            'Prometheus: http://localhost:9090',
+            flush=True,
+        )
         while all(child.poll() is None for child in children):
             time.sleep(0.2)
         return 0 if stopping else next((child.returncode for child in children if child.returncode), 0)
