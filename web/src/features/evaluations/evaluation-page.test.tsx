@@ -125,6 +125,19 @@ describe('Prompt version evaluations', () => {
     expect(screen.getByText('Delivery issue')).toBeInTheDocument()
   })
 
+  it('shows saved example inputs and reference after opening a history run', async () => {
+    const user = userEvent.setup()
+    const item = completed()
+    item.configuration = { ...configuration, cases: [{ ...configuration.cases[0], reference: 'Offer a practical delivery update.' }] }
+    vi.mocked(evaluationApi.get).mockResolvedValue(item)
+    vi.mocked(evaluationApi.history).mockResolvedValue([{ id: item.id, status: 'completed', created_at: item.created_at, recommendation: item.recommendation, winner_version_id: item.winner_version_id, error: null, completed_cases: 2, total_cases: 2 }])
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: item.recommendation }))
+    const example = await screen.findByRole('group', { name: 'Saved example: Typical request' })
+    expect(within(example).getByText('Delivery issue')).toBeVisible()
+    expect(within(example).getByText('Offer a practical delivery update.')).toBeVisible()
+  })
+
   it('reviews Gemini suggestions before running and sends the reviewed setup', async () => {
     const user = userEvent.setup()
     const suggest = vi.spyOn(evaluationApi, 'suggest').mockResolvedValue({

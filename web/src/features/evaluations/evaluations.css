@@ -387,8 +387,17 @@
 }
 .evaluation-page .eval-advanced > summary::-webkit-details-marker { display: none; }
 .evaluation-page .eval-advanced > summary:hover { background: #f5f4f1; border-color: #bcb9b3; }
-.evaluation-page .eval-case-results summary,
 .evaluation-page .eval-output summary { padding: 10px 0; cursor: pointer; }
+.evaluation-page .eval-case-context {
+  margin-top: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--eval-border);
+  border-radius: var(--eval-radius);
+  background: var(--pv-surface-subtle, #faf9f7);
+}
+.evaluation-page .eval-case-context h4 { margin: 0 0 8px; }
+.evaluation-page .eval-case-context .eval-example-inputs { margin: 0 0 18px; }
+.evaluation-page .eval-case-context p { margin: 0; color: var(--pv-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .evaluation-page .eval-improve .eval-actions { margin: 18px 0; align-items: end; }
 .evaluation-page .eval-draft { min-height: 260px !important; }
 
