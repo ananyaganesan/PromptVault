@@ -52,12 +52,15 @@ it('uses refreshed settings when clean, preserves dirty fields, and blocks stale
   expect(screen.getByRole('button', { name: 'Save settings' })).toBeEnabled()
 })
 
-it.each(['member', 'owner', 'admin'])('shows member management only for owner/admin: %s', async (role) => {
-  auth.user = { id: role === 'owner' ? 'owner' : 'member', role: role === 'admin' ? 'super_admin' : 'user', display_name: 'User' }
+it.each(['member', 'owner', 'admin', 'super_admin'])('shows invitation access for owner and admins: %s', async (role) => {
+  auth.user = { id: role === 'owner' ? 'owner' : 'member', role: role === 'owner' || role === 'member' ? 'user' : role, display_name: 'User' }
   setup('project')
   await userEvent.setup().click(screen.getByRole('button', { name: /Members/ }))
   if (role === 'member') {
     expect(screen.queryByRole('button', { name: 'Invite member' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+  } else if (role === 'admin') {
+    expect(screen.getByRole('button', { name: 'Invite member' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
   } else {
     expect(screen.getByRole('button', { name: 'Invite member' })).toBeInTheDocument()

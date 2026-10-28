@@ -5,7 +5,7 @@ from uuid import UUID
 
 from api.app.db.transactions import DatabaseConnection, get_connection
 from api.app.dependencies.auth import CurrentUser
-from api.app.dependencies.authorization import ProjectMember, ProjectOwner, SuperAdmin
+from api.app.dependencies.authorization import ProjectInviter, ProjectOwner, SuperAdmin
 from api.app.dependencies.query import allow_query_parameters
 from api.app.dependencies.request_context import get_request_id
 from api.app.errors import error_responses
@@ -92,7 +92,7 @@ async def create_project(
 )
 async def get_project(
     project_id: UUID,
-    current_user: ProjectMember,
+    current_user: CurrentUser,
     service: ProjectServiceDependency,
 ) -> ProjectResponse:
     return await service.require_member_project(project_id, current_user)
@@ -137,7 +137,7 @@ async def delete_project(
 )
 async def list_project_members(
     project_id: UUID,
-    current_user: ProjectMember,
+    current_user: CurrentUser,
     service: ProjectServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
@@ -155,7 +155,7 @@ async def list_project_members(
 async def add_project_member(
     project_id: UUID,
     payload: ProjectMemberCreate,
-    current_user: ProjectOwner,
+    current_user: ProjectInviter,
     service: ProjectServiceDependency,
 ) -> ProjectInvitationResponse:
     return await service.add_member(project_id, str(payload.email), current_user)
@@ -180,7 +180,7 @@ async def remove_project_member(
 
 @router.get("/projects/{project_id}/invitations", response_model=list[ProjectInvitationResponse])
 async def list_project_invitations(
-    project_id: UUID, current_user: ProjectOwner, service: ProjectServiceDependency
+    project_id: UUID, current_user: ProjectInviter, service: ProjectServiceDependency
 ) -> list[ProjectInvitationResponse]:
     return await service.list_invitations(project_id, current_user)
 
@@ -189,7 +189,7 @@ async def list_project_invitations(
 async def cancel_project_invitation(
     project_id: UUID,
     invitation_id: UUID,
-    current_user: ProjectOwner,
+    current_user: ProjectInviter,
     service: ProjectServiceDependency,
 ) -> Response:
     await service.revoke_invitation(project_id, invitation_id, current_user)

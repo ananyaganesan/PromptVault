@@ -56,3 +56,18 @@ async def require_project_owner(
 
 
 ProjectOwner = Annotated[UserRecord, Depends(require_project_owner)]
+
+
+async def require_project_inviter(
+    project_id: UUID,
+    current_user: CurrentUser,
+    connection: Annotated[DatabaseConnection, Depends(get_connection)],
+) -> UserRecord:
+    if current_user.role in ("admin", "super_admin"):
+        return current_user
+    if not await UserRepository(connection).is_project_owner(current_user.id, project_id):
+        raise AppError(403, "forbidden", "Project ownership or admin access is required")
+    return current_user
+
+
+ProjectInviter = Annotated[UserRecord, Depends(require_project_inviter)]

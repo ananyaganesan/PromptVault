@@ -80,8 +80,13 @@ class ProjectService:
         return project
 
     async def require_member_project(self, project_id: UUID, actor: UserRecord) -> ProjectResponse:
-        if not await self.repository.lock_member_access(project_id, actor.id, actor.role):
-            if actor.role == "super_admin":
+        access = (
+            await self.repository.lock_inviter_access(project_id, actor.id, actor.role)
+            if actor.role == "admin"
+            else await self.repository.lock_member_access(project_id, actor.id, actor.role)
+        )
+        if not access:
+            if actor.role in ("admin", "super_admin"):
                 raise AppError(404, "not_found", "Project was not found")
             raise AppError(403, "forbidden", "Project membership is required")
         return await self.require_project(project_id)
@@ -121,7 +126,7 @@ class ProjectService:
     async def add_member(
         self, project_id: UUID, email: str, actor: UserRecord
     ) -> ProjectInvitationResponse:
-        if not await self.repository.lock_owner_access(project_id, actor.id, actor.role):
+        if not await self.repository.lock_inviter_access(project_id, actor.id, actor.role):
             raise AppError(404, "not_found", "Project was not found")
         user = await self.users.get_by_email(email)
         if user is None or not user.is_active:
@@ -160,14 +165,14 @@ class ProjectService:
     async def list_invitations(
         self, project_id: UUID, actor: UserRecord
     ) -> builtins.list[ProjectInvitationResponse]:
-        if not await self.repository.lock_owner_access(project_id, actor.id, actor.role):
+        if not await self.repository.lock_inviter_access(project_id, actor.id, actor.role):
             raise AppError(404, "not_found", "Project was not found")
         return await self.repository.list_invitations(project_id)
 
     async def revoke_invitation(
         self, project_id: UUID, invitation_id: UUID, actor: UserRecord
     ) -> None:
-        if not await self.repository.lock_owner_access(project_id, actor.id, actor.role):
+        if not await self.repository.lock_inviter_access(project_id, actor.id, actor.role):
             raise AppError(404, "not_found", "Project was not found")
         await self.repository.set_audit_context(actor.id, self.request_id)
         if not await self.repository.revoke_invitation(project_id, invitation_id):
@@ -190,7 +195,7 @@ class ProjectService:
         if (
             inviter is None
             or not inviter.is_active
-            or not await self.repository.lock_owner_access(
+            or not await self.repository.lock_inviter_access(
                 invitation["project_id"], inviter.id, inviter.role
             )
         ):

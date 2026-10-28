@@ -396,3 +396,69 @@ def test_interrupted_judging_preserves_the_generated_answer(
         assert db.execute(
             "SELECT status FROM evaluation_calls WHERE evaluation_id=%s", (evaluation_id,)
         ).fetchone() == ("interrupted",)
+
+
+@pytest.mark.database
+def test_embeddings_are_saved_blended_and_reference_is_reused(evaluation_context, monkeypatch):
+    from api.app.providers.gemini import EMBEDDING_DIMENSIONS, EMBEDDING_MODEL
+
+    texts = []
+
+    class Embeddings:
+        async def execute(self, request):
+            texts.append(request.prompt)
+            vector = [0.0] * EMBEDDING_DIMENSIONS
+            vector[0 if "WEAK" not in request.prompt else 1] = 1.0
+            return ProviderResult(json.dumps(vector), 10, 0, 2)
+
+    monkeypatch.setattr(
+        "api.app.services.evaluations.GeminiEmbeddingProvider", lambda *a, **kw: Embeddings()
+    )
+    setup = evaluation_context[3]
+    setup["use_embeddings"] = False  # Older clients cannot disable new comparisons.
+    setup["cases"][0]["reference"] = "Give clear next steps."
+    _, result = start(evaluation_context)
+    assert result["status"] == "completed", result
+    assert result["configuration"]["use_embeddings"] is True
+    assert result["winner_version_id"] == setup["version_ids"][1]
+    rows = {row["version_id"]: row for row in result["results"]}
+    assert rows[setup["version_ids"][0]]["embedding"]["cosine_similarity"] == 0
+    strong = rows[setup["version_ids"][1]]
+    assert strong["embedding"]["cosine_similarity"] == 1
+    assert strong["embedding"]["model"] == EMBEDDING_MODEL
+    assert strong["embedding"]["similarity_weight"] == 0.2
+    assert len(strong["embedding"]["output_vector"]) == EMBEDDING_DIMENSIONS
+    assert strong["weighted_score"] == 96.8
+    assert texts.count("Give clear next steps.") == 1
+    assert result["usage"]["evaluator_calls"] == 5
+
+
+@pytest.mark.database
+def test_embedding_failure_preserves_answer_without_recommendation(evaluation_context, monkeypatch):
+    class Embeddings:
+        async def execute(self, request):
+            raise ProviderTimeoutError("private embedding timeout")
+
+    monkeypatch.setattr(
+        "api.app.services.evaluations.GeminiEmbeddingProvider", lambda *a, **kw: Embeddings()
+    )
+    setup = evaluation_context[3]
+    setup["use_embeddings"] = True
+    setup["cases"][0]["reference"] = "A trusted answer."
+    _, result = start(evaluation_context)
+    assert result["winner_version_id"] is None
+    assert all(row["output"] and row["weighted_score"] is None for row in result["results"])
+    assert "private embedding timeout" not in json.dumps(result)
+
+
+@pytest.mark.database
+def test_embeddings_without_reference_use_quality_only(evaluation_context, monkeypatch):
+    def unexpected(*args, **kwargs):
+        raise AssertionError("No reference should mean no embedding call")
+
+    monkeypatch.setattr("api.app.services.evaluations.GeminiEmbeddingProvider", unexpected)
+    evaluation_context[3]["use_embeddings"] = True
+    _, result = start(evaluation_context)
+    assert result["winner_version_id"]
+    assert all(row["embedding"] is None for row in result["results"])
+    assert result["usage"]["evaluator_calls"] == 2

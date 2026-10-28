@@ -61,6 +61,40 @@ describe('Prompt version evaluations', () => {
     expect(screen.getByText('3. Choose your answer preferences')).toBeInTheDocument()
     expect(screen.queryByText(/JSON|temperature|output limit|top-level/i)).not.toBeInTheDocument()
     expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    expect(screen.getByText('Compare meaning with vector embeddings')).toBeInTheDocument()
+  })
+
+  it('keeps saved examples compact and preserves editing and removal', async () => {
+    const user = userEvent.setup()
+    vi.mocked(evaluationApi.setup).mockResolvedValue({ configuration: {
+      ...configuration, cases: [configuration.cases[0], { name: 'Outage', variables: { topic: 'Checkout is unavailable.' }, reference: 'Escalate the incident.' }],
+    } })
+    const save = vi.spyOn(evaluationApi, 'saveSetup').mockResolvedValue({})
+    renderPage()
+    const input = await screen.findByLabelText('topic · example 1')
+    expect(input).not.toBeVisible()
+    await user.click(screen.getByText('Typical request'))
+    expect(input).toBeVisible()
+    await user.clear(input)
+    await user.type(input, 'Updated delivery issue')
+    await user.click(screen.getByRole('button', { name: 'Save setup' }))
+    await waitFor(() => expect(save).toHaveBeenCalledWith('prompt-1', expect.objectContaining({
+      cases: [expect.objectContaining({ variables: { topic: 'Updated delivery issue' } }), expect.objectContaining({ reference: 'Escalate the incident.' })],
+    })))
+    await user.click(screen.getByRole('button', { name: 'Remove example 1' }))
+    expect(screen.getByLabelText('topic · example 1')).toHaveValue('Checkout is unavailable.')
+    expect(screen.getByRole('button', { name: 'Suggest examples for me' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Use previous examples' })).toBeVisible()
+  })
+
+  it('shows saved embedding similarity and the combined score', async () => {
+    const item = completed()
+    item.configuration = { ...item.configuration, use_embeddings: true }
+    item.results[0].embedding = { model: 'gemini-embedding-2', cosine_similarity: 0.8, quality_score: 90, output_vector: [1, 0], reference_vector: [0.8, 0.6] }
+    vi.mocked(evaluationApi.get).mockResolvedValue(item)
+    renderPage('/prompts/prompt-1/evaluate?evaluation=evaluation-1')
+    expect(await screen.findByText(/Cosine similarity: 0.8000/)).toBeInTheDocument()
+    expect(screen.getByText('No trusted answer: quality-only score.')).toBeInTheDocument()
   })
 
   it('preserves saved format checks when a user changes the answer length', async () => {
@@ -117,7 +151,6 @@ describe('Prompt version evaluations', () => {
     const start = vi.spyOn(evaluationApi, 'start')
     renderPage()
     await screen.findByRole('button', { name: 'Compare versions' })
-    await user.click(screen.getByText('Advanced: choose what matters most'))
     const weight = screen.getByLabelText('Clarity (%)')
     await user.clear(weight); await user.type(weight, '90')
     await user.click(screen.getByRole('button', { name: 'Compare versions' }))

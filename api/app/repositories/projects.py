@@ -76,6 +76,14 @@ class ProjectRepository:
             )
         return await orm_one(self.connection, statement) is not None
 
+    async def lock_inviter_access(self, project_id: UUID, user_id: UUID, role: UserRole) -> bool:
+        if role in ("admin", "super_admin"):
+            statement = select(Project.id).where(Project.id == project_id).with_for_update(
+                read=True, key_share=True, of=Project
+            )
+            return await orm_one(self.connection, statement) is not None
+        return await self.lock_owner_access(project_id, user_id, role)
+
     async def create(
         self,
         *,
@@ -138,7 +146,7 @@ class ProjectRepository:
         direction: str,
     ) -> tuple[list[ProjectResponse], int]:
         where = [
-            """(%s = 'super_admin' OR EXISTS (
+            """(%s IN ('admin', 'super_admin') OR EXISTS (
                 SELECT 1 FROM project_members scope
                 WHERE scope.project_id = p.id AND scope.user_id = %s
             ))"""

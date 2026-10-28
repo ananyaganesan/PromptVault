@@ -64,6 +64,7 @@ class EvaluationSetup(StrictModel):
     version_ids: list[UUID] = Field(min_length=1, max_length=5)
     goal: Annotated[str, Field(min_length=10, max_length=2000)]
     preset: Preset = "accurate_answers"
+    use_embeddings: bool = False
     cases: list[EvaluationCase] = Field(min_length=1, max_length=5)
     weights: dict[Metric, Annotated[int, Field(strict=True, ge=0, le=100)]] = Field(
         default_factory=lambda: dict(DEFAULT_WEIGHTS)
@@ -88,6 +89,16 @@ class EvaluationSetup(StrictModel):
 
 
 class ComparisonSetup(EvaluationSetup):
+    # Historical evaluations retain their original flag; new comparisons always embed.
+    use_embeddings: Literal[True] = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def enable_embeddings(cls, data: object) -> object:
+        if isinstance(data, dict):
+            return {**data, "use_embeddings": True}
+        return data
+
     version_ids: list[UUID] = Field(min_length=2, max_length=5)
 
 
@@ -132,6 +143,15 @@ class CheckResult(StrictModel):
     detail: str
 
 
+class EmbeddingComparison(StrictModel):
+    model: str
+    similarity_weight: Annotated[float, Field(ge=0, le=1)] = 0.3
+    output_vector: list[float]
+    reference_vector: list[float]
+    cosine_similarity: Annotated[float, Field(ge=-1, le=1, allow_inf_nan=False)]
+    quality_score: Annotated[float, Field(ge=0, le=100, allow_inf_nan=False)]
+
+
 class CaseResult(StrictModel):
     version_id: UUID
     case_index: int
@@ -143,6 +163,7 @@ class CaseResult(StrictModel):
     checks: list[CheckResult] = Field(default_factory=list)
     scores: dict[Metric, MetricScore] = Field(default_factory=dict)
     weighted_score: float | None = None
+    embedding: EmbeddingComparison | None = None
     summary: str = ""
     error: str | None = None
 

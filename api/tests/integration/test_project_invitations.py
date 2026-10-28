@@ -12,7 +12,9 @@ from api.tests.integration.test_projects_prompts_versions import (
     register_user,
 )
 from fastapi.testclient import TestClient
+from tests.auth_support import create_verified_test_user
 from tests.invitation_support import TOKENS
+from tests.support import admin_headers
 
 __all__ = ["domain_client"]
 
@@ -35,6 +37,57 @@ def accept(client: TestClient, email: str, headers: Any) -> Any:
     return client.post(
         "/api/v1/project-invitations/accept", headers=headers, json={"token": TOKENS[email]}
     )
+
+
+@pytest.mark.database
+def test_admin_can_invite_to_another_owners_project(domain_client: TestClient) -> None:
+    _, owner_headers = register_user(domain_client, "admin-invite-owner")
+    admin_user, _ = create_verified_test_user(domain_client, "project-admin-inviter")
+    recipient, recipient_headers = register_user(domain_client, "admin-invite-recipient")
+    _, outsider_headers = register_user(domain_client, "admin-invite-outsider")
+    project = create_project(domain_client, owner_headers)
+    path = f"/api/v1/projects/{project['id']}"
+    root_headers = admin_headers(domain_client)
+    promoted = domain_client.patch(
+        f"/api/v1/admin/users/{admin_user['id']}",
+        headers=root_headers,
+        json={"role": "admin"},
+    )
+    assert promoted.status_code == 200, promoted.text
+    login = domain_client.post(
+        "/api/v1/auth/login",
+        json={"email": admin_user["email"], "password": "CorrectHorse2026!"},
+    )
+    assert login.status_code == 200, login.text
+    admin = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    assert project["id"] in {
+        item["id"] for item in domain_client.get("/api/v1/projects", headers=admin).json()["items"]
+    }
+    assert domain_client.get(path, headers=admin).status_code == 200
+    assert domain_client.get(f"{path}/members", headers=admin).status_code == 200
+    assert domain_client.post(
+        f"{path}/members", headers=outsider_headers, json={"email": recipient["email"]}
+    ).status_code == 403
+    invited = domain_client.post(
+        f"{path}/members", headers=admin, json={"email": recipient["email"]}
+    )
+    assert invited.status_code == 201, invited.text
+    pending_ids = [
+        item["id"] for item in domain_client.get(f"{path}/invitations", headers=admin).json()
+    ]
+    assert pending_ids == [invited.json()["id"]]
+    assert domain_client.patch(path, headers=admin, json={"name": "Denied"}).status_code == 403
+    denied_remove = domain_client.delete(f"{path}/members/{recipient['id']}", headers=admin)
+    assert denied_remove.status_code == 403
+    assert accept(domain_client, recipient["email"], recipient_headers).status_code == 200
+
+    another, _ = register_user(domain_client, "admin-invite-cancel")
+    pending = domain_client.post(f"{path}/members", headers=admin, json={"email": another["email"]})
+    assert pending.status_code == 201, pending.text
+    assert domain_client.delete(
+        f"{path}/invitations/{pending.json()['id']}", headers=admin
+    ).status_code == 204
 
 
 @pytest.mark.database

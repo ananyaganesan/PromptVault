@@ -11,7 +11,9 @@ from api.app.schemas.evaluations import (
     Requirements,
 )
 from api.app.services.evaluation_scoring import (
+    blend_embedding_score,
     check_requirements,
+    cosine_similarity,
     parse_json_object,
     rank_versions,
     score_result,
@@ -180,3 +182,46 @@ def test_scenario_values_are_preserved_exactly():
         ]
     )
     assert config.cases[0].variables["question"] == "  exact input\n"
+
+
+@pytest.mark.parametrize(
+    "left,right,expected",
+    [
+        ([1, 2], [2, 4], 1),
+        ([1, 0], [0, 1], 0),
+        ([1, 0], [-1, 0], -1),
+    ],
+)
+def test_cosine_similarity(left, right, expected):
+    assert cosine_similarity(left, right) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "left,right",
+    [
+        ([], []),
+        ([0, 0], [1, 0]),
+        ([1], [1, 2]),
+        ([float("nan")], [1]),
+        ([float("inf")], [1]),
+        ([True], [1]),
+    ],
+)
+def test_invalid_embeddings_are_rejected(left, right):
+    with pytest.raises(ValueError):
+        cosine_similarity(left, right)
+
+
+def test_embedding_score_affects_ranking_and_negative_similarity_is_not_agreement():
+    config = setup()
+    first, second = result(config, 0, 4), result(config, 1, 4)
+    first.weighted_score = blend_embedding_score(80, 0.2)
+    second.weighted_score = blend_embedding_score(80, 0.9)
+    assert first.weighted_score == 68
+    assert second.weighted_score == 82
+    assert rank_versions(config, [first, second])[1] == config.version_ids[1]
+    assert blend_embedding_score(80, -1) == 64
+
+
+def test_historical_setups_do_not_enable_embeddings():
+    assert setup().use_embeddings is False

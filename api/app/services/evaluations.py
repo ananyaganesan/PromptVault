@@ -23,6 +23,7 @@ from api.app.providers.errors import (
     ProviderTimeoutError,
 )
 from api.app.providers.factory import get_provider
+from api.app.providers.gemini import EMBEDDING_MODEL, GeminiEmbeddingProvider
 from api.app.repositories.evaluations import EvaluationRepository
 from api.app.repositories.pricing import PricingRepository
 from api.app.repositories.prompts import PromptRepository
@@ -32,6 +33,7 @@ from api.app.repositories.versions import VersionRepository
 from api.app.schemas.evaluations import (
     METRIC_DEFINITIONS,
     CaseResult,
+    EmbeddingComparison,
     EvaluationCreate,
     EvaluationResponse,
     EvaluationSetup,
@@ -44,7 +46,9 @@ from api.app.schemas.runs import RunCreate
 from api.app.schemas.versions import PromptVersionResponse, SavedModelConfiguration
 from api.app.security import decrypt_provider_secret
 from api.app.services.evaluation_scoring import (
+    blend_embedding_score,
     check_requirements,
+    cosine_similarity,
     parse_json_object,
     rank_versions,
     score_result,
@@ -184,6 +188,10 @@ class EvaluationService:
             )
             self.validate_cases(payload.configuration, versions)
             await self.credential(connection)  # Fail before creating work if Gemini is unavailable.
+            if payload.configuration.use_embeddings and any(
+                case.reference for case in payload.configuration.cases
+            ):
+                await self.credential(connection, EMBEDDING_MODEL)
             cursor = await connection.execute(
                 "SELECT 1 FROM prompt_evaluations WHERE created_by=%s "
                 "AND status IN ('queued','running')",
@@ -223,13 +231,16 @@ class EvaluationService:
             await repository.expire(self.stale_seconds)
             return await repository.history(prompt_id)
 
-    async def credential(self, connection: ORMConnection) -> str:
+    async def credential(self, connection: ORMConnection, model: str | None = None) -> str:
         config = SavedModelConfiguration(
             provider="gemini", model=MODELS[0].id, max_output_tokens=4096
         )
         require_free_model(config)
+        selected_model = model or config.model
+        if selected_model not in (config.model, EMBEDDING_MODEL):
+            raise AppError(409, "model_not_free", "Unsupported evaluation model")
         price = await PricingRepository(connection).get_effective(
-            "gemini", config.model, datetime.now(UTC)
+            "gemini", selected_model, datetime.now(UTC)
         )
         if price and (price.input_price_per_million != 0 or price.output_price_per_million != 0):
             raise AppError(409, "model_not_free", "Paid model configuration is not allowed")
@@ -254,6 +265,7 @@ class EvaluationService:
         evaluation_id: UUID | None = None,
     ) -> str:
         model = MODELS[0]
+        model_id = EMBEDDING_MODEL if purpose == "embed" else model.id
         if len(text) > model.max_input_characters:
             raise AppError(
                 422,
@@ -263,7 +275,7 @@ class EvaluationService:
         call_id = uuid4()
         async with self.connection() as connection:
             await self.access(connection, prompt_id, actor, session)
-            credential = await self.credential(connection)
+            credential = await self.credential(connection, model_id)
             await connection.execute(
                 "SELECT pg_advisory_xact_lock(hashtext(%s))", (f"evaluation-calls:{actor.id}",)
             )
@@ -287,17 +299,21 @@ class EvaluationService:
                 """INSERT INTO evaluation_calls
                 (id,evaluation_id,prompt_id,user_id,purpose,model,status,request_text)
                 VALUES(%s,%s,%s,%s,%s,%s,'running',%s)""",
-                (call_id, evaluation_id, prompt_id, actor.id, purpose, model.id, text),
+                (call_id, evaluation_id, prompt_id, actor.id, purpose, model_id, text),
             )
         try:
             provider = get_provider(
                 "gemini", credential=credential, gemini_base_url=self.settings.gemini_api_base_url
             )
+            if purpose == "embed":
+                provider = GeminiEmbeddingProvider(
+                    credential, base_url=self.settings.gemini_api_base_url
+                )
             result = await execute_with_timeout(
                 provider,
                 ProviderRequest(
                     prompt=text,
-                    model=model.id,
+                    model=model_id,
                     temperature=0,
                     max_output_tokens=model.max_output_tokens,
                 ),
@@ -346,6 +362,7 @@ class EvaluationService:
                 row = await repository.get(evaluation_id)
             evaluation = EvaluationResponse.model_validate(row)
             setup, prompt_id = evaluation.configuration, evaluation.prompt_id
+            reference_vectors: dict[int, list[float]] = {}
             # Rotate execution order between cases; anonymous judging sees no version number.
             for case_index, case in enumerate(setup.cases):
                 offset = case_index % len(setup.version_ids)
@@ -421,7 +438,43 @@ class EvaluationService:
                         )
                         judged = validate_judgment(raw, setup, result.output, case.reference)
                         result.scores, result.summary = judged.scores, judged.summary
-                        result.weighted_score = score_result(result, setup)
+                        quality_score = score_result(result, setup)
+                        if setup.use_embeddings and case.reference:
+                            if case_index not in reference_vectors:
+                                reference_vectors[case_index] = json.loads(
+                                    await self.ai(
+                                        prompt_id,
+                                        actor,
+                                        session,
+                                        purpose="embed",
+                                        text=case.reference,
+                                        evaluation_id=evaluation_id,
+                                    )
+                                )
+                            output_vector = json.loads(
+                                await self.ai(
+                                    prompt_id,
+                                    actor,
+                                    session,
+                                    purpose="embed",
+                                    text=result.output,
+                                    evaluation_id=evaluation_id,
+                                )
+                            )
+                            similarity = cosine_similarity(
+                                output_vector, reference_vectors[case_index]
+                            )
+                            result.embedding = EmbeddingComparison(
+                                model=EMBEDDING_MODEL,
+                                similarity_weight=0.2,
+                                output_vector=output_vector,
+                                reference_vector=reference_vectors[case_index],
+                                cosine_similarity=similarity,
+                                quality_score=quality_score,
+                            )
+                            result.weighted_score = blend_embedding_score(quality_score, similarity)
+                        else:
+                            result.weighted_score = quality_score
                     except AppError as exc:
                         result.error = exc.message
                         if exc.status_code in (401, 403, 404) or exc.code in (
@@ -432,7 +485,8 @@ class EvaluationService:
                             raise
                     except (ValueError, ValidationError, IndexError) as exc:
                         result.error = (
-                            "Gemini returned an invalid assessment; this case was not scored."
+                            "Gemini returned an invalid assessment or embedding; "
+                            "this case was not scored."
                         )
                         logger.info("Invalid evaluation assessment: %s", type(exc).__name__)
                     async with self.connection() as connection:

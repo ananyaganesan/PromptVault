@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import math
 from time import monotonic
 from typing import Any
 from urllib.parse import quote
@@ -71,5 +73,67 @@ class GeminiProvider:
             output_text=output,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
+            latency_ms=max(0, round((monotonic() - started) * 1000)),
+        )
+
+
+# Reviewed against https://ai.google.dev/gemini-api/docs/pricing on 2026-10-28.
+# Separate from selectable text-generation models; no paid/model fallback.
+EMBEDDING_MODEL = "gemini-embedding-2"
+EMBEDDING_DIMENSIONS = 768
+
+
+class GeminiEmbeddingProvider(GeminiProvider):
+    """Single-text semantic embeddings through Gemini's standard free-access endpoint."""
+
+    async def execute(self, request: ProviderRequest) -> ProviderResult:
+        if request.model != EMBEDDING_MODEL or not request.prompt.strip():
+            raise ProviderModelError("invalid embedding request")
+        started = monotonic()
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                response = await client.post(
+                    f"{self._base_url}/models/{EMBEDDING_MODEL}:embedContent",
+                    headers={"x-goog-api-key": self._api_key},
+                    json={
+                        "model": f"models/{EMBEDDING_MODEL}",
+                        "content": {
+                            "parts": [
+                                {"text": f"task: sentence similarity | query: {request.prompt}"}
+                            ]
+                        },
+                        "outputDimensionality": EMBEDDING_DIMENSIONS,
+                    },
+                )
+                if response.status_code == 429:
+                    raise ProviderQuotaError("provider quota reached")
+                if response.status_code in {401, 403}:
+                    raise ProviderCredentialError("provider credentials were rejected")
+                if response.status_code == 404:
+                    raise ProviderModelError("provider model is unavailable")
+                response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise ProviderTimeoutError("provider request timed out") from exc
+        except httpx.HTTPError as exc:
+            raise ProviderExecutionError("provider request failed") from exc
+        try:
+            payload = response.json()
+            values = payload["embedding"]["values"]
+            if (
+                not isinstance(values, list)
+                or len(values) != EMBEDDING_DIMENSIONS
+                or any(type(v) not in (int, float) or not math.isfinite(v) for v in values)
+                or not any(values)
+            ):
+                raise ValueError("invalid vector")
+            tokens = payload.get("usageMetadata", {}).get("promptTokenCount", 0)
+            if type(tokens) is not int or tokens < 0:
+                raise ValueError("invalid usage")
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProviderExecutionError("provider returned an invalid embedding") from exc
+        return ProviderResult(
+            output_text=json.dumps(values),
+            prompt_tokens=tokens,
+            completion_tokens=0,
             latency_ms=max(0, round((monotonic() - started) * 1000)),
         )

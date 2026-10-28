@@ -205,19 +205,20 @@ function ProjectDetailContent({ project }: { project: Project }) {
   >("overview");
   const members = memberStore[project.id] ?? [];
   const canManage = user?.role === "super_admin" || user?.id === project.owner_id;
+  const canInvite = canManage || user?.role === "admin";
   const [memberEmail, setMemberEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
   const [invitationError, setInvitationError] = useState("");
   const [cancelling, setCancelling] = useState<string | null>(null);
   useEffect(() => {
-    if (!canManage) return;
+    if (!canInvite) return;
     const controller = new AbortController();
     projectsApi.listInvitations(project.id, controller.signal)
       .then((items) => { setInvitations(items); setInvitationError(""); })
       .catch((cause) => { if (!controller.signal.aborted) setInvitationError(cause instanceof Error ? cause.message : "Could not load invitations."); });
     return () => controller.abort();
-  }, [project.id, canManage, refresh]);
+  }, [project.id, canInvite, refresh]);
   async function cancelInvitation(id: string) {
     if (cancelling) return;
     setCancelling(id);
@@ -252,7 +253,7 @@ function ProjectDetailContent({ project }: { project: Project }) {
   );
   async function addMember(event: FormEvent) {
     event.preventDefault();
-    if (!canManage || inviting) return;
+    if (!canInvite || inviting) return;
     const email = memberEmail.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email))
       return setNotice("Enter a valid email address.");
@@ -387,7 +388,7 @@ function ProjectDetailContent({ project }: { project: Project }) {
               <p>People who can access this project.</p>
             </div>
           </div>
-          {canManage && <form className="member-add" onSubmit={addMember}>
+          {canInvite && <form className="member-add" onSubmit={addMember}>
             <input
               value={memberEmail}
               onChange={(event) =>
@@ -398,7 +399,7 @@ function ProjectDetailContent({ project }: { project: Project }) {
             />
             <Button type="submit" disabled={inviting}>{inviting ? "Sending…" : "Invite member"}</Button>
           </form>}
-          {canManage && <>
+          {canInvite && <>
             <p className="member-invitation-note">Invited users must have a PromptVault account and accept the email invitation before getting access.</p>
             {invitationError && <p role="alert">{invitationError}</p>}
             <h3 className="member-subheading">Pending invitations</h3>

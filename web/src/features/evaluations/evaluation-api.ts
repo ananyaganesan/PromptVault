@@ -7,11 +7,12 @@ export type Preset = 'accurate_answers' | 'customer_support' | 'summarization' |
 export type Weights = Record<Metric, number>
 export interface TestCase { name: string; variables: Record<string, string>; reference: string }
 export interface Requirements { valid_json: boolean; required_fields: string[]; max_words: number | null }
-export interface Setup { version_ids: string[]; goal: string; preset: Preset; cases: TestCase[]; weights: Weights; requirements: Requirements }
+export interface Setup { use_embeddings?: boolean; version_ids: string[]; goal: string; preset: Preset; cases: TestCase[]; weights: Weights; requirements: Requirements }
 export interface SuggestedSetup { cases: TestCase[]; weights: Weights; requirements: Requirements; notes: string }
 export interface MetricScore { score: number; reason: string; evidence: string }
 export interface CaseResult {
   version_id: string; case_index: number; run_id: string | null; output: string;
+  embedding?: { model: string; similarity_weight?: number; cosine_similarity: number; quality_score: number; output_vector: number[]; reference_vector: number[] } | null;
   checks: Array<{ name: string; passed: boolean; detail: string }>;
   scores: Partial<Record<Metric, MetricScore>>; weighted_score: number | null;
   summary: string; error: string | null; prompt_tokens: number; completion_tokens: number; latency_ms: number;

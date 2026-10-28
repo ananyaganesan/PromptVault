@@ -1,6 +1,7 @@
 """Deterministic requirements, validated evidence, and conservative ranking."""
 
 import json
+import math
 from uuid import UUID
 
 from api.app.schemas.evaluations import (
@@ -145,3 +146,21 @@ def rank_versions(
             "requirements."
         ),
     )
+
+
+def cosine_similarity(left: list[float], right: list[float]) -> float:
+    """Compare finite, equal-sized nonzero vectors without assuming normalization."""
+    if not left or len(left) != len(right):
+        raise ValueError("Embedding dimensions must match")
+    if any(type(v) not in (int, float) or not math.isfinite(v) for v in [*left, *right]):
+        raise ValueError("Embeddings must be finite numbers")
+    left_norm, right_norm = math.hypot(*left), math.hypot(*right)
+    if not left_norm or not right_norm or not math.isfinite(left_norm + right_norm):
+        raise ValueError("Embedding norms must be finite and nonzero")
+    value = math.fsum((a / left_norm) * (b / right_norm) for a, b in zip(left, right, strict=True))
+    return max(-1.0, min(1.0, value))
+
+
+def blend_embedding_score(quality_score: float, similarity: float) -> float:
+    # Negative similarity contributes zero; it never becomes positive agreement.
+    return round(0.8 * quality_score + 0.2 * max(0.0, similarity) * 100, 2)

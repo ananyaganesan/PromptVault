@@ -175,7 +175,7 @@ A comparison supports 2–5 versions, up to 5 cases, and at most 15 version/case
 3. Explain that the judge sees anonymous candidates without version numbers.
 4. Show each answer and its mandatory-check results.
 5. Expand a metric to show its **0–5 score**, explanation, and exact quotation from the answer.
-6. Explain that weighted scores become percentages; multiple case scores are averaged.
+6. Explain that weighted quality scores become percentages; multiple case scores are averaged. When a trusted answer is supplied, Gemini Embedding 2 creates 768-dimensional vectors for the output and reference. The final answer score is 80% quality plus 20% cosine similarity (negative similarity contributes zero). Show the similarity and combined score below each answer. Examples without a trusted answer use quality only; similarity is not a factual accuracy check.
 7. Show the recommendation, or explain **No clear winner** if the leading eligible scores are within three points.
 8. Explain that incomplete or invalid assessments prevent a recommendation.
 9. Open **Evaluation history** and show the saved goal, settings, results, and usage. Show **Use these preferences again**.
@@ -184,7 +184,7 @@ A comparison supports 2–5 versions, up to 5 cases, and at most 15 version/case
 
 Optional: include v3. Its instructions request at least 180 words, but the evaluation requires at most 100. Check the actual output: a mandatory failure makes a version ineligible even if it has strong quality scores.
 
-One case across two versions uses two generation calls and up to two judge calls. Do not promise a particular winner or run extra cases just to obtain a preferred result.
+One case across two versions uses two generation calls and up to two judge calls. A trusted reference adds one reference embedding call (reused across versions) and one embedding call per generated answer. Vectors and similarity are saved with the result, and embedding requests are recorded in the evaluation call ledger. Failed embedding requests leave the answer unscored and prevent a recommendation. Existing historical evaluations keep their original scores. Do not promise a particular winner or run extra cases just to obtain a preferred result.
 
 ## 11. Generate and save an improvement
 
