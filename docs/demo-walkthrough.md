@@ -147,8 +147,8 @@ Return to **Customer Support Reply → Find the best version**.
 
 ## 9. Find the best version: cases, requirements, and weights
 
-1. Show **Suggest examples for me**. Review suggestions before choosing **Use these examples and preferences**.
-2. Show **Use previous examples** to reuse real run inputs. Add a trusted reference again if needed; previous outputs are not automatically treated as correct answers.
+1. Show **Suggest scenarios**. Review suggestions before choosing **Use suggested scenarios and preferences**.
+2. Show **Use inputs from past runs** to reuse real run inputs. Add a trusted reference again if needed; previous outputs are not automatically treated as correct answers.
 3. Show how to add, edit, and remove cases. Keep one case for the first live comparison.
 4. Set **Answer length limit = 100**.
 5. Explain that format checks follow the selected task and saved preferences automatically; users do not configure JSON fields.
