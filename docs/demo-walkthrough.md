@@ -13,8 +13,10 @@ For an existing checkout with dependencies installed, start from the repository 
 .venv/bin/python scripts/start-local.py
 ```
 
-The app opens at <http://localhost:5173> and the API at <http://localhost:8000/docs>.
-Startup checks migration checksums and preserves existing accounts and data.
+The app opens at <http://localhost:5173>, the API at <http://localhost:8000/docs>,
+and local Prometheus at <http://localhost:9090>. Install Prometheus with Homebrew
+before the first start; see [local monitoring](local-monitoring.md) for setup and
+queries. Startup checks migration checksums and preserves existing accounts and data.
 Use `.venv/bin/python scripts/start-local.py --check` to check the database connection.
 
 For a fresh checkout, create a Python 3.11+ virtual environment, install
