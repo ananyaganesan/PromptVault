@@ -7,6 +7,7 @@ export const authApi = {
   logout: () => apiClient.request<void>('/auth/logout', { method: 'POST' }),
   me: (signal?: AbortSignal) => apiClient.request<ApiUserSummary>('/auth/me', { signal }),
   updateProfile: (display_name: string) => apiClient.request<ApiUserSummary>('/auth/me', { method: 'PATCH', body: { display_name } }),
+  closeAccount: (password: string) => apiClient.request<void>('/auth/account', { method: 'DELETE', body: { password }, preserveSessionOnInvalidCredentials: true }),
   requestPasswordReset: (email: string) => apiClient.request<void>('/auth/password-reset', { method: 'POST', body: { email }, auth: false }),
   confirmPasswordReset: (token: string, password: string) => apiClient.request<void>('/auth/password-reset/confirm', { method: 'POST', body: { token, password }, auth: false }),
   confirmEmailVerification: (token: string) => apiClient.request<void>('/auth/email-verification/confirm', { method: 'POST', body: { token }, auth: false }),

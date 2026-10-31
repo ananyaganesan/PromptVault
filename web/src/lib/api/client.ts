@@ -1,6 +1,6 @@
 import type { ApiErrorEnvelope, QueryParams } from '../../types/api'
 
-const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? window.location.origin : 'http://localhost:8000')
 const defaultBaseUrl = configuredBaseUrl.endsWith('/api/v1')
   ? configuredBaseUrl
   : `${configuredBaseUrl.replace(/\/$/, '')}/api/v1`
@@ -27,6 +27,7 @@ export interface RequestOptions {
   query?: QueryParams
   signal?: AbortSignal
   auth?: boolean
+  preserveSessionOnInvalidCredentials?: boolean
   headers?: Record<string, string>
 }
 
@@ -57,7 +58,7 @@ function fallbackError(status: number): ApiErrorEnvelope {
 
 export function createApiClient({ baseUrl = defaultBaseUrl, getAccessToken = () => accessToken, fetcher, onUnauthorized = notifyUnauthorized }: ApiClientOptions = {}) {
   return {
-    async request<T>(path: string, { method = 'GET', body, query, signal, auth = true, headers }: RequestOptions = {}): Promise<T> {
+    async request<T>(path: string, { method = 'GET', body, query, signal, auth = true, preserveSessionOnInvalidCredentials = false, headers }: RequestOptions = {}): Promise<T> {
       const token = auth ? getAccessToken() : null
       const response = await (fetcher ?? fetch)(toUrl(path, baseUrl, query), {
         method,
@@ -71,7 +72,8 @@ export function createApiClient({ baseUrl = defaultBaseUrl, getAccessToken = () 
         body: body === undefined ? undefined : JSON.stringify(body),
       })
       const payload = await readJson(response)
-      if (response.status === 401 && auth && token && getAccessToken() === token) onUnauthorized()
+      if (response.status === 401 && auth && token && getAccessToken() === token
+        && !(preserveSessionOnInvalidCredentials && isErrorEnvelope(payload) && payload.code === 'invalid_credentials')) onUnauthorized()
       if (!response.ok) throw new ApiClientError(response.status, isErrorEnvelope(payload) ? payload : fallbackError(response.status))
       return payload as T
     },

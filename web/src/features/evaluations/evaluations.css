@@ -337,6 +337,7 @@
 .evaluation-page .eval-result-head { border-top: 3px solid var(--pv-text) !important; }
 .evaluation-page .eval-result-head h2 { margin: 16px 0 8px; }
 .evaluation-page .eval-result-head p { margin: 10px 0; line-height: 1.55; }
+.evaluation-page .eval-result-head .eval-report-context { margin: 0 0 12px; color: var(--pv-muted); font-size: var(--pv-type-supporting); font-weight: 600; }
 .evaluation-page .eval-rankings { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 16px; margin: 0 0 20px; }
 .evaluation-page .eval-rankings .panel { margin: 0; }
 .evaluation-page .eval-ranking strong { display: block; margin: 10px 0; font-size: 20px; font-weight: 600; }
@@ -414,8 +415,9 @@
   letter-spacing: 0;
   text-align: left;
 }
-.evaluation-page .eval-history-table th:first-child { width: 24%; }
-.evaluation-page .eval-history-table th:nth-child(2) { width: 26%; }
+.evaluation-page .eval-history-table th:first-child { width: 18%; }
+.evaluation-page .eval-history-table th:nth-child(2) { width: 24%; }
+.evaluation-page .eval-history-table th:nth-child(3) { width: 23%; }
 .evaluation-page .eval-history-table td {
   padding: 18px 16px 18px 0;
   border-bottom: 1px solid var(--eval-border);
@@ -425,6 +427,8 @@
   overflow-wrap: anywhere;
 }
 .evaluation-page .eval-history-table tr:last-child td { border-bottom: 0; }
+.evaluation-page .eval-history-table td strong { display: block; font-weight: 600; }
+.evaluation-page .eval-history-table td small { display: block; margin-top: 4px; color: var(--pv-muted); font-size: var(--pv-type-supporting); }
 .evaluation-page .eval-history-open {
   width: 100%;
   padding: 0;

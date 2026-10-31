@@ -52,8 +52,22 @@
 .table-panel td code { overflow-wrap: anywhere; }
 .table-panel[aria-label="Organization runs table"] td:first-child code { max-width: none; overflow: visible; text-overflow: clip; }
 .table-panel[aria-label="Users table"] th:first-child, .table-panel[aria-label="Users table"] td:first-child { min-width: 220px; }
-.table-panel[aria-label="Users table"] th:last-child, .table-panel[aria-label="Users table"] td:last-child { min-width: 165px; text-align: right; }
-.table-panel[aria-label="Users table"] .admin-actions .text-button:last-child { margin-right: 0; }
+.table-panel[aria-label="Users table"] th:last-child, .table-panel[aria-label="Users table"] td:last-child { width: 250px; text-align: left; }
+.table-panel[aria-label="Users table"] th, .table-panel[aria-label="Users table"] td { padding: 17px 16px; }
+.table-panel[aria-label="Users table"] tbody tr { height: 80px; }
+.table-panel[aria-label="Users table"] .admin-action-row { display: flex; align-items: center; gap: 9px; white-space: nowrap; }
+.table-panel[aria-label="Users table"] .admin-role-select-wrap { position: relative; display: inline-flex; flex: 0 0 126px; }
+.table-panel[aria-label="Users table"] .admin-role-select-wrap select,
+.table-panel[aria-label="Users table"] .admin-status-button { height: 35px; border: 1px solid #dad8d3; border-radius: 7px; background: #fff; color: #17171c; font-family: var(--pv-font-sans); font-size: 13px; font-weight: 500; line-height: 1; transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease; }
+.table-panel[aria-label="Users table"] .admin-role-select-wrap select { appearance: none; width: 100%; padding: 0 27px 0 11px; cursor: pointer; }
+.table-panel[aria-label="Users table"] .admin-select-chevron { position: absolute; right: 12px; top: 50%; transform: translateY(-58%); pointer-events: none; font-size: 15px; line-height: 1; }
+.table-panel[aria-label="Users table"] .admin-status-button { min-width: 96px; padding: 0 12px; }
+.table-panel[aria-label="Users table"] .admin-role-select-wrap select:not(:disabled):hover { background: #f4f3f0; border-color: #bdbab5; }
+.table-panel[aria-label="Users table"] .admin-status-button:not(:disabled):hover { color: #944f4f; border-color: #caa5a5; background: #fcf8f7; }
+.table-panel[aria-label="Users table"] .admin-role-select-wrap select:focus-visible,
+.table-panel[aria-label="Users table"] .admin-status-button:focus-visible { outline: 2px solid #17171c; outline-offset: 2px; }
+.table-panel[aria-label="Users table"] .admin-role-select-wrap select:disabled,
+.table-panel[aria-label="Users table"] .admin-status-button:disabled { opacity: .48; cursor: not-allowed; }
 .deployment-table th:first-child, .deployment-table td:first-child { min-width: 265px; }
 .deployment-table th:nth-child(2), .deployment-table td:nth-child(2) { min-width: 180px; }
 .deployment-table th:nth-child(4), .deployment-table td:nth-child(4) { min-width: 155px; }

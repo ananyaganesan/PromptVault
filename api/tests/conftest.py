@@ -2,6 +2,7 @@ import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import psycopg
 import pytest
@@ -20,7 +21,10 @@ os.environ.setdefault("SECRET_KEY", "test-secret-that-is-at-least-32-characters"
 def test_settings() -> Settings:
     return Settings(
         environment="test",
-        database_url="postgresql://promptvault:promptvault@localhost:5432/promptvault_test",
+        database_url=os.getenv(
+            "TEST_DATABASE_URL",
+            "postgresql://promptvault:promptvault@localhost:5432/promptvault_test",
+        ),
         secret_key="test-secret-that-is-at-least-32-characters",
         auth_rate_limit_requests=10_000,
         password_reset_rate_limit_requests=10_000,
@@ -33,6 +37,8 @@ def test_database_url() -> str:
     url = os.getenv("TEST_DATABASE_URL")
     if not url:
         pytest.skip("TEST_DATABASE_URL is not configured")
+    if not urlsplit(url).path.endswith("_test"):
+        raise RuntimeError("TEST_DATABASE_URL must target a separate _test database")
     return url
 
 

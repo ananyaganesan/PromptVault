@@ -7,11 +7,7 @@ from uuid import uuid4
 import psycopg
 import pytest
 
-from api.app.db.migrations import (
-    apply_migrations,
-    discover_migrations,
-    migrate_database,
-)
+from api.app.db.migrations import apply_migrations, discover_migrations
 from tests.database.test_migration_upgrade import temporary_database_url
 
 __all__ = ["temporary_database_url"]
@@ -77,10 +73,8 @@ def test_normalization_preserves_existing_graph_and_keeps_guarded_deletion_atomi
             "SELECT (rollback_deployment(%s,%s,%s,'Restore v1','prod')).id",
             (prompt, versions[0], uid),
         ).fetchone()[0]
-    assert [
-        m.version
-        for m in migrate_database(temporary_database_url, ROOT / "db/migrations")
-    ] == [30, 31]
+    with psycopg.connect(temporary_database_url) as c:
+        assert [m.version for m in apply_migrations(c, migrations[:31])] == [30, 31]
     with psycopg.connect(temporary_database_url) as c:
         assert c.execute(
             "SELECT parent_version_id,variables FROM version_context WHERE id=%s",

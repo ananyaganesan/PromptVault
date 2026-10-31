@@ -29,6 +29,7 @@ type AuthValue = {
   login: (request: LoginRequest) => Promise<UserSummary>
   register: (request: RegisterRequest) => Promise<PendingVerificationResponse>
   updateProfile: (displayName: string) => Promise<UserSummary>
+  closeAccount: (password: string) => Promise<void>
   logout: () => void
 }
 const AuthContext = createContext<AuthValue | null>(null)
@@ -91,6 +92,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (currentToken.current !== token) throw new Error('Your session changed. Sign in again.')
       setUser(updated)
       return updated
+    },
+    async closeAccount(password) {
+      const token = currentToken.current
+      if (!token) throw new Error('Sign in before deleting your account.')
+      await authApi.closeAccount(password)
+      if (currentToken.current !== token) return
+      currentToken.current = null
+      clearAccessToken()
+      sessionStorage.removeItem(apiSessionKey)
+      setUser(null)
+      setRestoring(false)
     },
     logout() {
       void authApi.logout().catch(() => undefined)

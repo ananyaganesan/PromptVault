@@ -8,13 +8,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.app.config import Settings
-from api.app.db.commands import seed_database
 from api.app.db.migrations import (
     apply_migrations,
     discover_migrations,
     migrate_database,
 )
 from api.app.main import create_app
+from api.app.security import hash_password
 from tests.database.test_migration_upgrade import temporary_database_url
 
 __all__ = ["temporary_database_url"]
@@ -28,10 +28,11 @@ def test_gemini_upgrade_preserves_history_and_rejects_removed_provider_writes(
     migrations = discover_migrations(ROOT / "db/migrations")
     with psycopg.connect(temporary_database_url) as c:
         apply_migrations(c, migrations[:30])
-    seed_database(temporary_database_url, ROOT / "db/seeds")
     with psycopg.connect(temporary_database_url) as c:
         admin = c.execute(
-            "SELECT id FROM users WHERE email='admin@promptvault.dev'"
+            "INSERT INTO users(email,display_name,password_hash,role,email_verified_at) "
+            "VALUES('admin@promptvault.dev','Historical Admin',%s,'admin',now()) RETURNING id",
+            (hash_password("AdminDemo2026!"),),
         ).fetchone()[0]
         pid = c.execute(
             "INSERT INTO projects(name,key,owner_id) VALUES('Legacy',%s,%s) RETURNING id",
@@ -49,10 +50,8 @@ def test_gemini_upgrade_preserves_history_and_rejects_removed_provider_writes(
             "INSERT INTO provider_keys(provider,alias,encrypted_secret,created_by) VALUES('groq','historical-key',%s,%s) RETURNING id",
             (b"not-a-real-key", admin),
         ).fetchone()[0]
-    assert [
-        m.version
-        for m in migrate_database(temporary_database_url, ROOT / "db/migrations")
-    ] == [31]
+    with psycopg.connect(temporary_database_url) as c:
+        assert [m.version for m in apply_migrations(c, migrations[:31])] == [31]
     with psycopg.connect(temporary_database_url) as c:
         assert (
             c.execute(
@@ -74,6 +73,7 @@ def test_gemini_upgrade_preserves_history_and_rejects_removed_provider_writes(
                 "INSERT INTO deployments(version_id,environment,status,requested_by,activated_at) VALUES(%s,'dev','active',%s,CURRENT_TIMESTAMP)",
                 (version, admin),
             )
+    migrate_database(temporary_database_url, ROOT / "db/migrations")
     from psycopg.conninfo import conninfo_to_dict
     from sqlalchemy.engine import URL
 

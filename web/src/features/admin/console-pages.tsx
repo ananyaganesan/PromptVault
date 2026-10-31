@@ -54,9 +54,19 @@ export function UserManagementPage() {
   const [pending, setPending] = useState<{ target: AdminUser; role?: 'user' | 'admin' | 'super_admin'; is_active?: boolean; is_approved?: boolean } | null>(null)
   const [saving, setSaving] = useState(false)
   const [mutationError, setMutationError] = useState('')
+  const [mutationSuccess, setMutationSuccess] = useState('')
+  const [activeSuperAdminCount, setActiveSuperAdminCount] = useState<number | null>(null)
   const load = useCallback(() => adminService.listUsers({ page, page_size: 25, search, role: role || undefined, is_active: status === '' ? undefined : status === 'active' }, user), [user, page, search, role, status])
   const { data, loading, error, reload } = useAdminData<Page<AdminUser>>(load, String(revision))
   const hasFilters = Boolean(search || role || status)
+  useEffect(() => {
+    if (user?.role !== 'super_admin') return
+    let active = true
+    listAllAdminUsers(user).then((items) => {
+      if (active) setActiveSuperAdminCount(items.filter((item) => item.role === 'super_admin' && item.is_active && item.is_approved !== false).length)
+    }).catch(() => { if (active) setActiveSuperAdminCount(null) })
+    return () => { active = false }
+  }, [user, revision])
   async function save() {
     if (!pending || saving) return
     setSaving(true)
@@ -65,8 +75,10 @@ export function UserManagementPage() {
       await adminService.updateUser(pending.target.id, request, user)
       setMutationError('')
       if (pending.target.id === user?.id) { logout(); navigate('/login'); return }
+      setMutationSuccess(pending.is_approved ? `${pending.target.display_name} was approved.` : pending.role ? `${pending.target.display_name}'s role was updated.` : `${pending.target.display_name} was ${pending.is_active ? 'activated' : 'deactivated'}.`)
       setPending(null)
-    } catch (cause) { setMutationError(cause instanceof Error ? cause.message : 'Could not update user.'); setPending(null) }
+      reload()
+    } catch (cause) { setMutationSuccess(''); setMutationError(cause instanceof Error ? cause.message : 'Could not update user.'); setPending(null) }
     finally { setSaving(false) }
   }
   return <>
@@ -77,22 +89,33 @@ export function UserManagementPage() {
       <select aria-label="Status filter" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}><option value="">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
     </div>
     {mutationError && <p className="form-error" role="alert">{mutationError}</p>}
+    {mutationSuccess && <p className="inline-feedback" role="status">{mutationSuccess}</p>}
     {!data ? <AdminDataState loading={loading} error={error} onRetry={reload} /> : <section className="panel table-panel" tabIndex={0} aria-label="Users table"><table><thead><tr><th>USER</th><th>ROLE</th><th>PROJECTS</th><th>LAST ACTIVE</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>{data.items.map((item) => {
       const peerDemotion = item.role === 'super_admin' && item.id !== user?.id
       const canManage = user?.role === 'super_admin' || item.role === 'user'
       const roleLabel = item.role === 'super_admin' ? 'Super Admin' : item.role === 'admin' ? 'Admin' : 'User'
+      const canChangeRole = user?.role === 'super_admin' && !peerDemotion && (item.role !== 'super_admin' || activeSuperAdminCount !== null && activeSuperAdminCount > 1)
+      const roleOptions = (['user', 'admin', 'super_admin'] as const).filter((option) => canChangeRole && option !== item.role)
       return <tr key={item.id}>
         <td><b>{item.display_name}</b><small className="user-email">{item.email}</small></td><td>{roleLabel}</td><td>{item.project_count}</td><td>{item.last_active_at ? new Date(item.last_active_at).toLocaleDateString() : 'Never'}</td>
         <td><Status tone={!item.is_active ? 'neutral' : item.is_approved === false ? 'warning' : 'success'}>{!item.is_active ? 'Inactive' : item.is_approved === false ? 'Awaiting approval' : 'Active'}</Status></td>
         <td className="admin-actions">
-          {user?.role === 'super_admin' && <>
-            <button className="text-button" disabled={peerDemotion || saving} title={peerDemotion ? 'Super Admins cannot demote another Super Admin' : undefined} onClick={() => setPending({ target: item, role: item.role === 'user' ? 'admin' : 'user' })}>{item.role === 'user' ? 'Make admin' : 'Make user'}</button>
-            {item.role !== 'super_admin' && <button className="text-button" disabled={saving} onClick={() => setPending({ target: item, role: 'super_admin' })}>Make Super Admin</button>}
-          </>}
-          {canManage && <>
-            {item.is_approved === false && <button className="text-button" disabled={saving} onClick={() => setPending({ target: item, is_approved: true })}>Approve user</button>}
-            <button className="text-button" disabled={saving} onClick={() => setPending({ target: item, is_active: !item.is_active })}>{item.is_active ? 'Deactivate' : 'Activate'}</button>
-          </>}
+          <div className="admin-action-row">
+            <span className="admin-role-select-wrap">
+              <select aria-label={`Change role for ${item.display_name}`} value="" disabled={saving || !roleOptions.length && !(canManage && item.is_approved === false)} onChange={(event) => {
+                const selected = event.target.value
+                setMutationSuccess('')
+                setPending(selected === 'approve' ? { target: item, is_approved: true } : { target: item, role: selected as AdminUser['role'] })
+              }}>
+                <option value="" disabled>Change role</option>
+                <option value={item.role} disabled>{roleLabel} (current)</option>
+                {roleOptions.map((option) => <option key={option} value={option}>{option === 'super_admin' ? 'Super Admin' : option === 'admin' ? 'Admin' : 'User'}</option>)}
+                {canManage && item.is_approved === false && <option value="approve">Approve user</option>}
+              </select>
+              <span aria-hidden="true" className="admin-select-chevron">⌄</span>
+            </span>
+            <button className="admin-status-button" disabled={!canManage || saving} onClick={() => { setMutationSuccess(''); setPending({ target: item, is_active: !item.is_active }) }}>{item.is_active ? 'Deactivate' : 'Activate'}</button>
+          </div>
         </td>
       </tr>
     })}</tbody></table>{!data.items.length && <p className="no-results">{hasFilters ? 'No users match these filters.' : 'No users are available.'}</p>}</section>}

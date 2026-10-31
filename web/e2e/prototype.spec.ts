@@ -1,14 +1,30 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 
-test.skip(process.env.E2E_LIVE === '1', 'Legacy visual-prototype coverage is superseded by the live Docker-backed suites.')
+const user = { id: 'browser-user', email: 'member@example.com', display_name: 'Jamie Member', role: 'user', is_active: true, is_approved: true, created_at: '2026-10-28T10:00:00Z' }
+const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' }
 
-test('user signs in, refreshes, navigates, and signs out', async ({ page, isMobile }) => {
+async function mockApi(page: Page) {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname.replace('/api/v1', '')
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors })
+    if (path === '/auth/login') return route.fulfill({ json: { user, access_token: 'browser-test-token', token_type: 'bearer', expires_in: 1800 }, headers: cors })
+    if (path === '/auth/logout') return route.fulfill({ status: 204, headers: cors })
+    if (path === '/auth/me') return route.fulfill({ json: user, headers: cors })
+    if (path === '/projects') return route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 100 }, headers: cors })
+    if (path === '/dashboard/me') return route.fulfill({ json: { project_count: 0, prompt_count: 0, run_count: 0, pending_approval_count: 0, monthly_spend: '0', monthly_budget: null, recent_runs: [], cost_trend: [], month: '2026-10', timezone: 'UTC', completed_run_count: 0, failed_run_count: 0, blocked_run_count: 0, refreshed_through: '2026-10-28T10:00:00Z' }, headers: cors })
+    return route.fulfill({ status: 404, json: { code: 'not_found', message: `Unexpected request: ${path}` }, headers: cors })
+  })
+}
+
+test('local sign-in restores the session, enforces role access, and signs out', async ({ page, isMobile }) => {
+  await mockApi(page)
   await page.goto('/dashboard')
   await expect(page).toHaveURL(/\/login$/)
-  await page.getByLabel('Email address').fill('user@promptvault.dev')
-  await page.getByLabel('Password', { exact: true }).fill('UserDemo2026!')
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByLabel('Email address').fill(user.email)
+  await page.getByLabel('Password', { exact: true }).fill('BrowserTestPassword2026!')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
   await expect(page.getByRole('heading', { name: 'Good morning, Jamie' })).toBeVisible()
   await page.reload()
@@ -16,134 +32,31 @@ test('user signs in, refreshes, navigates, and signs out', async ({ page, isMobi
   if (isMobile) await page.getByRole('button', { name: 'Open navigation' }).click()
   await page.getByRole('link', { name: 'Projects', exact: true }).first().click()
   await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible()
+  await page.goto('/admin/users')
+  await expect(page).toHaveURL(/\/403$/)
+  await page.goto('/dashboard')
   if (isMobile) await page.getByRole('button', { name: 'Open navigation' }).click()
   await page.getByRole('button', { name: 'Sign out' }).last().click()
   await expect(page).toHaveURL(/\/login$/)
 })
 
-test('admin can reach administration', async ({ page, isMobile }) => {
-  await page.goto('/login')
-  await page.getByLabel('Email address').fill('admin@promptvault.dev')
-  await page.getByLabel('Password', { exact: true }).fill('AdminDemo2026!')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page).toHaveURL(/\/admin$/)
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-  if (isMobile) await page.getByRole('button', { name: 'Open navigation' }).click()
-  await page.getByRole('link', { name: 'Approvals', exact: true }).first().click()
-  await expect(page).toHaveURL(/\/admin\/approvals$/)
-})
-
-test('standard user is denied administration', async ({ page }) => {
-  await page.goto('/login')
-  await page.getByLabel('Email address').fill('user@promptvault.dev')
-  await page.getByLabel('Password', { exact: true }).fill('UserDemo2026!')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.goto('/admin')
-  await expect(page).toHaveURL(/\/403$/)
-  await expect(page.getByRole('heading', { name: 'Access restricted' })).toBeVisible()
-})
-
-test('user creates a project', async ({ page }) => {
-  await page.goto('/login')
-  await page.getByLabel('Email address').fill('user@promptvault.dev')
-  await page.getByLabel('Password', { exact: true }).fill('UserDemo2026!')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await page.goto('/projects/new')
-  await page.getByLabel('Project name').fill('Demo Workspace')
-  await page.getByLabel('Project key').fill('demo-workspace')
-  await page.getByRole('button', { name: 'Create project' }).click()
-  await expect(page.getByRole('heading', { name: 'Demo Workspace' })).toBeVisible()
-})
-
-test('registration creates a user session and rejects duplicate email', async ({ page }) => {
+test('registration waits for verification without creating a session', async ({ page }) => {
+  await page.route('**/api/v1/auth/register', (route) => route.fulfill({ status: 202, json: { email: 'new@example.com', message: 'Check your email to verify your account. An administrator must then approve access.' }, headers: cors }))
   await page.goto('/register')
-  await page.getByLabel('Display name').fill('Demo Tester')
-  await page.getByLabel('Email address').fill('user@promptvault.dev')
-  await page.getByLabel('Password', { exact: true }).fill('Password1234')
+  await page.getByLabel('Display name').fill('New Member')
+  await page.getByLabel('Email address').fill('new@example.com')
+  await page.getByLabel('Password', { exact: true }).fill('NewMemberPassword2026!')
   await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page.getByRole('alert')).toContainText('already exists')
-  await page.getByLabel('Email address').fill(`tester-${Date.now()}@example.com`)
-  await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page).toHaveURL(/\/dashboard$/)
-  await expect(page.getByRole('heading', { name: 'Good morning, Jamie' })).toBeVisible()
-  await page.reload()
-  await expect(page.getByRole('heading', { name: 'Good morning, Jamie' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible()
+  expect(await page.evaluate(() => sessionStorage.getItem('promptvault.api.session'))).toBeNull()
 })
 
-test('key screens have no critical accessibility violations', async ({ page }) => {
+test('signed-out form validates inputs and fits the viewport', async ({ page }) => {
   await page.goto('/login')
-  const loginAudit = await new AxeBuilder({ page }).analyze()
-  expect(loginAudit.violations.filter((item) => ['critical', 'serious'].includes(item.impact ?? '')).map((item) => ({ id: item.id, nodes: item.nodes.map((node) => node.target) }))).toEqual([])
-  await page.getByLabel('Email address').fill('user@promptvault.dev')
-  await page.getByLabel('Password', { exact: true }).fill('UserDemo2026!')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(page.getByRole('heading', { name: 'Good morning, Jamie' })).toBeVisible()
-  const dashboardAudit = await new AxeBuilder({ page }).analyze()
-  expect(dashboardAudit.violations.filter((item) => ['critical', 'serious'].includes(item.impact ?? '')).map((item) => ({ id: item.id, nodes: item.nodes.map((node) => node.target) }))).toEqual([])
-})
-
-test('validation and mobile layout have no horizontal overflow', async ({ page }) => {
-  await page.goto('/login')
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page.getByText('Email address is required.')).toBeVisible()
   await expect(page.getByText('Password is required.')).toBeVisible()
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-})
-
-test('workspace routes render without a blank page or horizontal overflow', async ({ page }) => {
-  await page.goto('/login')
-  await page.getByLabel('Email address').fill('user@promptvault.dev')
-  await page.getByLabel('Password', { exact: true }).fill('UserDemo2026!')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  for (const path of ['/dashboard', '/projects', '/playground', '/runs', '/deployments', '/api-tokens', '/profile', '/projects/checkout']) {
-    await page.goto(path)
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), { message: `${path} has horizontal overflow` }).toBe(true)
-  }
-  await page.goto('/projects/does-not-exist')
-  await expect(page.getByText('Project not found')).toBeVisible()
-})
-
-test('administration routes render without a blank page or horizontal overflow', async ({ page }) => {
-  await page.goto('/login')
-  await page.getByLabel('Email address').fill('admin@promptvault.dev')
-  await page.getByLabel('Password', { exact: true }).fill('AdminDemo2026!')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  for (const path of ['/admin/approvals', '/admin/rollback', '/admin/users', '/admin/provider-keys', '/admin/runs', '/admin/audit']) {
-    await page.goto(path)
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), { message: `${path} has horizontal overflow` }).toBe(true)
-  }
-})
-
-test('top-level user screens have no serious accessibility violations', async ({ page }) => {
-  test.slow()
-  await page.goto('/login')
-  await page.getByLabel('Email address').fill('user@promptvault.dev')
-  await page.getByLabel('Password', { exact: true }).fill('UserDemo2026!')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  const issues: string[] = []
-  for (const path of ['/projects', '/playground', '/runs', '/deployments', '/api-tokens', '/profile']) {
-    await page.goto(path)
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    const audit = await new AxeBuilder({ page }).analyze()
-    issues.push(...audit.violations.filter((item) => ['critical', 'serious'].includes(item.impact ?? '')).map((item) => `${path}: ${item.id} (${item.nodes.map((node) => node.target.join(' ')).join(', ')})`))
-  }
-  expect(issues).toEqual([])
-})
-
-test('top-level admin screens have no serious accessibility violations', async ({ page }) => {
-  test.slow()
-  await page.goto('/login')
-  await page.getByLabel('Email address').fill('admin@promptvault.dev')
-  await page.getByLabel('Password', { exact: true }).fill('AdminDemo2026!')
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  const issues: string[] = []
-  for (const path of ['/admin/approvals', '/admin/rollback', '/admin/users', '/admin/provider-keys', '/admin/runs', '/admin/audit']) {
-    await page.goto(path)
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    const audit = await new AxeBuilder({ page }).analyze()
-    issues.push(...audit.violations.filter((item) => ['critical', 'serious'].includes(item.impact ?? '')).map((item) => `${path}: ${item.id} (${item.nodes.map((node) => node.target.join(' ')).join(', ')})`))
-  }
-  expect(issues).toEqual([])
+  const audit = await new AxeBuilder({ page }).analyze()
+  expect(audit.violations.filter((item) => ['critical', 'serious'].includes(item.impact ?? ''))).toEqual([])
 })

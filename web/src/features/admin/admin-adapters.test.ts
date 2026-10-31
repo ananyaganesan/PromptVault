@@ -44,12 +44,12 @@ describe('admin API adapters', () => {
 
   it('summarizes database maintenance details without claiming unavailable data', () => {
     expect(adaptMaintenance({
-      database: 'healthy',
+      database: 'ok',
       materialized_views: [{ name: 'monthly_usage', is_populated: true, refreshed_through: '2026-09-27T00:00:00Z' }],
       run_partitions: [{ name: 'runs_2026_09', range_expression: 'September' }],
-      maintenance_jobs: [], active_provider_key_count: 1, pending_deployment_count: 0,
+      maintenance_jobs: [{ name: 'refresh_materialized_views', status: 'completed', last_completed_at: '2026-09-27T00:00:01Z' }], active_provider_key_count: 1, pending_deployment_count: 0,
       checked_at: '2026-09-27T00:00:01Z',
-    })).toEqual({ api_status: 'healthy', database_status: 'healthy', partition_count: 1, last_view_refresh_at: '2026-09-27T00:00:00Z' })
+    })).toEqual({ api_status: 'healthy', database_status: 'healthy', partition_count: 1, last_view_refresh_at: '2026-09-27T00:00:01Z' })
   })
 
   it('loads every organization-run page before budget spend is reconciled', async () => {

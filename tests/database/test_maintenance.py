@@ -1,20 +1,13 @@
-from pathlib import Path
 from uuid import uuid4
 
 import psycopg
 import pytest
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-
-
 @pytest.mark.database
 def test_materialized_views_can_be_refreshed_after_migration(database_url: str) -> None:
-    refresh_sql = (
-        REPOSITORY_ROOT / "db" / "maintenance" / "refresh-views.sql"
-    ).read_text(encoding="utf-8")
-
     with psycopg.connect(database_url, autocommit=True) as connection:
-        connection.execute(refresh_sql)
+        connection.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY organization_monthly_metrics")
+        connection.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY user_monthly_metrics")
         rows = connection.execute(
             """
             SELECT matviewname, ispopulated

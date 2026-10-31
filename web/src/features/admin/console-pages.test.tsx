@@ -53,7 +53,7 @@ describe('AdminRunsExplorerPage', () => {
 })
 
 describe('UserManagementPage', () => {
-  it('disables demotion for another Super Admin but keeps self-demotion available', async () => {
+  it('hides peer Super Admin role changes and offers self-demotion when another Super Admin is active', async () => {
     vi.spyOn(adminService, 'listUsers').mockResolvedValue({
       items: [
         { id: 'other-admin-id', email: 'other@example.com', display_name: 'Other Admin', role: 'super_admin', is_active: true, project_count: 0, last_active_at: null, created_at: '2026-01-01T00:00:00Z' },
@@ -70,8 +70,51 @@ describe('UserManagementPage', () => {
     const ownRow = screen.getByText('Admin', { selector: 'b' }).closest('tr')
     expect(otherRow).not.toBeNull()
     expect(ownRow).not.toBeNull()
-    expect(within(otherRow!).getByRole('button', { name: 'Make user' })).toBeDisabled()
-    expect(within(ownRow!).getByRole('button', { name: 'Make user' })).toBeEnabled()
+    const peerRoles = within(otherRow!).getByRole('combobox', { name: 'Change role for Other Admin' })
+    const ownRoles = within(ownRow!).getByRole('combobox', { name: 'Change role for Admin' })
+    expect(peerRoles).toBeDisabled()
+    expect(within(otherRow!).queryByRole('option', { name: 'User' })).not.toBeInTheDocument()
+    await waitFor(() => expect(ownRoles).toBeEnabled())
+    expect(within(ownRow!).getByRole('option', { name: 'Super Admin (current)' })).toBeInTheDocument()
+    expect(within(ownRow!).getByRole('option', { name: 'User' })).toBeInTheDocument()
+    expect(within(ownRow!).getByRole('option', { name: 'Admin' })).toBeInTheDocument()
+  })
+
+  it('confirms a role change and shows success after refreshing the user list', async () => {
+    const member = { id: 'member-id', email: 'member@example.com', display_name: 'Member', role: 'user' as const, is_active: true, is_approved: true, project_count: 0, last_active_at: null, created_at: '2026-01-01T00:00:00Z' }
+    const list = vi.spyOn(adminService, 'listUsers').mockResolvedValue({ items: [member], total: 1, page: 1, page_size: 25 })
+    const update = vi.spyOn(adminService, 'updateUser').mockResolvedValue({ ...member, role: 'admin' })
+    const user = userEvent.setup()
+    render(<MemoryRouter><UserManagementPage /></MemoryRouter>)
+    const roles = await screen.findByRole('combobox', { name: 'Change role for Member' })
+    await user.selectOptions(roles, 'admin')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Change Member to Admin?')
+    expect(update).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(update).toHaveBeenCalledWith('member-id', { role: 'admin' }, expect.objectContaining({ role: 'super_admin' })))
+    expect(await screen.findByRole('status')).toHaveTextContent("Member's role was updated.")
+    await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(1))
+  })
+
+  it('confirms deactivation and activation, and keeps errors visible', async () => {
+    let member = { id: 'member-id', email: 'member@example.com', display_name: 'Member', role: 'user' as const, is_active: true, is_approved: true, project_count: 0, last_active_at: null, created_at: '2026-01-01T00:00:00Z' }
+    vi.spyOn(adminService, 'listUsers').mockImplementation(async () => ({ items: [member], total: 1, page: 1, page_size: 25 }))
+    const update = vi.spyOn(adminService, 'updateUser').mockImplementation(async (_id, request) => { member = { ...member, is_active: request.is_active ?? member.is_active }; return member })
+    const user = userEvent.setup()
+    render(<MemoryRouter><UserManagementPage /></MemoryRouter>)
+    await user.click(await screen.findByRole('button', { name: 'Deactivate' }))
+    expect(update).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(update).toHaveBeenCalledWith('member-id', { is_active: false }, expect.anything()))
+    expect(await screen.findByRole('status')).toHaveTextContent('Member was deactivated.')
+    await user.click(await screen.findByRole('button', { name: 'Activate' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(update).toHaveBeenCalledWith('member-id', { is_active: true }, expect.anything()))
+    expect(await screen.findByRole('status')).toHaveTextContent('Member was activated.')
+    update.mockRejectedValueOnce(new Error('Protected account'))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Change role for Member' }), 'admin')
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Protected account')
   })
 })
 
@@ -84,9 +127,10 @@ describe('Admin approval permissions', () => {
     const update = vi.spyOn(adminService, 'updateUser').mockResolvedValue({ ...pending, is_approved: true })
     const user = userEvent.setup()
     render(<MemoryRouter><UserManagementPage /></MemoryRouter>)
-    await user.click(await screen.findByRole('button', { name: 'Approve user' }))
-    expect(screen.queryByRole('button', { name: 'Make admin' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Make Super Admin' })).not.toBeInTheDocument()
+    const roles = await screen.findByRole('combobox', { name: 'Change role for Pending User' })
+    expect(within(roles).queryByRole('option', { name: 'Admin' })).not.toBeInTheDocument()
+    expect(within(roles).queryByRole('option', { name: 'Super Admin' })).not.toBeInTheDocument()
+    await user.selectOptions(roles, 'approve')
     await user.click(screen.getByRole('button', { name: 'Confirm' }))
     await waitFor(() => expect(update).toHaveBeenCalledWith('pending-id', { is_approved: true }, expect.objectContaining({ role: 'admin' })))
   })

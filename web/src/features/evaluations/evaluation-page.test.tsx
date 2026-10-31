@@ -14,7 +14,8 @@ const versions: PromptVersion[] = [2, 1].map((n) => ({
   commit_message: `Version ${n}`, created_by: 'owner', created_by_name: 'Owner', created_at: '2026-10-25T10:00:00Z',
 }))
 vi.mock('../projects/workspace-data', () => ({
-  promptFor: () => ({ id: 'prompt-1', name: 'Support answer' }),
+  promptFor: () => ({ id: 'prompt-1', project_id: 'project-1', name: 'Support answer' }),
+  projectFor: () => ({ id: 'project-1', name: 'Support workspace' }),
   versionsFor: () => versions,
   workspaceStore: { subscribe: () => () => {}, getSnapshot: () => 1 },
   workspaceService: { createVersion: vi.fn() },
@@ -132,7 +133,12 @@ describe('Prompt version evaluations', () => {
     vi.mocked(evaluationApi.get).mockResolvedValue(item)
     vi.mocked(evaluationApi.history).mockResolvedValue([{ id: item.id, status: 'completed', created_at: item.created_at, recommendation: item.recommendation, winner_version_id: item.winner_version_id, error: null, completed_cases: 2, total_cases: 2 }])
     renderPage()
+    const history = await screen.findByRole('table')
+    expect(within(history).getByRole('columnheader', { name: 'Prompt / project' })).toBeInTheDocument()
+    expect(within(history).getByText('Support answer')).toBeVisible()
+    expect(within(history).getByText('Support workspace')).toBeVisible()
     await user.click(await screen.findByRole('button', { name: item.recommendation }))
+    expect(await screen.findByText('Support workspace / Support answer')).toBeVisible()
     const example = await screen.findByRole('group', { name: 'Saved scenario: Typical request' })
     expect(within(example).getByText('Delivery issue')).toBeVisible()
     expect(within(example).getByText('Offer a practical delivery update.')).toBeVisible()

@@ -133,13 +133,13 @@ function adaptAudit(item: BackendAuditEvent, actorName?: string): AuditEvent {
 }
 
 export function adaptMaintenance(item: BackendMaintenanceStatus): MaintenanceStatus {
-  const refreshes = item.materialized_views.map((view) => view.refreshed_through).filter((value): value is string => Boolean(value)).sort()
-  const databaseStatus: MaintenanceStatus['database_status'] = item.database === 'healthy' ? 'healthy' : item.database === 'degraded' ? 'degraded' : 'unavailable'
+  const lastRefresh = item.maintenance_jobs.find((job) => job.name === 'refresh_materialized_views')?.last_completed_at ?? null
+  const databaseStatus: MaintenanceStatus['database_status'] = item.database === 'ok' || item.database === 'healthy' ? 'healthy' : item.database === 'degraded' ? 'degraded' : 'unavailable'
   return {
     api_status: 'healthy',
     database_status: databaseStatus,
     partition_count: item.run_partitions.length,
-    last_view_refresh_at: refreshes.length ? refreshes[refreshes.length - 1] : null,
+    last_view_refresh_at: lastRefresh,
   }
 }
 

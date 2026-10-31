@@ -55,6 +55,24 @@ describe('api client', () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the session for a password-confirmation failure', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'invalid_credentials', message: 'Invalid password' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    const onUnauthorized = vi.fn()
+    const client = createApiClient({ getAccessToken: () => 'valid-token', fetcher, onUnauthorized })
+
+    await expect(client.request('/auth/account', { method: 'DELETE', body: { password: 'wrong' }, preserveSessionOnInvalidCredentials: true })).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+    fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ code: 'invalid_token', message: 'Session expired' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    await expect(client.request('/auth/account', { method: 'DELETE', body: { password: 'wrong' }, preserveSessionOnInvalidCredentials: true })).rejects.toMatchObject({ code: 'invalid_token' })
+    expect(onUnauthorized).toHaveBeenCalledOnce()
+  })
+
   it('keeps a newer session when an older request returns 401', async () => {
     let resolveRequest!: (response: Response) => void
     const fetcher = vi.fn().mockReturnValue(new Promise<Response>((resolve) => { resolveRequest = resolve }))
