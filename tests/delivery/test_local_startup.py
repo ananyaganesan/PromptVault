@@ -92,12 +92,14 @@ def test_prometheus_command_uses_fixed_loopback_port_and_separate_storage(
     ]
 
 
-def test_normal_startup_refuses_busy_prometheus_port() -> None:
+def test_normal_startup_refuses_busy_prometheus_port(monkeypatch) -> None:
     with socket.socket() as listener:
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind(("127.0.0.1", 9090))
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+        monkeypatch.setattr(startup, "PROMETHEUS_PORT", port)
 
-        with pytest.raises(RuntimeError, match="Port 9090.*will not switch ports"):
+        with pytest.raises(RuntimeError, match=rf"Port {port}.*will not switch ports"):
             startup.require_free_port(startup.PROMETHEUS_PORT)
 
 
