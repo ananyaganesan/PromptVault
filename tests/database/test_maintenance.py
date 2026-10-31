@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,12 +11,19 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.mark.database
 def test_materialized_views_can_be_refreshed_after_migration(database_url: str) -> None:
-    refresh_sql = (
-        REPOSITORY_ROOT / "db" / "maintenance" / "refresh-views.sql"
-    ).read_text(encoding="utf-8")
+    subprocess.run(
+        [
+            sys.executable,
+            str(REPOSITORY_ROOT / "scripts" / "refresh-views.py"),
+            "--database-url",
+            database_url,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
     with psycopg.connect(database_url, autocommit=True) as connection:
-        connection.execute(refresh_sql)
         rows = connection.execute(
             """
             SELECT matviewname, ispopulated

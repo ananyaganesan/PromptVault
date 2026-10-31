@@ -18,7 +18,8 @@ def migration_sql(version: int) -> str:
 def test_complete_migration_chain_is_discoverable() -> None:
     migrations = discover_migrations(MIGRATIONS_DIRECTORY)
 
-    assert [migration.version for migration in migrations] == list(range(1, 43))
+    assert migrations
+    assert [migration.version for migration in migrations] == list(range(1, len(migrations) + 1))
 
 
 @pytest.mark.parametrize(

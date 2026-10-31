@@ -80,7 +80,7 @@ def test_normalization_preserves_existing_graph_and_keeps_guarded_deletion_atomi
     assert [
         m.version
         for m in migrate_database(temporary_database_url, ROOT / "db/migrations")
-    ] == [30, 31]
+    ] == [migration.version for migration in migrations if migration.version >= 30]
     with psycopg.connect(temporary_database_url) as c:
         assert c.execute(
             "SELECT parent_version_id,variables FROM version_context WHERE id=%s",

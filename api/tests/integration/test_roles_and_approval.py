@@ -15,6 +15,8 @@ from api.app.main import create_app
 from api.app.security import hash_one_time_token
 from fastapi.testclient import TestClient
 from tests.auth_support import create_verified_test_user
+from tests.provider_support import seed_gemini_test_credential
+from tests.release_support import validated_deployment
 
 
 @pytest.mark.database
@@ -251,7 +253,9 @@ def test_admin_reviews_deployment_without_system_access(
             },
         )
         assert prompt.status_code == 201, prompt.text
-        deployment = client.post(
+        seed_gemini_test_credential(settings)
+        deployment = validated_deployment(
+            client,
             "/api/v1/deployments",
             headers=root,
             json={"version_id": prompt.json()["latest_version"]["id"], "environment": "prod"},
@@ -329,7 +333,9 @@ def test_admin_can_roll_back_without_project_membership(test_settings, seeded_da
             },
         )
         assert second.status_code == 201
-        request = client.post(
+        seed_gemini_test_credential(settings)
+        request = validated_deployment(
+            client,
             "/api/v1/deployments",
             headers=root,
             json={"version_id": second.json()["id"], "environment": "prod"},

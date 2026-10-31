@@ -8,13 +8,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.app.config import Settings
-from api.app.db.commands import seed_database
 from api.app.db.migrations import (
     apply_migrations,
     discover_migrations,
     migrate_database,
 )
 from api.app.main import create_app
+from api.app.security import hash_password
 from tests.database.test_migration_upgrade import temporary_database_url
 
 __all__ = ["temporary_database_url"]
@@ -27,11 +27,14 @@ def test_gemini_upgrade_preserves_history_and_rejects_removed_provider_writes(
 ) -> None:
     migrations = discover_migrations(ROOT / "db/migrations")
     with psycopg.connect(temporary_database_url) as c:
-        apply_migrations(c, migrations[:30])
-    seed_database(temporary_database_url, ROOT / "db/seeds")
+        apply_migrations(c, [migration for migration in migrations if migration.version <= 30])
     with psycopg.connect(temporary_database_url) as c:
+        # Reproduce a v030 account; current demo seeds require later role and approval DDL.
         admin = c.execute(
-            "SELECT id FROM users WHERE email='admin@promptvault.dev'"
+            "INSERT INTO users(email,display_name,password_hash,role,email_verified_at) "
+            "VALUES('admin@promptvault.dev','Legacy Admin',%s,'admin',CURRENT_TIMESTAMP) "
+            "RETURNING id",
+            (hash_password("AdminDemo2026!"),),
         ).fetchone()[0]
         pid = c.execute(
             "INSERT INTO projects(name,key,owner_id) VALUES('Legacy',%s,%s) RETURNING id",
@@ -52,8 +55,12 @@ def test_gemini_upgrade_preserves_history_and_rejects_removed_provider_writes(
     assert [
         m.version
         for m in migrate_database(temporary_database_url, ROOT / "db/migrations")
-    ] == [31]
+    ] == [migration.version for migration in migrations if migration.version > 30]
     with psycopg.connect(temporary_database_url) as c:
+        assert c.execute(
+            "SELECT role,is_approved,email_verified_at IS NOT NULL FROM users WHERE id=%s",
+            (admin,),
+        ).fetchone() == ("super_admin", True, True)
         assert (
             c.execute(
                 "SELECT model_config FROM version_context WHERE id=%s", (version,)
