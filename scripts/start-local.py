@@ -1,4 +1,4 @@
-"""Start the local app on fixed ports using the existing pgAdmin PostgreSQL server."""
+"""Start the local app on fixed ports using the persistent Supabase database."""
 
 import argparse
 import os
@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import psycopg
 from dotenv import load_dotenv
@@ -21,14 +21,28 @@ from api.app.db.migrations import migrate_database
 
 API_PORT = 8000
 WEB_PORT = 5173
+SUPABASE_PROJECT_REF = 'ehnufhcdgxllubnpjfuc'
+SUPABASE_POOLER_HOST = 'aws-0-eu-west-1.pooler.supabase.com'
+SUPABASE_POOLER_PORT = 5432
+SUPABASE_DATABASE = 'postgres'
+SUPABASE_USERNAME = f'postgres.{SUPABASE_PROJECT_REF}'
 
 
 def validate_database_url(url: str) -> None:
     parts = urlsplit(url)
-    if parts.hostname not in {'localhost', '127.0.0.1', '::1'} or (parts.port or 5432) != 5432:
-        raise ValueError('Normal local startup requires PostgreSQL on localhost:5432')
-    if parts.path != '/promptvault':
-        raise ValueError('Normal local startup requires the persistent promptvault database')
+    ssl_modes = parse_qs(parts.query).get('sslmode', [])
+    if (
+        parts.scheme != 'postgresql'
+        or parts.hostname != SUPABASE_POOLER_HOST
+        or parts.port != SUPABASE_POOLER_PORT
+        or parts.username != SUPABASE_USERNAME
+        or parts.path != f'/{SUPABASE_DATABASE}'
+        or ssl_modes != ['require']
+    ):
+        raise ValueError(
+            'Normal local startup requires the approved Supabase session pooler '
+            'on port 5432 with sslmode=require'
+        )
 
 
 def require_free_port(port: int) -> None:
@@ -52,11 +66,11 @@ def main() -> int:
         raise ValueError('Normal local startup requires ENVIRONMENT=development')
     with psycopg.connect(settings.database_url, connect_timeout=5) as connection:
         database, port = connection.execute('SELECT current_database(),inet_server_port()').fetchone()
-        if port != 5432:
+        if port != SUPABASE_POOLER_PORT:
             raise ValueError('Connected PostgreSQL server must use port 5432')
-        if database != 'promptvault':
-            raise ValueError('Connected database must be promptvault')
-    print(f'PostgreSQL: localhost:5432 / {database}', flush=True)
+        if database != SUPABASE_DATABASE:
+            raise ValueError('Connected database must be postgres')
+    print(f'PostgreSQL: Supabase session pooler / {database}', flush=True)
     if args.check:
         return 0
     for port in (API_PORT, WEB_PORT):

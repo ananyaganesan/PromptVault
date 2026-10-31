@@ -13,6 +13,15 @@ SPEC = importlib.util.spec_from_file_location(
 startup = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(startup)
 
+SUPABASE_SESSION_URL = (
+    "postgresql://postgres.ehnufhcdgxllubnpjfuc:password@"
+    "aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require"
+)
+
+
+def test_normal_startup_accepts_approved_supabase_session_pooler() -> None:
+    startup.validate_database_url(SUPABASE_SESSION_URL)
+
 
 @pytest.mark.parametrize(
     "url",
@@ -21,6 +30,26 @@ SPEC.loader.exec_module(startup)
         "postgresql://user:pass@localhost:5432/promptvault_test",
         "postgresql://user:pass@localhost:5432/another_database",
         "postgresql://user:pass@example.com:5432/promptvault",
+        (
+            "postgresql://postgres.ehnufhcdgxllubnpjfuc:password@"
+            "aws-0-eu-west-1.pooler.supabase.com:6543/postgres?sslmode=require"
+        ),
+        (
+            "postgresql://postgres.otherproject:password@"
+            "aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require"
+        ),
+        (
+            "postgresql://postgres.ehnufhcdgxllubnpjfuc:password@"
+            "aws-0-eu-west-1.pooler.supabase.com:5432/postgres"
+        ),
+        (
+            "postgresql://postgres:password@"
+            "aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require"
+        ),
+        (
+            "postgresql://postgres.ehnufhcdgxllubnpjfuc:password@"
+            "aws-0-eu-west-1.pooler.supabase.com:5432/promptvault?sslmode=require"
+        ),
     ],
 )
 def test_normal_startup_rejects_alternate_database_targets(url: str) -> None:

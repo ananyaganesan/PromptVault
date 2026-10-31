@@ -32,11 +32,13 @@ the account already exists. Preserve existing authentication, session revocation
 and password-reset behavior, and validate every flow locally with isolated test
 databases and loopback SMTP capture.
 
-# Stable local database connection
+# Stable Supabase database connection
 
-Normal local app startup must reuse the existing PostgreSQL server on
-localhost:5432, matching pgAdmin, with the persistent `promptvault` database from
-the root `.env`. Use `.venv/bin/python scripts/start-local.py` (web 5173, API 8000).
-Never move the normal app to a randomly chosen database port or disposable test
-database. Keep test/simulator databases explicitly separate. Preserve existing
-data and migration checksum checks; do not reset or overwrite accounts at startup.
+Normal local app startup must use the Supabase session pooler for project
+`ehnufhcdgxllubnpjfuc` at
+`aws-0-eu-west-1.pooler.supabase.com:5432/postgres`, configured in the root `.env`
+with `sslmode=require`. Use `.venv/bin/python scripts/start-local.py` (web 5173,
+API 8000). Do not use the transaction pooler on port 6543, another Supabase
+project, a randomly chosen database port, or a disposable test database for normal
+startup. Keep test/simulator databases explicitly separate. Preserve existing data
+and migration checksum checks; do not reset or overwrite accounts at startup.
